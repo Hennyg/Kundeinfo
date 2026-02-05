@@ -1,13 +1,15 @@
-const { dvFetch } = require("../_dataverse");
+// /api/questions-delete/index.js
+const { dvFetch } = require('../_dataverse');
 
 module.exports = async function (context, req) {
   try {
-    const id = (req.query.id || req.body?.id || "").trim();
-    if (!id) return context.res = { status: 400, body: { error: "id is required" } };
+    const { id } = req.query;
+    if (!id) return (context.res = { status: 400, body: 'Missing id' });
 
-    await dvFetch(`/crcc8_lch_question(${id})`, { method: "DELETE" });
+    await dvFetch(`crcc8_lch_questions(${id})`, { method: 'DELETE' });
     context.res = { status: 204 };
   } catch (err) {
-    context.res = { status: 500, body: { error: err.message } };
+    context.log.error(err);
+    context.res = { status: 500, body: err.message };
   }
 };
