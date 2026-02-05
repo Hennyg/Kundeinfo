@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8" />
+  <title>Admin – Spørgsmål</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="/assets/style.css" rel="stylesheet" />
+  <style>
+    .container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+    header { display:flex; justify-content: space-between; align-items:center; gap:16px; }
+    .card { border:1px solid #ddd; border-radius:8px; padding:16px; margin:16px 0; background:#fff; }
+    form .row { display:grid; grid-template-columns: 1fr 2fr; gap:10px; margin-bottom:10px; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { border-bottom:1px solid #eee; padding:8px; text-align:left; }
+    .actions button { margin-right:8px; }
+    .muted { color:#666; }
+    .hidden { display:none; }
+    .tag { background:#eef; padding:2px 8px; border-radius:12px; font-size:12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Admin · LCH Questions</h1>
+      <div id="authArea">
+        <span id="userInfo" class="muted"></span>
+        <a id="btnLogin" class="tag" href="/.auth/login/aad?post_login_redirect_uri=/adminedit.html">Log ind</a>
+        <a id="btnLogout" class="tag hidden" href="/.auth/logout?post_logout_redirect_uri=/">Log ud</a>
+      </div>
+    </header>
+
+    <section class="card">
+      <h2>Opret/ret spørgsmål</h2>
+      <form id="questionForm">
+        <input type="hidden" id="qid" />
+        <div class="row">
+          <label for="qnumber">Nummer (vis navn)</label>
+          <input id="qnumber" name="qnumber" placeholder="fx Q001" required />
+        </div>
+        <div class="row">
+          <label for="qtext">Spørgsmål (tekst)</label>
+          <textarea id="qtext" name="qtext" rows="3" required></textarea>
+        </div>
+        <div class="row">
+          <label for="qexplanation">Forklaring (valgfri)</label>
+          <input id="qexplanation" name="qexplanation" />
+        </div>
+        <div class="row">
+          <label for="qgroup">Gruppe</label>
+          <select id="qgroup" name="qgroup"></select>
+        </div>
+        <div class="row">
+          <label for="qanswertype">Svar-type</label>
+          <select id="qanswertype" name="qanswertype"></select>
+        </div>
+        <div class="row">
+          <label for="qrequired">Påkrævet?</label>
+          <input id="qrequired" name="qrequired" type="checkbox" />
+        </div>
+        <details style="margin:10px 0;">
+          <summary>Betingelser (valgfrit)</summary>
+          <div class="row">
+            <label for="qconditionalon">Betinget af (spm‑ID)</label>
+            <input id="qconditionalon" name="qconditionalon" placeholder="GUID for andet spørgsmål" />
+          </div>
+          <div class="row">
+            <label for="qconditionalvalue">Betingelsesværdi</label>
+            <input id="qconditionalvalue" name="qconditionalvalue" placeholder="fx 'Ja' eller '1' afhængig af svartype" />
+          </div>
+        </details>
+        <div>
+          <button type="submit" id="btnSave">Gem</button>
+          <button type="button" id="btnReset">Nulstil</button>
+        </div>
+        <div id="formStatus" class="muted" style="margin-top:8px;"></div>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Eksisterende spørgsmål</h2>
+      <div class="muted" id="listStatus">Indlæser…</div>
+      <table id="qtable">
+        <thead>
+          <tr>
+            <th>Nummer</th>
+            <th>Tekst</th>
+            <th>Gruppe</th>
+            <th>Svar-type</th>
+            <th>Påkrævet</th>
+            <th style="width:180px;">Handling</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>Klar‑til‑senere: Spørgeskema</h2>
+      <p class="muted">
+        Vi vil her kunne <em>generere en survey‑instans</em> (tabellen <code>lch_surveyinstance</code>) med et token og
+        tilføje valgte spørgsmål som <code>lch_surveyitem</code>, så kunder kan besvare via et link uden login.
+      </p>
+      <button id="btnCreateSurvey" disabled>Opret survey‑instans (kommer snart)</button>
+    </section>
+  </div>
+
+  <script src="/assets/adminedit.js" type="module"></script>
+</body>
+</html>
+``
