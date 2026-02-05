@@ -7,12 +7,12 @@ module.exports = async function (context, req) {
 
     // Opret post-body med jeres felter
     const payload = {
-      cr6da_text: text,
-      cr6da_required: !!required
+      crcc8_lch_text: text,
+      crcc8_lch_isrequired: !!required
     };
 
     // Returnér den oprettede række
-    const created = await dvFetch(`/cr6da_questions`, {
+    const created = await dvFetch(`/crcc8_lch_question`, {
       method: "POST",
       headers: { "Prefer": "return=representation" },
       body: JSON.stringify(payload)
