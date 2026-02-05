@@ -6,11 +6,11 @@ module.exports = async function (context, req) {
     if (!id) return context.res = { status: 400, body: { error: "id is required" } };
 
     const update = {};
-    if (typeof text === "string") update.cr6da_text = text;
-    if (typeof required === "boolean") update.cr6da_required = required;
+    if (typeof text === "string") update.crcc8_lch_text = text;
+    if (typeof required === "boolean") update.crcc8_lch_isrequired = required;
 
     // PATCH på entitetens set-navn + (GUID)
-    await dvFetch(`/cr6da_questions(${id})`, {
+    await dvFetch(`/crcc8_lch_question(${id})`, {
       method: "PATCH",
       headers: { "If-Match": "*" }, // eller med etag for concurrency
       body: JSON.stringify(update)
