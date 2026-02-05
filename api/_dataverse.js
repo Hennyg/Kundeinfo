@@ -1,54 +1,43 @@
-// _dataverse.js
-const fetch = require("node-fetch"); // i Functions v4 kan du bruge global fetch, men node-fetch er fint
-const qs = require("querystring");
+// /api/_dataverse.js
+const API_VER = process.env.DV_API_VER || 'v9.2';
+const TENANT = process.env.DV_TENANT_ID;
+const CLIENT_ID = process.env.DV_CLIENT_ID;
+const CLIENT_SECRET = process.env.DV_CLIENT_SECRET;
+const RESOURCE = process.env.DV_RESOURCE_URL; // fx https://org.crm4.dynamics.com
 
-const tenantId = process.env.DV_TENANT_ID;
-const clientId = process.env.DV_CLIENT_ID;
-const clientSecret = process.env.DV_CLIENT_SECRET;
-const resourceUrl = process.env.DV_RESOURCE_URL; // fx https://orgxxxx.crm4.dynamics.com
-const apiVersion = process.env.DV_API_VER || "v9.2";
-
-// OAuth2 client credentials flow til Dataverse: scope = <org>/.default
 async function getToken() {
-  const url = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
-  const body = qs.stringify({
-    client_id: clientId,
-    client_secret: clientSecret,
-    scope: `${resourceUrl}/.default`,
-    grant_type: "client_credentials"
+  const url = `https://login.microsoftonline.com/${TENANT}/oauth2/v2.0/token`;
+  const body = new URLSearchParams({
+    client_id: CLIENT_ID,
+    client_secret: CLIENT_SECRET,
+    grant_type: 'client_credentials',
+    scope: `${RESOURCE}/.default`
   });
   const r = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type":"application/x-www-form-urlencoded" },
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body
   });
-  if (!r.ok) throw new Error(`Token error ${r.status}: ${await r.text()}`);
-  const j = await r.json();
-  return j.access_token;
+  if (!r.ok) throw new Error(`AAD token error: ${r.status} ${await r.text()}`);
+  return r.json();
 }
 
-async function dvFetch(path, options = {}) {
-  const token = await getToken();
-  const url = `${resourceUrl}/api/data/${apiVersion}${path}`;
-  const r = await fetch(url, {
-    ...options,
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json",
-      "Accept": "application/json",
-      "OData-MaxVersion": "4.0",
-      "OData-Version": "4.0",
-      ...(options.headers || {})
-    }
-  });
+async function dvFetch(path, init = {}) {
+  const { access_token } = await getToken();
+  const url = `${RESOURCE}/api/data/${API_VER}/${path}`;
+  const headers = {
+    Authorization: `Bearer ${access_token}`,
+    Accept: 'application/json',
+    'OData-MaxVersion': '4.0',
+    'OData-Version': '4.0',
+    ...(init.headers || {})
+  };
+  const r = await fetch(url, { ...init, headers });
   if (!r.ok) {
-    const t = await r.text();
-    throw new Error(`Dataverse ${r.status}: ${t}`);
+    const txt = await r.text();
+    throw new Error(`DV ${init.method || 'GET'} ${path}: ${r.status} ${txt}`);
   }
-  // returnér både raw og json når muligt
-  const ct = r.headers.get("content-type") || "";
-  if (ct.includes("application/json")) return await r.json();
-  return await r.text();
+  return r;
 }
 
 module.exports = { dvFetch };
