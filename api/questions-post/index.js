@@ -1,25 +1,36 @@
-const { dvFetch } = require("../_dataverse");
+// /api/questions-post/index.js
+const { dvFetch } = require('../_dataverse');
 
 module.exports = async function (context, req) {
   try {
-    const { text, required } = req.body || {};
-    if (!text) return context.res = { status: 400, body: { error: "text is required" } };
-
-    // Opret post-body med jeres felter
-    const payload = {
-      crcc8_lch_text: text,
-      crcc8_lch_isrequired: !!required
+    const p = req.body || {};
+    // Map til Dataverse felter
+    const body = {
+      crcc8_lch_number: p.number,
+      crcc8_lch_text: p.text,
+      crcc8_lch_explanation: p.explanation ?? null,
+      crcc8_lch_group: p.group,           // Choice -> integer
+      crcc8_lch_answertype: p.answertype, // Choice -> integer
+      crcc8_lch_isrequired: !!p.isrequired
     };
 
-    // Returnér den oprettede række
-    const created = await dvFetch(`/crcc8_lch_question`, {
-      method: "POST",
-      headers: { "Prefer": "return=representation" },
-      body: JSON.stringify(payload)
+    // Optional: lookup til andet spørgsmål
+    if (p.conditionalon) {
+      body['crcc8_lch_conditionalon@odata.bind'] =
+        `/crcc8_lch_questions(${p.conditionalon})`;
+    }
+    if (p.conditionalvalue) body.crcc8_lch_conditionalvalue = p.conditionalvalue;
+
+    const r = await dvFetch('crcc8_lch_questions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
     });
 
-    context.res = { status: 201, body: created };
+    const location = r.headers.get('OData-EntityId');
+    return (context.res = { status: 201, body: { id: location?.match(/\(([^)]+)\)/)?.[1] } });
   } catch (err) {
-    context.res = { status: 500, body: { error: err.message } };
+    context.log.error(err);
+    context.res = { status: 500, body: err.message };
   }
 };
