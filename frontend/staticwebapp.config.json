@@ -1,0 +1,26 @@
+{
+  "routes": [
+    {
+      "route": "/adminedit.html",
+      "allowedRoles": ["authenticated"]
+    },
+    {
+      "route": "/api/*",
+      "allowedRoles": ["authenticated"]
+    },
+    {
+      "route": "/survey/*",
+      "allowedRoles": ["anonymous", "authenticated"]
+    }
+  ],
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/assets/*", "/api/*", "/adminedit.html", "/survey/*"]
+  },
+  "responseOverrides": {
+    "401": { "rewrite": "/.auth/login/aad?post_login_redirect_uri=/adminedit.html" }
+  },
+  "globalHeaders": {
+    "Cache-Control": "no-store"
+  }
+}
