@@ -3,21 +3,35 @@
 <head>
   <meta charset="UTF-8" />
   <title>Kundeinfo</title>
+  <!-- Brug en eksplicit relativ sti fra /frontend/index.html -->
   <link rel="stylesheet" href="./assets/style.css" />
 </head>
 <body>
-  <nav class="topbar">
-    <a class="logo" href="./index.html">Kundeinfo</a>
-    <ul class="menu">
-      <li><a href="#app">Hjem</a></li>
-      <li><a href="./adminedit.html">Admin</a></li>
-    </ul>
-  </nav>
 
-  <div id="app">
-    <div id="loading">Indlæser spørgeskema...</div>
+  <!-- Topbar markup der matcher dine CSS-klasser -->
+  <div class="navbar">
+    <div class="navbar-inner">
+      <div class="brand">Kundeinfo</div>
+      <nav class="nav">
+        <a href="./index.html">Hjem</a>
+        <span class="sep">•</span>
+        <a href="./adminedit.html">Admin</a>
+      </nav>
+    </div>
+  </div>
+  <div class="nav-accent"></div>
+
+  <div class="container">
+    <div class="hero">
+      <h1>Spørgeskema</h1>
+    </div>
+
+    <div id="app">
+      <div id="loading">Indlæser spørgeskema...</div>
+    </div>
   </div>
 
-  <script src="./src/app.js"></script>
+  <!-- VIGTIGT: ES module -->
+  <script type="module" src="./src/app.js"></script>
 </body>
 </html>
