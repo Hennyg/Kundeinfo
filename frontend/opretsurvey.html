@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Opret spørgeskema – LCH</title>
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+  <main style="max-width:1100px;margin:2rem auto;font-family:system-ui;padding:0 1rem">
+    <h1>Opret spørgeskema</h1>
+
+    <div class="panel" style="margin-bottom:1rem">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end">
+        <label>
+          Udløber (valgfri)
+          <input id="expiresAt" type="datetime-local" style="width:100%;padding:.5rem">
+        </label>
+
+        <label>
+          Template version (valgfri)
+          <input id="templateVersion" type="number" min="1" value="1" style="width:100%;padding:.5rem">
+        </label>
+      </div>
+
+      <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+        <button id="reloadBtn" class="btn" type="button">Genindlæs spørgsmål</button>
+        <button id="createBtn" class="btn" type="button">Opret spørgeskema</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Vælg spørgsmål</h2>
+      <div id="loading">Indlæser…</div>
+      <div id="list"></div>
+    </div>
+
+    <div id="result" class="panel" style="display:none;margin-top:1rem">
+      <h2>Link til kunden</h2>
+      <p>Kopiér og send dette link:</p>
+      <input id="linkOut" style="width:100%;padding:.6rem" readonly>
+      <div style="margin-top:.5rem;display:flex;gap:10px;flex-wrap:wrap">
+        <button id="copyBtn" class="btn" type="button">Kopiér</button>
+        <a id="openBtn" class="btn" href="#" target="_blank" rel="noopener">Åbn</a>
+      </div>
+    </div>
+
+    <div id="err" class="panel" style="display:none;margin-top:1rem"></div>
+  </main>
+
+  <script type="module" src="./src/opretsurvey.js"></script>
+</body>
+</html>
