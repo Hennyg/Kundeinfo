@@ -56,4 +56,20 @@ async function handleSubmit(survey) {
 }
 
 init();
-``
+
+const continueBtn = document.getElementById("continueBtn");
+const codeInput = document.getElementById("customerCode");
+
+if (continueBtn) {
+    continueBtn.addEventListener("click", () => {
+        const code = codeInput.value.trim();
+
+        if (code.length !== 6 || isNaN(code)) {
+            alert("Indtast venligst en gyldig 6-cifret kode.");
+            return;
+        }
+
+        // Redirect med token
+        location.href = `index.html?t=${code}`;
+    });
+}
