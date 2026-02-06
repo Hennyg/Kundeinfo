@@ -1,5 +1,5 @@
 import { getSurvey } from "./api.js";
-import { renderQuestion } from "./components/Question.js";
+import { renderQuestion } from "./components/question.js";
 
 const app = document.getElementById("app");
 
