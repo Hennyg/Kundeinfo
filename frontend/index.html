@@ -2,13 +2,13 @@
 <html lang="da">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Kundeinfo</title>
-  <!-- Brug en eksplicit relativ sti fra /frontend/index.html -->
+
   <link rel="stylesheet" href="./assets/style.css" />
 </head>
 <body>
 
-  <!-- Topbar markup der matcher dine CSS-klasser -->
   <div class="navbar">
     <div class="navbar-inner">
       <div class="brand">Kundeinfo</div>
@@ -27,36 +27,40 @@
     </div>
 
     <div id="app">
-      
-<div id="loading" class="panel" style="max-width:600px;margin:2rem auto;">
-    <h2 style="margin-top:0;">Velkommen til Lely Center Herrup</h2>
-    <p>Kundeinfo hjemmesiden</p>
-    <p>Find det 6 cifrede nummer du har fået i din mail eller på sms og indtast herunder</p>
+      <div id="loginPanel" class="panel" style="max-width:600px;margin:2rem auto;">
+        <h2 style="margin-top:0;">Velkommen til Lely Center Herrup</h2>
+        <p>Kundeinfo hjemmesiden</p>
+        <p>Find det 6-cifrede nummer du har fået i din mail eller på sms og indtast herunder</p>
 
-    <!-- Input + knap -->
-    <div style="margin-top:1.5rem;">
-        <input 
-            id="customerCode" 
-            type="text" 
-            maxlength="6" 
+        <div style="margin-top:1.5rem;">
+          <input
+            id="customerCode"
+            type="text"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            maxlength="6"
             placeholder="Indtast 6-cifret kode"
             style="width:100%;padding:.6rem;border-radius:6px;border:1px solid #ccc;font-size:1rem;"
-        >
+          >
 
-        <button 
+          <button
             id="continueBtn"
             class="btn"
             style="margin-top:1rem;width:100%;padding:.7rem;border-radius:8px;font-size:1rem;cursor:pointer;"
-        >
+          >
             Fortsæt
-        </button>
-    </div>
+          </button>
+        </div>
 
-    <p style="margin-top:2rem;">På forhånd tak.</p>
-    <p><strong>Lely Center Herrup</strong></p>
-</div>
+        <div id="loginError" style="display:none;margin-top:1rem;"></div>
 
+        <p style="margin-top:2rem;">På forhånd tak.</p>
+        <p><strong>Lely Center Herrup</strong></p>
+      </div>
     </div>
   </div>
+
+  <!-- kun login-logik her -->
+  <script type="module" src="./src/login.js"></script>
 </body>
 </html>
