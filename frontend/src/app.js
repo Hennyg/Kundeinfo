@@ -1,53 +1,54 @@
-import { getSurvey } from "./api.js";
-import { renderQuestion } from "./components/question.js";
+import { getSurvey, saveSurvey } from "./api.js";
+import { renderQuestion, readAnswerValue } from "./components/question.js";
+import { wireConditionalLogic } from "./utils/conditional.js";
 
 const app = document.getElementById("app");
 
 async function init() {
   try {
     const token = new URLSearchParams(location.search).get("t");
+    if (!token) throw new Error("Mangler token i linket.");
 
     const survey = await getSurvey(token);
 
     const loading = document.getElementById("loading");
     if (loading) loading.style.display = "none";
 
-    // Render alle spørgsmål
-    survey.items.forEach(item => {
-      const q = renderQuestion(item);
-      app.appendChild(q);
-    });
+    // render spørgsmål (sortér hvis backend ikke sorterer)
+    const items = [...(survey.items || [])]
+      .sort((a, b) => Number(a.sortorder ?? 0) - Number(b.sortorder ?? 0));
 
-    // Send knap
+    for (const item of items) {
+      const qEl = renderQuestion(item);
+      app.appendChild(qEl);
+    }
+
+    // conditional show/hide
+    wireConditionalLogic(items);
+
     const sendBtn = document.createElement("button");
-    sendBtn.className = "btn"; // matcher din CSS
+    sendBtn.className = "btn";
     sendBtn.innerText = "Send besvarelse";
-    sendBtn.onclick = () => handleSubmit(survey);
+    sendBtn.onclick = () => handleSubmit(survey, items);
     app.appendChild(sendBtn);
+
   } catch (err) {
     console.error(err);
-    app.innerHTML = `<div class="panel">Der opstod en fejl ved indlæsning af spørgeskemaet.</div>`;
+    app.innerHTML = `<div class="panel">Der opstod en fejl: ${escapeHtml(err?.message || String(err))}</div>`;
   }
 }
 
-async function handleSubmit(survey) {
-  const values = {};
+async function handleSubmit(survey, items) {
+  const answers = {};
 
-  survey.items.forEach(item => {
-    const el = document.querySelector(`#q_${item.question.id}`);
-    values[item.question.id] = el ? el.value : null;
-  });
+  for (const item of items) {
+    const q = item.question;
+    const el = document.querySelector(`#q_${q.id}`);
+    answers[q.id] = readAnswerValue(q, el);
+  }
 
-  const res = await fetch("/api/SaveSurvey", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      token: survey.token,
-      answers: values
-    })
-  });
-
-  if (!res.ok) {
+  const ok = await saveSurvey({ token: survey.token, answers });
+  if (!ok) {
     alert("Kunne ikke sende svarene. Prøv igen.");
     return;
   }
@@ -55,21 +56,10 @@ async function handleSubmit(survey) {
   alert("Tak! Svarene er sendt.");
 }
 
-init();
-
-const continueBtn = document.getElementById("continueBtn");
-const codeInput = document.getElementById("customerCode");
-
-if (continueBtn) {
-    continueBtn.addEventListener("click", () => {
-        const code = codeInput.value.trim();
-
-        if (code.length !== 6 || isNaN(code)) {
-            alert("Indtast venligst en gyldig 6-cifret kode.");
-            return;
-        }
-
-        // Redirect med token
-        location.href = `index.html?t=${code}`;
-    });
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  }[c]));
 }
+
+init();
