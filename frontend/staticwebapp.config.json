@@ -1,27 +1,22 @@
 {
   "routes": [
-    {
-      "route": "/adminedit.html",
-      "allowedRoles": ["authenticated"]
-    },
-    {
-      "route": "/api/*",
-      "allowedRoles": ["authenticated"]
-    },
-    {
-      "route": "/survey/*",
-      "allowedRoles": ["anonymous", "authenticated"]
-    }
+    { "route": "/admin.html", "allowedRoles": ["authenticated"] },
+    { "route": "/adminedit.html", "allowedRoles": ["authenticated"] },
+    { "route": "/adminsurvey.html", "allowedRoles": ["authenticated"] },
+
+    { "route": "/api/*", "allowedRoles": ["authenticated"] },
+    { "route": "/survey/*", "allowedRoles": ["anonymous", "authenticated"] }
   ],
-  "responseOverrides": {
-    "401": {
-      "redirect": "/.auth/login/aad?post_login_redirect_uri=/adminedit.html",
-      "statusCode": 302
-    }
-  },
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/assets/*", "/api/*", "/adminedit.html", "/survey/*"]
+    "exclude": [
+      "/assets/*",
+      "/api/*",
+      "/admin.html",
+      "/adminedit.html",
+      "/adminsurvey.html",
+      "/survey/*"
+    ]
   },
   "globalHeaders": {
     "Cache-Control": "no-store"
