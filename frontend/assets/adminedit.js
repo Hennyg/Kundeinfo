@@ -30,17 +30,17 @@ async function getMe() {
   } catch { return null; }
 }
 
-function setAuthUI(me) {
-  if (me) {
-    els.me.textContent = `${me.userDetails}`;
-    els.login.classList.add('hidden');
-    els.logout.classList.remove('hidden');
-  } else {
-    els.me.textContent = 'Ikke logget ind';
-    els.login.classList.remove('hidden');
-    els.logout.classList.add('hidden');
-  }
+function setAuthUI(isAuthed, userLabel) {
+  const userInfo = document.getElementById("userInfo");
+  const btnLogin = document.getElementById("btnLogin");
+  const btnLogout = document.getElementById("btnLogout");
+
+  if (userInfo) userInfo.textContent = userLabel || "";
+
+  if (btnLogin) btnLogin.classList.toggle("hidden", isAuthed);
+  if (btnLogout) btnLogout.classList.toggle("hidden", !isAuthed);
 }
+
 
 async function loadOptionSets() {
   // Henter picklist options fra Dataverse via metadata endpoint
