@@ -90,8 +90,10 @@ function renderQuestions(rows) {
     const number = q.crcc8_lch_number ?? "";
     const text = q.crcc8_lch_text ?? "";
 
-    const group = q["crcc8_lch_group@OData.Community.Display.V1.FormattedValue"]
-      ?? q.crcc8_lch_group ?? "";
+const group =
+  q["crcc8_lch_group@OData.Community.Display.V1.FormattedValue"]
+  ?? q.crcc8_lch_group
+  ?? "";
 
     const answertype = q["crcc8_lch_answertype@OData.Community.Display.V1.FormattedValue"]
       ?? q.crcc8_lch_answertype ?? "";
