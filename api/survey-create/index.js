@@ -84,13 +84,14 @@ module.exports = async function (context, req) {
     const token = randomToken();
 
     // 1) Opret surveyinstance
-    const instanceBody = {
-      crcc8_lch_name: `Survey ${code}`,
-      crcc8_lch_code: code,
-      crcc8_lch_token: token,
-      crcc8_lch_templateversion: templateVersion
-    };
-    if (expiresAt) instanceBody.crcc8_lch_expiresat = expiresAt;
+const instanceBody = {
+  crcc8_name: `Survey ${code}`,          // var crcc8_lch_name
+  crcc8_lch_code: code,                  // OK (findes)
+  crcc8_token: token,                    // var crcc8_lch_token
+  crcc8_templateversion: templateVersion // var crcc8_lch_templateversion
+};
+
+if (expiresAt) instanceBody.crcc8_expiresat = expiresAt;
     if (note) instanceBody.crcc8_lch_note = note;
 
     const rCreate = await dvFetch('crcc8_lch_surveyinstances', {
