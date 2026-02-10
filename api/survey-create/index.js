@@ -76,6 +76,17 @@ module.exports = async function (context, req) {
     const templateVersion = Number.isFinite(+p.templateVersion) ? +p.templateVersion : 1;
     const note = (p.note ?? null) ? String(p.note).trim() : null;
 
+const origin =
+  req.headers['x-forwarded-host']
+    ? `https://${req.headers['x-forwarded-host']}`
+    : null;
+
+// ret kundeinfo.html hvis din kundeside hedder noget andet
+const link = origin ? `${origin}/kundeinfo.html?code=${encodeURIComponent(code)}` : null;
+
+return json(context, 201, { id: instanceId, code, token, link });
+
+    
     if (questions.length === 0) {
       return json(context, 400, { error: 'missing_questions' });
     }
