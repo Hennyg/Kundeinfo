@@ -160,20 +160,22 @@ async function createSurvey() {
     const templateVersion = parseInt(els.templateVersion?.value || "1", 10) || 1;
     const note = (els.note?.value || "").trim() || null;
 
-    // 🔹 HER er linjen du spørger om
-    const questionItems = getSelectedQuestionItems();
+const questionItems = getSelectedQuestionItems();
+if (!questionItems.length) { setStatus("Vælg mindst ét spørgsmål"); return; }
 
-    if (!questionItems.length) {
-      setStatus("Vælg mindst ét spørgsmål");
-      return;
-    }
+// gammel format som functionen sandsynligvis forventer:
+const questions = questionItems.map(x => x.questionId);
 
-    const payload = {
-      expiresAt,
-      templateVersion,
-      note,
-      questionItems   // 👈 sendes til API
-    };
+const payload = {
+  expiresAt,
+  templateVersion,
+  note,
+
+  // ✅ send begge (så er vi kompatible uanset hvad functionen forventer)
+  questions,
+  questionItems
+};
+
 
     const result = await fetchJson("/api/survey-create", {
       method: "POST",
