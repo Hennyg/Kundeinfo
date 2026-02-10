@@ -5,67 +5,141 @@
   <title>Admin – Kundeinfo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="./assets/style.css" />
+
   <style>
-    /* dine lokale overrides */
+    /* Skjul alt indtil auth-check er færdig */
+    body.auth-pending #app,
+    body.auth-pending #authDenied { display: none; }
+
+    /* Som udgangspunkt: skjul app’en indtil vi siger "auth-ok" */
+    #app { display: none; }
+    body.auth-ok #app { display: block; }
+
+    /* Vis kun denied-skærm når vi siger "auth-denied" */
+    #authDenied { display: none; }
+    body.auth-denied #authDenied { display: block; }
+
+    /* Lidt pæn loading */
+    .center-card { max-width: 520px; margin: 64px auto; }
   </style>
 </head>
 
+<body class="auth-pending">
+  <!-- Navbar (kan godt vises, men hvis du vil skjule ALT inkl navbar, så læg navbar ind i #app) -->
   <div class="navbar">
-  <div class="navbar-inner">
-    <div class="brand">Admin - forside</div>
-    <nav class="nav">
-      <a href="./index.html">Hjem</a>
-      <span class="sep">•</span>
-      <a href="./admin.html">Admin</a>
-    </nav>
+    <div class="navbar-inner">
+      <div class="brand">Admin - forside</div>
+      <nav class="nav">
+        <a href="./index.html">Hjem</a>
+        <span class="sep">•</span>
+        <a href="./admin.html">Admin</a>
+      </nav>
+    </div>
   </div>
-</div>
-<div class="nav-accent"></div>
+  <div class="nav-accent"></div>
 
-<body>
-  <div class="container">
-    <header>
-      <h1>Admin · Kundeinfo</h1>
-      <div id="authArea">
-        <span id="userInfo" class="muted"></span>
-        <a id="btnLogin" class="tag" href="/.auth/login/aad?post_login_redirect_uri=/admin.html">Log ind</a>
-        <a id="btnLogout" class="tag hidden" href="/.auth/logout?post_logout_redirect_uri=/">Log ud</a>
-      </div>
-    </header>
-
-    <section class="card">
-      <p class="muted">
-        Admin-hub til at vedligeholde spørgsmål og oprette spørgeskemaer (survey-instans) med kode + link.
-      </p>
-    </section>
-
-    <div class="grid">
-      <section class="card">
-        <h2>Spørgsmål</h2>
-        <p class="muted">Opret/ret spørgsmål i <code>lch_question</code>.</p>
-        <a class="btn btnlink" href="/adminedit.html">Åbn Admin – Spørgsmål</a>
-      </section>
-
-      <section class="card">
-        <h2>Spørgeskema</h2>
-        <p class="muted">Opret survey-instans i <code>lch_surveyinstance</code> og tilføj spørgsmål som <code>lch_surveyitem</code>.</p>
-        <a class="btn btnlink" href="/adminsurvey.html">Åbn Admin – Spørgeskema</a>
-      </section>
-
-      <section class="card">
-        <h2>Forside</h2>
-        <p class="muted">Gå til kundeindgang (6-cifret kode).</p>
-        <a class="btn btnlink" href="/index.html">Åbn index</a>
-      </section>
-
-      <section class="card">
-        <h2>Besvarelser</h2>
-        <p class="muted">Kommer senere: se besvarelser og status pr. kunde.</p>
-        <button class="btn" disabled>Kommer snart</button>
-      </section>
+  <!-- Loading (vises mens vi tjekker login) -->
+  <div class="container" id="loading">
+    <div class="card center-card">
+      <h2>Indlæser…</h2>
+      <p class="muted">Tjekker loginstatus.</p>
     </div>
   </div>
 
-  <script type="module" src="/assets/adminhub.js"></script>
+  <!-- Ikke logget ind -->
+  <div class="container" id="authDenied">
+    <div class="card center-card">
+      <h2>Log ind kræves</h2>
+      <p class="muted">Du skal logge ind med din arbejds-konto for at åbne Admin.</p>
+      <a class="btn btnlink" href="/.auth/login/aad?post_login_redirect_uri=/admin.html">Log ind</a>
+      <a class="btn" style="margin-left:8px" href="./index.html">Tilbage</a>
+    </div>
+  </div>
+
+  <!-- Hele admin-appen (skjules indtil auth-ok) -->
+  <div id="app">
+    <div class="container">
+      <header>
+        <h1>Admin · Kundeinfo</h1>
+        <div id="authArea">
+          <span id="userInfo" class="muted"></span>
+          <a id="btnLogout" class="tag" href="/.auth/logout?post_logout_redirect_uri=/">Log ud</a>
+        </div>
+      </header>
+
+      <section class="card">
+        <p class="muted">
+          Admin-hub til at vedligeholde spørgsmål og oprette spørgeskemaer (survey-instans) med kode + link.
+        </p>
+      </section>
+
+      <div class="grid">
+        <section class="card">
+          <h2>Spørgsmål</h2>
+          <p class="muted">Opret/ret spørgsmål i <code>lch_question</code>.</p>
+          <a class="btn btnlink" href="./adminedit.html">Åbn Admin – Spørgsmål</a>
+        </section>
+
+        <section class="card">
+          <h2>Spørgeskema</h2>
+          <p class="muted">Opret survey-instans i <code>lch_surveyinstance</code> og tilføj spørgsmål som <code>lch_surveyitem</code>.</p>
+          <a class="btn btnlink" href="./adminsurvey.html">Åbn Admin – Spørgeskema</a>
+        </section>
+
+        <section class="card">
+          <h2>Forside</h2>
+          <p class="muted">Gå til kundeindgang (6-cifret kode).</p>
+          <a class="btn btnlink" href="./index.html">Åbn index</a>
+        </section>
+
+        <section class="card">
+          <h2>Besvarelser</h2>
+          <p class="muted">Kommer senere: se besvarelser og status pr. kunde.</p>
+          <button class="btn" disabled>Kommer snart</button>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    async function checkAuth() {
+      try {
+        // Azure Static Web Apps auth endpoint
+        const res = await fetch("/.auth/me", { cache: "no-store" });
+        const data = await res.json();
+
+        const client = data?.clientPrincipal;
+        const isAuthed = !!client;
+
+        // Fjern loading
+        document.getElementById("loading").style.display = "none";
+
+        if (!isAuthed) {
+          document.body.classList.remove("auth-pending");
+          document.body.classList.add("auth-denied");
+          return;
+        }
+
+        // Udfyld brugerinfo
+        const name = client.userDetails || client.identityProvider || "Logget ind";
+        document.getElementById("userInfo").textContent = name;
+
+        // Vis app
+        document.body.classList.remove("auth-pending");
+        document.body.classList.add("auth-ok");
+
+      } catch (e) {
+        // Hvis noget går galt: behandl som ikke logget ind
+        document.getElementById("loading").style.display = "none";
+        document.body.classList.remove("auth-pending");
+        document.body.classList.add("auth-denied");
+      }
+    }
+
+    checkAuth();
+  </script>
+
+  <!-- Din eksisterende admin JS (kun relevant når app vises) -->
+  <script type="module" src="./assets/adminhub.js"></script>
 </body>
 </html>
