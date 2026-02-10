@@ -92,7 +92,6 @@ const instanceBody = {
 };
 
 if (expiresAt) instanceBody.crcc8_expiresat = expiresAt;
-    if (note) instanceBody.crcc8_lch_note = note;
 
     const rCreate = await dvFetch('crcc8_lch_surveyinstances', {
       method: 'POST',
