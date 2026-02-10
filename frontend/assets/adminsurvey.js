@@ -154,37 +154,42 @@ async function createSurvey() {
   try {
     setStatus("Opretter survey-instans…");
 
-    const payload = buildCreatePayload();
+    const expiresRaw = els.expiresAt?.value || "";
+    const expiresAt = expiresRaw ? new Date(expiresRaw).toISOString() : null;
 
-    if (!payload.questionIds.length) {
-      setStatus("Vælg mindst ét spørgsmål før du opretter.");
+    const templateVersion = parseInt(els.templateVersion?.value || "1", 10) || 1;
+    const note = (els.note?.value || "").trim() || null;
+
+    // 🔹 HER er linjen du spørger om
+    const questionItems = getSelectedQuestionItems();
+
+    if (!questionItems.length) {
+      setStatus("Vælg mindst ét spørgsmål");
       return;
     }
 
-    // ✅ Din function findes: /api/survey-create
+    const payload = {
+      expiresAt,
+      templateVersion,
+      note,
+      questionItems   // 👈 sendes til API
+    };
+
     const result = await fetchJson("/api/survey-create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
 
-    // Vi prøver nogle typiske feltnavne for robusthed
-    const code = result?.code || result?.customerCode || result?.kundeKode || result?.surveyCode;
-    const link = result?.link || result?.url || result?.surveyLink;
-
-    if (!code || !link) {
-      console.warn("Uventet response fra survey-create:", result);
-      setStatus("Oprettet ✔ (men kunne ikke finde code/link i svaret – se console)");
-      return;
-    }
-
-    showResult(code, link);
+    showResult(result.code, result.link);
     setStatus("Oprettet ✔");
+
   } catch (e) {
-    console.error("createSurvey fejl:", e);
+    console.error(e);
     setStatus(`Fejl: ${e.message}`);
   }
 }
+
 
 function wireEvents() {
   if (els.btnReload) els.btnReload.addEventListener("click", loadQuestions);
