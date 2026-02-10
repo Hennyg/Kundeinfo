@@ -25,7 +25,9 @@ function safeIsoOrNull(v) {
 
 async function codeExists(code) {
   const filter = `crcc8_lch_code eq '${code}'`;
-  const r = await dvFetch(`crcc8_lch_surveyinstances?$select=crcc8_lch_surveyinstanceid&$filter=${encodeURIComponent(filter)}&$top=1`);
+  const r = await dvFetch(
+    `crcc8_lch_surveyinstances?$select=crcc8_lch_surveyinstanceid&$filter=${encodeURIComponent(filter)}&$top=1`
+  );
   const data = await r.json();
   return (data?.value || []).length > 0;
 }
@@ -38,18 +40,43 @@ async function generateUniqueCode(maxTries = 30) {
   throw new Error('Kunne ikke generere unik 6-cifret kode. Prøv igen.');
 }
 
+// Normaliser input: accepter både questionItems og questionIds
+function normalizeQuestions(p) {
+  // Ny format: [{ questionId, prefill }]
+  if (Array.isArray(p.questionItems) && p.questionItems.length) {
+    const items = p.questionItems
+      .filter(x => x && x.questionId)
+      .map((x, idx) => ({
+        questionId: String(x.questionId),
+        prefill: (x.prefill ?? null) ? String(x.prefill) : null,
+        sort: Number.isFinite(+x.sort) ? +x.sort : (idx + 1) * 10
+      }));
+    return items;
+  }
+
+  // Gammel format: questionIds: ["guid", ...]
+  const ids = Array.isArray(p.questionIds) ? p.questionIds.filter(Boolean) : [];
+  if (ids.length) {
+    return ids.map((qid, idx) => ({
+      questionId: String(qid),
+      prefill: null,
+      sort: (idx + 1) * 10
+    }));
+  }
+
+  return [];
+}
+
 module.exports = async function (context, req) {
   try {
     const p = req.body || {};
-    const questionIds = Array.isArray(p.questionIds) ? p.questionIds.filter(Boolean) : [];
+
+    const questions = normalizeQuestions(p);
     const expiresAt = safeIsoOrNull(p.expiresAt);
     const templateVersion = Number.isFinite(+p.templateVersion) ? +p.templateVersion : 1;
     const note = (p.note ?? null) ? String(p.note).trim() : null;
 
-    // PREFILL: object { "<questionId>": "value", ... } (valgfri)
-    const prefill = (p.prefill && typeof p.prefill === 'object') ? p.prefill : null;
-
-    if (questionIds.length === 0) {
+    if (questions.length === 0) {
       return json(context, 400, { error: 'missing_questions' });
     }
 
@@ -73,22 +100,24 @@ module.exports = async function (context, req) {
     });
 
     if (!rCreate.ok) {
-      return json(context, rCreate.status, await rCreate.text());
+      return json(context, rCreate.status, { error: 'instance_create_failed', detail: await rCreate.text() });
     }
 
     const location = rCreate.headers.get('OData-EntityId');
     const instanceId = location?.match(/\(([^)]+)\)/)?.[1];
-    if (!instanceId) return json(context, 500, 'Kunne ikke aflæse surveyinstance id');
+    if (!instanceId) return json(context, 500, { error: 'missing_instance_id' });
 
-    // 2) Opret surveyitems
-    for (let i = 0; i < questionIds.length; i++) {
-      const qid = questionIds[i];
+    // 2) Opret surveyitems (med prefill direkte på item)
+    for (let i = 0; i < questions.length; i++) {
+      const { questionId, prefill, sort } = questions[i];
 
       const itemBody = {
-        crcc8_lch_name: `Item ${(i + 1)}`,
-        crcc8_lch_sortorder: String((i + 1) * 10), // <-- HER er den!
+        crcc8_lch_name: `Item ${i + 1}`,
+        crcc8_lch_sortorder: String(sort),               // din sortorder kolonne er tekst
+        crcc8_lch_prefilltext: prefill ?? null,          // ✅ prefill i surveyitem
+        crcc8_lch_answertext: null,                      // start tom
         'crcc8_lch_surveyinstance@odata.bind': `/crcc8_lch_surveyinstances(${instanceId})`,
-        'crcc8_lch_question@odata.bind': `/crcc8_lch_questions(${qid})`
+        'crcc8_lch_question@odata.bind': `/crcc8_lch_questions(${questionId})`
       };
 
       const rItem = await dvFetch('crcc8_lch_surveyitems', {
@@ -98,39 +127,23 @@ module.exports = async function (context, req) {
       });
 
       if (!rItem.ok) {
-        return json(context, rItem.status, `Kunne ikke oprette surveyitem: ${await rItem.text()}`);
-      }
-    }
-
-    // 3) Prefill -> opret svar-rækker (kræver ny tabel crcc8_lch_answers)
-    // Kun hvis du har oprettet lch_answer tabellen.
-    if (prefill) {
-      for (const [questionId, value] of Object.entries(prefill)) {
-        if (!questionId) continue;
-
-        const body = {
-          crcc8_lch_name: `Prefill ${code}`,
-          crcc8_lch_value: value == null ? null : String(value),
-          // evt choice:
-          // crcc8_lch_source: 100000000,
-          'crcc8_lch_surveyinstance@odata.bind': `/crcc8_lch_surveyinstances(${instanceId})`,
-          'crcc8_lch_question@odata.bind': `/crcc8_lch_questions(${questionId})`
-        };
-
-        const rAns = await dvFetch('crcc8_lch_answers', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
+        return json(context, rItem.status, {
+          error: 'item_create_failed',
+          detail: await rItem.text(),
+          questionId
         });
-
-        if (!rAns.ok) {
-          // vi stopper ikke nødvendigvis hele processen, men det er oftest bedst at fejle så admin opdager det
-          return json(context, rAns.status, `Kunne ikke oprette prefill answer: ${await rAns.text()}`);
-        }
       }
     }
 
-    return json(context, 201, { id: instanceId, code, token });
+    // 3) Returnér code + token (+ link hvis du vil)
+    const origin =
+      req.headers['x-forwarded-host']
+        ? `https://${req.headers['x-forwarded-host']}`
+        : null;
+
+    const link = origin ? `${origin}/kundeinfo.html?code=${encodeURIComponent(code)}` : null;
+
+    return json(context, 201, { id: instanceId, code, token, link });
 
   } catch (err) {
     context.log.error(err);
