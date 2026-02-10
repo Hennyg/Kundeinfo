@@ -94,6 +94,13 @@ function renderQuestions(rows) {
       <td>${escapeHtml(String(group))}</td>
       <td>${escapeHtml(String(answertype))}</td>
       <td>${escapeHtml(required)}</td>
+        <!-- NY: forudfyldt tekst pr. spørgsmål -->
+  <td>
+    <input type="text"
+           data-prefill="${escapeHtml(id)}"
+           placeholder="fx nuværende værdi"
+           style="width:100%; padding:.45rem" />
+  </td>
     `;
     els.qbody.appendChild(tr);
   });
