@@ -27,7 +27,7 @@ jobs:
 
           # --- VIGTIGT: disse tre felter ---
           app_location: "frontend"     # din frontend-mappe
-          api_location: "frontend/api"          # <-- peg på din /api mappe
+          api_location: "api"          # <-- peg på din /api mappe
           output_location: ""          # tom, da du ikke har et separat build-output
           # ---------------------------------
   close_pull_request_job:
@@ -41,4 +41,5 @@ jobs:
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_YELLOW_MEADOW_08815F003 }}
           action: "close"
+
 
