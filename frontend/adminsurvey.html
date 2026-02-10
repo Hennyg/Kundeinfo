@@ -4,7 +4,8 @@
   <meta charset="utf-8" />
   <title>Admin – Spørgeskema</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link href="/assets/style.css" rel="stylesheet" />
+  <link href="./assets/style.css" rel="stylesheet" />
+
   <style>
     .container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
     header { display:flex; justify-content: space-between; align-items:center; gap:16px; }
@@ -21,99 +22,132 @@
     .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#f3f3f3; font-size:12px; }
     .btnrow { display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
     input[type="text"], input[type="datetime-local"], input[type="number"] { width:100%; padding:.5rem; }
+
+    /* Auth-guard skærme */
+    .center-card { max-width: 520px; margin: 64px auto; }
   </style>
 </head>
-    <div class="navbar">
-  <div class="navbar-inner">
-    <div class="brand">Admin - Opret spørgeskema</div>
-    <nav class="nav">
-      <a href="./index.html">Hjem</a>
-      <span class="sep">•</span>
-      <a href="./admin.html">Admin</a>
-    </nav>
-  </div>
-</div>
-<div class="nav-accent"></div>
+
 <body>
-  <div class="container">
-    <header>
-      <h1>Admin · Opret spørgeskema</h1>
-      <div id="authArea">
-        <span id="userInfo" class="muted"></span>
-        <a id="btnLogin" class="tag" href="/.auth/login/aad?post_login_redirect_uri=/adminsurvey.html">Log ind</a>
-        <a id="btnLogout" class="tag hidden" href="/.auth/logout?post_logout_redirect_uri=/">Log ud</a>
+
+  <!-- Loading -->
+  <div class="container" id="loading">
+    <div class="card center-card">
+      <h2>Indlæser…</h2>
+      <p class="muted">Tjekker loginstatus.</p>
+    </div>
+  </div>
+
+  <!-- Not authed -->
+  <div class="container" id="authDenied" style="display:none">
+    <div class="card center-card">
+      <h2>Log ind kræves</h2>
+      <p class="muted">Du skal være logget ind for at oprette spørgeskemaer.</p>
+      <a class="btn btnlink" href="/.auth/login/aad">Log ind</a>
+      <a class="btn" style="margin-left:8px" href="./admin.html">Tilbage</a>
+    </div>
+  </div>
+
+  <!-- App (skjult indtil authed) -->
+  <div id="app" style="display:none">
+
+    <div class="navbar">
+      <div class="navbar-inner">
+        <div class="brand">Admin - Opret spørgeskema</div>
+        <nav class="nav">
+          <a href="./index.html">Hjem</a>
+          <span class="sep">•</span>
+          <a href="./admin.html">Admin</a>
+        </nav>
       </div>
-    </header>
+    </div>
+    <div class="nav-accent"></div>
 
-    <section class="card">
-      <div class="grid2">
-        <div>
-          <h2>Indstillinger</h2>
-
-          <div class="row">
-            <label for="expiresAt">Udløber (valgfri)</label>
-            <input id="expiresAt" type="datetime-local" />
-          </div>
-
-          <div class="row">
-            <label for="templateVersion">Template version</label>
-            <input id="templateVersion" type="number" min="1" value="1" />
-          </div>
-
-          <div class="row">
-            <label for="note">Intern note (valgfri)</label>
-            <input id="note" type="text" placeholder="fx 'Februar kampagne – Nord'" />
-          </div>
-
-          <div class="btnrow">
-            <button id="btnReload" type="button">Genindlæs spørgsmål</button>
-            <button id="btnCreate" type="button">Opret survey-instans</button>
-          </div>
-
-          <div id="status" class="muted" style="margin-top:10px;"></div>
+    <div class="container">
+      <header>
+        <h1>Admin · Opret spørgeskema</h1>
+        <div id="authArea">
+          <span id="userInfo" class="muted"></span>
+          <a class="tag" href="/.auth/logout?post_logout_redirect_uri=/">Log ud</a>
         </div>
+      </header>
 
-        <div>
-          <h2>Resultat</h2>
-          <div id="result" class="hidden">
-            <p><span class="pill">Kunde-kode</span> <strong id="codeOut"></strong></p>
+      <section class="card">
+        <div class="grid2">
+          <div>
+            <h2>Indstillinger</h2>
 
-            <p class="muted">Link (kunden kan åbne dette direkte):</p>
-            <input id="linkOut" type="text" readonly />
+            <div class="row">
+              <label for="expiresAt">Udløber (valgfri)</label>
+              <input id="expiresAt" type="datetime-local" />
+            </div>
+
+            <div class="row">
+              <label for="templateVersion">Template version</label>
+              <input id="templateVersion" type="number" min="1" value="1" />
+            </div>
+
+            <div class="row">
+              <label for="note">Intern note (valgfri)</label>
+              <input id="note" type="text" placeholder="fx 'Februar kampagne – Nord'" />
+            </div>
 
             <div class="btnrow">
-              <button id="btnCopy" type="button">Kopiér link</button>
-              <a id="btnOpen" class="tag" href="#" target="_blank" rel="noopener">Åbn link</a>
+              <button id="btnReload" type="button">Genindlæs spørgsmål</button>
+              <button id="btnCreate" type="button">Opret survey-instans</button>
+            </div>
+
+            <div id="status" class="muted" style="margin-top:10px;"></div>
+          </div>
+
+          <div>
+            <h2>Resultat</h2>
+            <div id="result" class="hidden">
+              <p><span class="pill">Kunde-kode</span> <strong id="codeOut"></strong></p>
+              <p class="muted">Link (kunden kan åbne dette direkte):</p>
+              <input id="linkOut" type="text" readonly />
+
+              <div class="btnrow">
+                <button id="btnCopy" type="button">Kopiér link</button>
+                <a id="btnOpen" class="tag" href="#" target="_blank" rel="noopener">Åbn link</a>
+              </div>
+            </div>
+
+            <div id="resultEmpty" class="muted">
+              Opret en survey-instans, så får du kode og link her.
             </div>
           </div>
-
-          <div id="resultEmpty" class="muted">
-            Opret en survey-instans, så får du kode og link her.
-          </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="card">
-      <h2>Vælg spørgsmål</h2>
-      <div id="listStatus" class="muted">Indlæser…</div>
+      <section class="card">
+        <h2>Vælg spørgsmål</h2>
+        <div id="listStatus" class="muted">Indlæser…</div>
 
-      <table>
-        <thead>
-          <tr>
-            <th style="width:40px;">✓</th>
-            <th>Nummer</th>
-            <th>Tekst</th>
-            <th>Gruppe</th>
-            <th>Svar-type</th>
-            <th>Required</th>
-          </tr>
-        </thead>
-        <tbody id="qbody"></tbody>
-      </table>
-    </section>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:40px;">✓</th>
+              <th>Nummer</th>
+              <th>Tekst</th>
+              <th>Gruppe</th>
+              <th>Svar-type</th>
+              <th>Required</th>
+            </tr>
+          </thead>
+          <tbody id="qbody"></tbody>
+        </table>
+      </section>
+    </div>
   </div>
 
-  <script type="module" src="/assets/adminsurvey.js"></script>
+  <!-- Auth-guard (fælles) -->
+  <script type="module">
+    import { requireAuth } from "./assets/auth-guard.js";
+    requireAuth({ autoRedirect: false }); // sæt true hvis du vil auto-sende til login
+  </script>
+
+  <!-- Din eksisterende side-logik -->
+  <script type="module" src="./assets/adminsurvey.js"></script>
 </body>
 </html>
