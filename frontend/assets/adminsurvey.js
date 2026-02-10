@@ -29,6 +29,18 @@ function getEls() {
   };
 }
 
+function getSelectedQuestionItems() {
+  const checked = Array.from(document.querySelectorAll('input[type="checkbox"][data-qid]:checked'));
+  return checked.map(cb => {
+    const qid = cb.dataset.qid;
+    const prefillInput = document.querySelector(`input[data-prefill="${CSS.escape(qid)}"]`);
+    return {
+      questionId: qid,
+      prefill: (prefillInput?.value || "").trim() || null
+    };
+  });
+}
+
 function setStatus(msg) {
   if (els.status) els.status.textContent = msg || "";
 }
