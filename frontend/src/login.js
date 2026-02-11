@@ -5,12 +5,11 @@ const errBox = document.getElementById("loginError");
 function showError(msg) {
   if (!errBox) return;
   errBox.style.display = "block";
-  errBox.className = "panel"; // hvis du vil genbruge din panel styling
+  errBox.className = "panel";
   errBox.innerHTML = msg;
 }
 
 function normalizeCode(s) {
-  // fjern mellemrum og alt der ikke er tal
   return String(s || "").trim().replace(/\s+/g, "").replace(/\D/g, "");
 }
 
@@ -23,20 +22,18 @@ function go() {
   }
 
   // Hvis de 6 cifre ER token:
-  location.href = `kundeinfo.html?t=${encodeURIComponent(code)}`;
+  location.href = `kundesurvey.html?t=${encodeURIComponent(code)}`;
 
   // Hvis de 6 cifre skal valideres og mappes til token via API:
   // startSurveyWithCode(code);
 }
 
-// Enter-tast i feltet
 codeInput?.addEventListener("keydown", (e) => {
   if (e.key === "Enter") go();
 });
 
 continueBtn?.addEventListener("click", go);
 
-// Optional: hvis du vil mappe 6-cifret kode -> token via API
 async function startSurveyWithCode(code) {
   try {
     const res = await fetch(`/api/StartSurvey?code=${encodeURIComponent(code)}`);
@@ -45,7 +42,9 @@ async function startSurveyWithCode(code) {
       return;
     }
     const data = await res.json(); // { token }
-    location.href = `kundeinfo.html?t=${encodeURIComponent(data.token)}`;
+
+    // Her også:
+    location.href = `kundesurvey.html?t=${encodeURIComponent(data.token)}`;
   } catch (e) {
     console.error(e);
     showError("Der opstod en fejl. Prøv igen.");
