@@ -17,7 +17,7 @@ module.exports = async function (context, req) {
     // VIGTIGT: ingen $skip i Dataverse/CRM her
     const url =
       `crcc8_lch_surveyinstances` +
-      `?$select=crcc8_lch_surveyinstanceid,crcc8_lch_code,crcc8_expiresat,crcc8_templateversion,crcc8_status,createdon` +
+      `?$select=crcc8_lch_surveyinstanceid,crcc8_lch_customername,crcc8_lch_code,crcc8_expiresat,crcc8_templateversion,crcc8_status,createdon` +
       `&$orderby=createdon desc` +
       `&$top=${top}`;
 
