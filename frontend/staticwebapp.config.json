@@ -3,6 +3,7 @@
     { "route": "/admin.html",       "allowedRoles": ["authenticated"] },
     { "route": "/adminedit.html",   "allowedRoles": ["authenticated"] },
     { "route": "/adminsurvey.html", "allowedRoles": ["authenticated"] },
+    { "route": "/adminoversigt.html", "allowedRoles": ["authenticated"] },
 
     { "route": "/api/*", "allowedRoles": ["authenticated"] },
 
