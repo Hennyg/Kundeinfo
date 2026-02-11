@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8" />
+  <title>Admin – Survey oversigt</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="./assets/style.css" rel="stylesheet" />
+
+  <style>
+    .container { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
+    header { display:flex; justify-content: space-between; align-items:center; gap:16px; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { border-bottom:1px solid #eee; padding:8px; text-align:left; }
+    th { white-space:nowrap; background:#fafafa; }
+    .muted { color:#666; }
+    .pill { padding:2px 8px; border-radius:999px; font-size:12px; }
+    .pill.active { background:#e6f4ea; color:#137333; }
+    .pill.expired { background:#fdecea; color:#b3261e; }
+    .actions button { margin-right:6px; }
+  </style>
+</head>
+
+<body>
+
+  <!-- Navbar -->
+  <div class="navbar">
+    <div class="navbar-inner">
+      <div class="brand">Admin – Survey oversigt</div>
+      <nav class="nav">
+        <a href="./admin.html">Admin</a>
+        <span class="sep">•</span>
+        <a href="./adminsurvey.html">Opret survey</a>
+        <span class="sep">•</span>
+        <a href="./index.html">Hjem</a>
+      </nav>
+    </div>
+  </div>
+  <div class="nav-accent"></div>
+
+  <div class="container">
+    <header>
+      <h1>Survey oversigt</h1>
+      <div>
+        <span id="userInfo" class="muted"></span>
+        <a class="tag" href="/.auth/logout?post_logout_redirect_uri=/">Log ud</a>
+      </div>
+    </header>
+
+    <div class="card">
+      <div id="status" class="muted">Indlæser surveys…</div>
+
+      <table id="surveyTable" style="display:none">
+        <thead>
+          <tr>
+            <th>Kode</th>
+            <th>Status</th>
+            <th>Udløber</th>
+            <th>Template</th>
+            <th>Oprettet</th>
+            <th>Handling</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Auth guard -->
+  <script type="module">
+    import { requireAuth } from "./assets/auth-guard.js";
+    requireAuth({ autoRedirect: true });
+  </script>
+
+  <!-- Page logic -->
+  <script type="module" src="./assets/adminoversigt.js"></script>
+</body>
+</html>
