@@ -20,7 +20,7 @@ async function loadSurveys() {
   const table = document.getElementById("surveyTable");
   const tbody = table.querySelector("tbody");
 
-  const r = await fetch("/api/survey-list");
+  const r = await fetch("/api/survey-list?top=50");
   if (!r.ok) {
     status.textContent = "Kunne ikke hente surveys";
     return;
