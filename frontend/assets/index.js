@@ -1,7 +1,9 @@
+console.log("index.js loaded");
 const btn = document.getElementById("continueBtn");
 const input = document.getElementById("customerCode");
 
 btn.addEventListener("click", () => {
+    console.log("Redirecting to kundesurvey");
     const code = input.value.trim();
 
     if (code.length !== 6 || isNaN(code)) {
