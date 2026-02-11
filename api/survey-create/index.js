@@ -93,9 +93,11 @@ return json(context, 201, { id: instanceId, code, token, link });
 
     const code = await generateUniqueCode();
     const token = randomToken();
+    const customerName = (p.customerName ?? null) ? String(p.customerName).trim() : null;
 
     // 1) Opret surveyinstance
 const instanceBody = {
+  crcc8_name: customerName ? `${customerName} (${code})` : `Survey ${code}`,
   crcc8_name: `Survey ${code}`,          // var crcc8_lch_name
   crcc8_lch_code: code,                  // OK (findes)
   crcc8_token: token,                    // var crcc8_lch_token
@@ -103,6 +105,7 @@ const instanceBody = {
 };
 
 if (expiresAt) instanceBody.crcc8_expiresat = expiresAt;
+if (customerName) instanceBody.crcc8_lch_customername = customerName;
 
     const rCreate = await dvFetch('crcc8_lch_surveyinstances', {
       method: 'POST',
