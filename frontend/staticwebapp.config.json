@@ -1,11 +1,18 @@
-
 {
   "routes": [
-    { "route": "/admin.html",       "allowedRoles": ["authenticated"] },
-    { "route": "/adminedit.html",   "allowedRoles": ["authenticated"] },
-    { "route": "/adminsurvey.html", "allowedRoles": ["authenticated"] },
-    { "route": "/adminoversigt.html", "allowedRoles": ["authenticated"] },
+    { "route": "/admin.html",          "allowedRoles": ["authenticated"] },
+    { "route": "/adminedit.html",      "allowedRoles": ["authenticated"] },
+    { "route": "/adminsurvey.html",    "allowedRoles": ["authenticated"] },
+    { "route": "/adminoversigt.html",  "allowedRoles": ["authenticated"] },
 
+    // ✅ Kunde-side uden login
+    { "route": "/kundesurvey.html", "allowedRoles": ["anonymous", "authenticated"] },
+
+    // ✅ Kunde-API uden login (skal ligge FØR /api/*)
+    { "route": "/api/survey-start",  "allowedRoles": ["anonymous", "authenticated"] },
+    { "route": "/api/survey-submit", "allowedRoles": ["anonymous", "authenticated"] },
+
+    // Admin/API kræver login
     { "route": "/api/*", "allowedRoles": ["authenticated"] },
 
     { "route": "/survey/*", "allowedRoles": ["anonymous", "authenticated"] }
@@ -30,6 +37,8 @@
       "/admin.html",
       "/adminedit.html",
       "/adminsurvey.html",
+      "/adminoversigt.html",
+      "/kundesurvey.html",
       "/survey/*",
       "/.auth/*"
     ]
