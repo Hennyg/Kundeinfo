@@ -62,13 +62,11 @@ function hideResult() {
   if (els.resultEmpty) els.resultEmpty.classList.remove("hidden");
 }
 
-async function fetchJson(url, opts = {}) {
-  const r = await fetch(url, { cache: "no-store", ...opts });
-  if (!r.ok) {
-    const text = await r.text().catch(() => "");
-    throw new Error(`${r.status} ${r.statusText} – ${text}`.slice(0, 350));
-  }
-  return r.json();
+async function fetchJson(url, opts) {
+  const r = await fetch(url, opts);
+  const t = await r.text(); // <-- vigtig
+  if (!r.ok) throw new Error(`${r.status} ${t}`);
+  return t ? JSON.parse(t) : null;
 }
 
 function escapeHtml(s) {
