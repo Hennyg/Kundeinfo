@@ -70,42 +70,40 @@ function normalizeQuestions(p) {
 module.exports = async function (context, req) {
   try {
     const p = req.body || {};
+    context.log("survey-create payload:", JSON.stringify(p));
 
-    const questions = normalizeQuestions(p);
+    const questionItems = Array.isArray(p.questionItems) ? p.questionItems : [];
+    const questionIds = questionItems.map(x => x?.id).filter(Boolean);
+
     const expiresAt = safeIsoOrNull(p.expiresAt);
     const templateVersion = Number.isFinite(+p.templateVersion) ? +p.templateVersion : 1;
-    const note = (p.note ?? null) ? String(p.note).trim() : null;
 
-const origin =
-  req.headers['x-forwarded-host']
-    ? `https://${req.headers['x-forwarded-host']}`
-    : null;
+    // Kundenavn (valgfri)
+    const customerName = (p.customerName ?? null) ? String(p.customerName).trim() : null;
 
-// ret kundeinfo.html hvis din kundeside hedder noget andet
-const link = origin ? `${origin}/kundeinfo.html?code=${encodeURIComponent(code)}` : null;
+    // PREFILL map { "<questionId>": "text", ... }
+    const prefill = (p.prefill && typeof p.prefill === 'object') ? p.prefill : null;
 
-return json(context, 201, { id: instanceId, code, token, link });
-
-    
-    if (questions.length === 0) {
-      return json(context, 400, { error: 'missing_questions' });
+    if (questionIds.length === 0) {
+      return json(context, 400, { error: "missing_questions" });
     }
 
     const code = await generateUniqueCode();
     const token = randomToken();
-    const customerName = (p.customerName ?? null) ? String(p.customerName).trim() : null;
 
-    // 1) Opret surveyinstance
-const instanceBody = {
-  crcc8_name: customerName ? `${customerName} (${code})` : `Survey ${code}`,
-  crcc8_name: `Survey ${code}`,          // var crcc8_lch_name
-  crcc8_lch_code: code,                  // OK (findes)
-  crcc8_token: token,                    // var crcc8_lch_token
-  crcc8_templateversion: templateVersion // var crcc8_lch_templateversion
-};
+    // ✅ RET logical names (fra dit surveyinstance screenshot)
+    const instanceBody = {
+      crcc8_name: customerName ? `${customerName} (${code})` : `Survey ${code}`,
+      crcc8_lch_code: code,
+      crcc8_token: token,
+      crcc8_templateversion: templateVersion
+    };
+    if (expiresAt) instanceBody.crcc8_expiresat = expiresAt;
 
-if (expiresAt) instanceBody.crcc8_expiresat = expiresAt;
-if (customerName) instanceBody.crcc8_lch_customername = customerName;
+    // OBS: kun hvis du har oprettet feltet på surveyinstance og ved logical name
+    // if (customerName) instanceBody.crcc8_lch_customername = customerName;
+
+    context.log("instanceBody:", JSON.stringify(instanceBody));
 
     const rCreate = await dvFetch('crcc8_lch_surveyinstances', {
       method: 'POST',
@@ -113,26 +111,33 @@ if (customerName) instanceBody.crcc8_lch_customername = customerName;
       body: JSON.stringify(instanceBody)
     });
 
+    const createText = await rCreate.text();
     if (!rCreate.ok) {
-      return json(context, rCreate.status, { error: 'instance_create_failed', detail: await rCreate.text() });
+      context.log("DV create surveyinstance failed:", rCreate.status, createText);
+      return json(context, 500, { error: "dv_create_instance_failed", status: rCreate.status, detail: createText });
     }
 
     const location = rCreate.headers.get('OData-EntityId');
     const instanceId = location?.match(/\(([^)]+)\)/)?.[1];
-    if (!instanceId) return json(context, 500, { error: 'missing_instance_id' });
+    if (!instanceId) return json(context, 500, { error: "missing_instance_id", detail: location });
 
-    // 2) Opret surveyitems (med prefill direkte på item)
-    for (let i = 0; i < questions.length; i++) {
-      const { questionId, prefill, sort } = questions[i];
+    // 2) Opret items (inkl. prefilltext hvis sendt)
+    for (let i = 0; i < questionItems.length; i++) {
+      const qi = questionItems[i];
+      const qid = qi?.id;
+      if (!qid) continue;
 
       const itemBody = {
-        crcc8_lch_name: `Item ${i + 1}`,
-        crcc8_lch_sortorder: String(sort),               // din sortorder kolonne er tekst
-        crcc8_lch_prefilltext: prefill ?? null,          // ✅ prefill i surveyitem
-        crcc8_lch_answertext: null,                      // start tom
+        crcc8_name: `Item ${(i + 1)}`,
+        crcc8_lch_sortorder: String((i + 1) * 10),
         'crcc8_lch_surveyinstance@odata.bind': `/crcc8_lch_surveyinstances(${instanceId})`,
-        'crcc8_lch_question@odata.bind': `/crcc8_lch_questions(${questionId})`
+        'crcc8_lch_question@odata.bind': `/crcc8_lch_questions(${qid})`
       };
+
+      // prefill tekst på item (fra din surveyitem tabel: crcc8_lch_prefilltext)
+      if (qi.prefillText != null && String(qi.prefillText).trim() !== "") {
+        itemBody.crcc8_lch_prefilltext = String(qi.prefillText);
+      }
 
       const rItem = await dvFetch('crcc8_lch_surveyitems', {
         method: 'POST',
@@ -140,27 +145,21 @@ if (customerName) instanceBody.crcc8_lch_customername = customerName;
         body: JSON.stringify(itemBody)
       });
 
+      const itemText = await rItem.text();
       if (!rItem.ok) {
-        return json(context, rItem.status, {
-          error: 'item_create_failed',
-          detail: await rItem.text(),
-          questionId
-        });
+        context.log("DV create surveyitem failed:", rItem.status, itemText, itemBody);
+        return json(context, 500, { error: "dv_create_item_failed", status: rItem.status, detail: itemText, itemBody });
       }
     }
 
-    // 3) Returnér code + token (+ link hvis du vil)
-    const origin =
-      req.headers['x-forwarded-host']
-        ? `https://${req.headers['x-forwarded-host']}`
-        : null;
-
+    // link til kunden (ret kundeinfo.html hvis den hedder andet)
+    const origin = req.headers['x-forwarded-host'] ? `https://${req.headers['x-forwarded-host']}` : null;
     const link = origin ? `${origin}/kundeinfo.html?code=${encodeURIComponent(code)}` : null;
 
     return json(context, 201, { id: instanceId, code, token, link });
 
   } catch (err) {
-    context.log.error(err);
-    context.res = { status: 500, body: err.message };
+    context.log.error("survey-create crashed:", err);
+    return json(context, 500, { error: "server_error", detail: err.message, stack: String(err.stack || "") });
   }
 };
