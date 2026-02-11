@@ -90,13 +90,14 @@ module.exports = async function (context, req) {
 
     const code = await generateUniqueCode();
     const token = randomToken();
-
-    // ✅ RET logical names (fra dit surveyinstance screenshot)
+    const customerName = (p.customerName ?? null) ? String(p.customerName).trim() : null;
+    
     const instanceBody = {
-      crcc8_name: customerName ? `${customerName} (${code})` : `Survey ${code}`,
+      crcc8_lch_name: customerName ? `${customerName} (${code})` : `Survey ${code}`, // valgfri men nice
       crcc8_lch_code: code,
-      crcc8_token: token,
-      crcc8_templateversion: templateVersion
+      crcc8_lch_token: token,
+      crcc8_lch_templateversion: templateVersion,
+      crcc8_lch_customername: customerName  // ✅ GEMMER KUNDENAVN
     };
     if (expiresAt) instanceBody.crcc8_expiresat = expiresAt;
 
