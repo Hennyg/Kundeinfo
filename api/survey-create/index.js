@@ -128,7 +128,7 @@ module.exports = async function (context, req) {
       if (!qid) continue;
 
       const itemBody = {
-        crcc8_name: `Item ${(i + 1)}`,
+        crcc8_lch_name: `Item ${(i + 1)}`,
         crcc8_lch_sortorder: String((i + 1) * 10),
         'crcc8_lch_surveyinstance@odata.bind': `/crcc8_lch_surveyinstances(${instanceId})`,
         'crcc8_lch_question@odata.bind': `/crcc8_lch_questions(${qid})`
