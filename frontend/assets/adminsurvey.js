@@ -170,8 +170,10 @@ if (!questionItems.length) { setStatus("Vælg mindst ét spørgsmål"); return; 
 
 // gammel format som functionen sandsynligvis forventer:
 const questions = questionItems.map(x => x.questionId);
+const customerName = document.getElementById("customerName").value.trim();
 
 const payload = {
+  customerName: customerName || null,
   expiresAt,
   templateVersion,
   note,
@@ -180,7 +182,11 @@ const payload = {
   questions,
   questionItems
 };
-
+    
+if (!customerName) {
+  setStatus("Udfyld Kundenavn først.");
+  return;
+}
 
     const result = await fetchJson("/api/survey-create", {
       method: "POST",
