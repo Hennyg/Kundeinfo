@@ -26,7 +26,7 @@ async function fetchJson(url, opts) {
 
 function getCodeFromUrl() {
   const u = new URL(location.href);
-  return (u.searchParams.get("code") || "").trim();
+  return (u.searchParams.get("code") || u.searchParams.get("t") || u.searchParams.get("token") || "").trim();
 }
 
 // simpel mapping baseret på formatted label / eller fallback
