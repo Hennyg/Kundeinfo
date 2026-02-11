@@ -35,6 +35,7 @@ async function loadSurveys() {
     const link = `/kundeinfo.html?code=${encodeURIComponent(s.crcc8_lch_code)}`;
 
     tr.innerHTML = `
+      <td><strong>${s.crcc8_lch_customername ?? "—"}</strong></td>
       <td><strong>${s.crcc8_lch_code}</strong></td>
       <td>${statusPill(s)}</td>
       <td>${s.crcc8_expiresat ? new Date(s.crcc8_expiresat).toLocaleDateString("da-DK") : "—"}</td>
