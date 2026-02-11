@@ -29,7 +29,11 @@ async function resolveEntitySet(logicalName) {
 module.exports = async function (context, req) {
   try {
     const top = Math.min(Math.max(parseInt(req.query.top || "50", 10), 1), 500);
-    const skip = Math.max(parseInt(req.query.skip || "0", 10), 0);
+  const url =
+    `crcc8_lch_surveyinstances` +
+    `?$select=crcc8_lch_surveyinstanceid,crcc8_lch_code,crcc8_expiresat,crcc8_templateversion,crcc8_status,createdon` +
+    `&$orderby=createdon desc` +
+    `&$top=${top}`;
 
     // Din tabel (logical name) – hvis den hedder noget andet, ret her:
     const logicalName = "crcc8_lch_surveyinstance";
