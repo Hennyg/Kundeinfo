@@ -160,7 +160,7 @@ async function submitSurvey(code) {
 
   try {
     const answers = collectAnswers();
-
+console.log("Submitting answers:", collectAnswers());
     // TODO: kræver en submit endpoint (vi kan lave den næste)
     const result = await fetchJson("/api/survey-submit", {
       method: "POST",
