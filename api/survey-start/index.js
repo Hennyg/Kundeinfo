@@ -21,7 +21,7 @@ module.exports = async function (context, req) {
     // 1) Find surveyinstance på code
 const instPath =
   `crcc8_lch_surveyinstances` +
-  `?$select=crcc8_lch_surveyinstanceid,crcc8_lch_code,crcc8_lch_customername,crcc8_lch_expiresat,crcc8_status` +
+  `?$select=crcc8_lch_surveyinstanceid,crcc8_lch_code,crcc8_lch_customername,crcc8_expiresat,crcc8_status` +
   `&$filter=${encodeURIComponent(`crcc8_lch_code eq '${escODataString(code)}'`)}` +
   `&$top=1`;
 
