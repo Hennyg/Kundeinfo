@@ -109,6 +109,15 @@ module.exports = async function (context, req) {
         created++;
       }
     }
+    // --- Markér survey som gennemført ---
+const STATUS_COMPLETED = 3; // <-- samme værdi som ovenfor
+
+await dvFetch(`crcc8_lch_surveyinstances(${instanceId})`, {
+  method: "PATCH",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ crcc8_status: STATUS_COMPLETED })
+});
+
 
     return json(context, 200, { ok: true, created, updated, skipped });
   } catch (err) {
