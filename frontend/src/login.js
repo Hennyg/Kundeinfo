@@ -33,16 +33,26 @@ async function go() {
       body: JSON.stringify({ code })
     });
 
-    if (!res.ok) {
-      if (res.status === 404) {
-        showError(
-          "<strong>Denne survey findes ikke</strong><br>" +
-          "Indtast det korrekte nummer eller kontakt <strong>Lely Center Herrup</strong>."
-        );
-        return;
-      }
-      throw new Error("Uventet fejl");
-    }
+if (!res.ok) {
+  if (res.status === 404) {
+    showError(
+      "<strong>Denne survey findes ikke</strong><br>" +
+      "Indtast det korrekte nummer eller kontakt <strong>Lely Center Herrup</strong>."
+    );
+    return;
+  }
+
+  if (res.status === 409) {
+    showError(
+      "<strong>Denne survey er allerede gennemført</strong><br>" +
+      "Tak for din besvarelse. Har du spørgsmål, er du velkommen til at kontakte <strong>Lely Center Herrup</strong>."
+    );
+    return;
+  }
+
+  throw new Error("Uventet fejl");
+}
+
 
     // ✅ Kun her går vi videre
     location.href = `kundesurvey.html?code=${encodeURIComponent(code)}`;
