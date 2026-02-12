@@ -12,6 +12,7 @@ const ui = {
   form: $("surveyForm"),
   status: $("status"),
   btnSubmit: $("btnSubmit"),
+  btnSaveLater: $("btnSaveLater"),
 };
 
 function show(el){ el?.classList.remove("hidden"); }
@@ -151,35 +152,40 @@ function collectAnswers() {
   return answers;
 }
 
-
-async function submitSurvey(code) {
-  ui.status.textContent = "Sender…";
+async function submitSurvey(code, finalize) {
+  ui.status.textContent = finalize ? "Afslutter…" : "Gemmer…";
   ui.btnSubmit.disabled = true;
+  ui.btnSaveLater && (ui.btnSaveLater.disabled = true);
 
   try {
     const answers = collectAnswers();
-    console.log("Submitting answers:", answers);
 
     const result = await fetchJson("/api/survey-submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, answers })
+      body: JSON.stringify({ code, answers, finalize: !!finalize })
     });
 
-    console.log("survey-submit result:", result);
-
-    ui.status.textContent = "Tak! Besvarelsen er sendt ✔";
-    ui.form.querySelectorAll("input,textarea,select,button").forEach(x => x.disabled = true);
+    if (finalize) {
+      ui.status.textContent = "Tak! Besvarelsen er sendt ✔";
+      ui.form.querySelectorAll("input,textarea,select,button").forEach(x => x.disabled = true);
+    } else {
+      ui.status.textContent = "Gemt ✔ Du kan lukke siden og fortsætte senere.";
+      ui.btnSubmit.disabled = false;
+      ui.btnSaveLater && (ui.btnSaveLater.disabled = false);
+    }
 
     return result;
   } catch (e) {
     console.error(e);
     ui.status.textContent = `Fejl: ${e.message}`;
   } finally {
-    ui.btnSubmit.disabled = false;
+    if (!finalize) {
+      ui.btnSubmit.disabled = false;
+      ui.btnSaveLater && (ui.btnSaveLater.disabled = false);
+    }
   }
 }
-
 
 async function init() {
   try {
@@ -187,10 +193,12 @@ async function init() {
     const { code } = await loadSurvey();
     hide(ui.loading); show(ui.app);
 
-    ui.form.addEventListener("submit", (e) => {
-      e.preventDefault();
-      submitSurvey(code);
-    });
+ui.form.addEventListener("submit", (e) => {
+  e.preventDefault();
+  submitSurvey(code, true); // afslut
+});
+
+ui.btnSaveLater?.addEventListener("click", () => submitSurvey(code, false)); // gem senere
 
   } catch (e) {
     console.error(e);
