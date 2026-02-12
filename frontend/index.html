@@ -6,6 +6,19 @@
   <title>Kundeinfo</title>
 
   <link rel="stylesheet" href="./assets/style.css" />
+
+  <style>
+    /* Fejl-boks */
+    .errorbox {
+      background: #fdecec;
+      border: 1px solid #f5a5a5;
+      color: #8a1f1f;
+      padding: 12px;
+      border-radius: 6px;
+      margin-top: 12px;
+    }
+    .hidden { display: none; }
+  </style>
 </head>
 <body>
 
@@ -43,17 +56,9 @@
             style="width:100%;padding:.6rem;border-radius:6px;border:1px solid #ccc;font-size:1rem;"
           >
 
-          <div id="loginError" class="panel hidden"></div>
-            .panel {
-              background: #fdecec;
-              border: 1px solid #f5a5a5;
-              color: #8a1f1f;
-              padding: 12px;
-              border-radius: 6px;
-              margin-top: 12px;
-            }
-            .hidden { display: none; }
-          
+          <!-- Kun én fejl-boks (unik id) -->
+          <div id="loginError" class="errorbox hidden"></div>
+
           <button
             id="continueBtn"
             class="btn"
@@ -63,15 +68,13 @@
           </button>
         </div>
 
-        <div id="loginError" style="display:none;margin-top:1rem;"></div>
-
         <p style="margin-top:2rem;">På forhånd tak.</p>
         <p><strong>Lely Center Herrup</strong></p>
       </div>
     </div>
   </div>
 
-  <!-- kun login-logik her -->
+  <!-- Login-logik -->
   <script type="module" src="./src/login.js"></script>
 </body>
 </html>
