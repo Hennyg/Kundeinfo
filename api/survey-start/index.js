@@ -1,4 +1,6 @@
-// api/survey-start/index.js
+// /api/survey-start/index.js
+const { dvFetch } = require("../_dataverse");
+
 function json(context, status, body) {
   context.res = {
     status,
@@ -7,23 +9,94 @@ function json(context, status, body) {
   };
 }
 
-function normalizeCode(s) {
-  return String(s || "").trim().replace(/\s+/g, "").replace(/\D/g, "");
+function escODataString(s) {
+  return String(s ?? "").replace(/'/g, "''");
 }
 
 module.exports = async function (context, req) {
   try {
-    const code = normalizeCode(req.query?.code ?? req.body?.code);
-    if (code.length !== 6) {
-      return json(context, 400, { error: "invalid_code" });
+    const code = String(req?.body?.code || "").trim();
+    if (!code) return json(context, 400, { error: "missing_code", message: "Mangler code i body." });
+
+    // 1) Find surveyinstance på code
+    const instPath =
+      `crcc8_lch_surveyinstances` +
+      `?$select=crcc8_lch_surveyinstanceid,crcc8_lch_code,crcc8_lch_customername,crcc8_lch_token,crcc8_lch_expiresat,crcc8_status` +
+      `&$filter=${encodeURIComponent(`crcc8_lch_code eq '${escODataString(code)}'`)}` +
+      `&$top=1`;
+
+    const instRes = await dvFetch(instPath, {
+      headers: { Prefer: 'odata.include-annotations="OData.Community.Display.V1.FormattedValue"' }
+    });
+    const instData = await instRes.json();
+    const inst = (instData?.value || [])[0];
+
+    if (!inst) {
+      return json(context, 404, { error: "invalid_code", message: "Koden er ugyldig eller findes ikke." });
     }
 
-    // TODO: genbrug samme dv-fetch helper som dine questions endpoints
-    // 1) slå surveyinstance op hvor crcc8_lch_code eq '123456'
-    // 2) returnér { token: crcc8_lch_token }
+    const instanceId = inst.crcc8_lch_surveyinstanceid;
+    const customerName = inst.crcc8_lch_customername || "";
 
-    return json(context, 501, { error: "not_implemented", hint: "Hook den op til Dataverse som questions-get gør" });
-  } catch (e) {
-    return json(context, 500, { error: "server_error", message: e?.message || String(e) });
+    // 2) Hent survey items for denne instans + udvid question
+    // Bemærk: _crcc8_lch_surveyinstance_value er lookupens rå værdi i OData
+    const itemsPath =
+      `crcc8_lch_surveyitems` +
+      `?$select=crcc8_lch_surveyitemid,crcc8_lch_prefilltext,crcc8_lch_sortorder,crcc8_lch_sortordertal,_crcc8_lch_question_value` +
+      `&$filter=${encodeURIComponent(`_crcc8_lch_surveyinstance_value eq ${instanceId}`)}` +
+      `&$expand=${encodeURIComponent(
+        `crcc8_lch_question($select=crcc8_lch_questionid,crcc8_lch_number,crcc8_lch_text,crcc8_lch_explanation,crcc8_lch_group,crcc8_lch_answertype,crcc8_lch_isrequired,crcc8_lch_conditionalon,crcc8_lch_conditionalvalue)`
+      )}`;
+
+    const itemsRes = await dvFetch(itemsPath, {
+      headers: { Prefer: 'odata.include-annotations="OData.Community.Display.V1.FormattedValue"' }
+    });
+    const itemsData = await itemsRes.json();
+    const rows = itemsData?.value || [];
+
+    // 3) Map til frontend-format
+    const items = rows
+      .map((row) => {
+        const q = row.crcc8_lch_question;
+        if (!q) return null;
+
+        const answertype =
+          q["crcc8_lch_answertype@OData.Community.Display.V1.FormattedValue"] ??
+          q.crcc8_lch_answertype ??
+          "";
+
+        return {
+          itemId: row.crcc8_lch_surveyitemid,
+          questionId: q.crcc8_lch_questionid,
+          number: q.crcc8_lch_number,
+          text: q.crcc8_lch_text,
+          required: !!q.crcc8_lch_isrequired,
+          answertype,
+          prefillText: row.crcc8_lch_prefilltext || "",
+          explanation: q.crcc8_lch_explanation || "",
+          group: q.crcc8_lch_group || "",
+          conditionalOn: q.crcc8_lch_conditionalon || null,
+          conditionalValue: q.crcc8_lch_conditionalvalue || null
+        };
+      })
+      .filter(Boolean)
+      // sortering: brug tal hvis du har det, ellers tekst
+      .sort((a, b) => {
+        const an = Number(a.number ?? 0);
+        const bn = Number(b.number ?? 0);
+        return an - bn;
+      });
+
+    if (!items.length) {
+      return json(context, 404, {
+        error: "no_items",
+        message: "Ingen survey items fundet for denne kode (eller ingen spørgsmål koblet på)."
+      });
+    }
+
+    return json(context, 200, { code, customerName, items });
+  } catch (err) {
+    context.log.error(err);
+    return json(context, 500, { error: "server_error", message: err.message || String(err) });
   }
 };
