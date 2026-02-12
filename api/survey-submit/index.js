@@ -34,18 +34,39 @@ module.exports = async function (context, req) {
 
     const instanceId = inst.crcc8_lch_surveyinstanceid; // GUID
 
-    // 2) Upsert: én række pr (surveyinstance, question)
-    // Dataverse kræver @odata.bind for lookups.
-    // Entity set navne: crcc8_lch_answers og crcc8_lch_questions (sidste findes hos dig).
-    let saved = 0;
+    // 2) For hvert answer: slå surveyitem op -> få questionId
+    // Surveyitem entity set: crcc8_lch_surveyitems (som vi bruger i survey-start)
+    // Felter på surveyitem: crcc8_lch_surveyitemid, _crcc8_lch_question_value, crcc8_lch_prefill
+    let created = 0, updated = 0, skipped = 0;
 
     for (const a of answers) {
-      const questionId = String(a.questionId || "").trim();
+      const itemId = String(a.itemId || "").trim();      // surveyitemid (GUID)
       const value = a.value == null ? null : String(a.value);
 
-      if (!questionId) continue;
+      if (!itemId) { skipped++; continue; }
 
-      // Find eksisterende answer for denne instans + question
+      // 2a) Hent surveyitem => questionId
+      let questionId = null;
+      let prefill = null;
+
+      try {
+        const itemPath =
+          `crcc8_lch_surveyitems(${itemId})` +
+          `?$select=crcc8_lch_surveyitemid,_crcc8_lch_question_value,crcc8_lch_prefilltext`;
+
+        const ir = await dvFetch(itemPath);
+        const item = await ir.json();
+
+        questionId = item?._crcc8_lch_question_value || null;
+        prefill = item?.crcc8_lch_prefilltext ?? null;
+      } catch (e) {
+        // Hvis itemId ikke findes eller entity set navnet er forkert
+        return json(context, 500, { error: "surveyitem_lookup_failed", message: e.message || String(e) });
+      }
+
+      if (!questionId) { skipped++; continue; }
+
+      // 2b) Find eksisterende answer for (instance, question)
       const findPath =
         `crcc8_lch_answers` +
         `?$select=crcc8_lch_answerid` +
@@ -58,14 +79,16 @@ module.exports = async function (context, req) {
         const fd = await fr.json();
         existingId = (fd?.value || [])[0]?.crcc8_lch_answerid || null;
       } catch (e) {
-        // hvis filteret fejler pga lookup-navne, giver vi en tydelig fejl
-        return json(context, 500, { error: "lookup_filter_failed", message: e.message || String(e) });
+        return json(context, 500, { error: "answer_find_failed", message: e.message || String(e) });
       }
 
+      // 2c) Payload til lch_answer
       const payload = {
         crcc8_lch_name: `Answer ${code}`,
         crcc8_lch_value: value,
         crcc8_lch_updatedat: new Date().toISOString(),
+        // hvis du vil gemme prefill også:
+        ...(prefill != null ? { crcc8_lch_prefill: String(prefill) } : {}),
         "crcc8_lch_surveyinstance@odata.bind": `/crcc8_lch_surveyinstances(${instanceId})`,
         "crcc8_lch_question@odata.bind": `/crcc8_lch_questions(${questionId})`
       };
@@ -76,18 +99,18 @@ module.exports = async function (context, req) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
+        updated++;
       } else {
         await dvFetch(`crcc8_lch_answers`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
+        created++;
       }
-
-      saved++;
     }
 
-    return json(context, 200, { ok: true, saved });
+    return json(context, 200, { ok: true, created, updated, skipped });
   } catch (err) {
     context.log.error(err);
     return json(context, 500, { error: "server_error", message: err.message || String(err) });
