@@ -23,9 +23,6 @@ async function fetchJson(url, opts) {
   if (!r.ok) throw new Error(`${r.status} ${t}`);
   return t ? JSON.parse(t) : null;
 }
-const result = await fetchJson("/api/survey-submit", {...});
-console.log("survey-submit result:", result);
-
 
 function getCodeFromUrl() {
   const u = new URL(location.href);
@@ -140,12 +137,11 @@ async function loadSurvey() {
 }
 
 function collectAnswers() {
-  const inputs = ui.form.querySelectorAll("input[name^='q_'], textarea[name^='q_'], select[name^='q_']");
+  const inputs = ui.form.querySelectorAll("[data-itemid]");
   const answers = [];
 
   inputs.forEach(el => {
-    const name = el.getAttribute("name") || "";
-    const itemId = name.startsWith("q_") ? name.slice(2) : null; // efter q_
+    const itemId = (el.getAttribute("data-itemid") || "").trim();
     const value = (el.value ?? "").trim();
 
     if (!itemId) return;
@@ -156,23 +152,23 @@ function collectAnswers() {
 }
 
 
-
 async function submitSurvey(code) {
   ui.status.textContent = "Sender…";
   ui.btnSubmit.disabled = true;
 
   try {
     const answers = collectAnswers();
-console.log("Submitting answers:", collectAnswers());
-    // TODO: kræver en submit endpoint (vi kan lave den næste)
+    console.log("Submitting answers:", answers);
+
     const result = await fetchJson("/api/survey-submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code, answers })
     });
 
+    console.log("survey-submit result:", result);
+
     ui.status.textContent = "Tak! Besvarelsen er sendt ✔";
-    // evt. disable form
     ui.form.querySelectorAll("input,textarea,select,button").forEach(x => x.disabled = true);
 
     return result;
@@ -183,6 +179,7 @@ console.log("Submitting answers:", collectAnswers());
     ui.btnSubmit.disabled = false;
   }
 }
+
 
 async function init() {
   try {
