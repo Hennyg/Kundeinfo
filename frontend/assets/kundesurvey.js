@@ -137,25 +137,21 @@ async function loadSurvey() {
 }
 
 function collectAnswers() {
-  const inputs = ui.form.querySelectorAll("[data-itemid][data-questionid]");
+  const inputs = ui.form.querySelectorAll("input[name^='q_'], textarea[name^='q_'], select[name^='q_']");
   const answers = [];
 
   inputs.forEach(el => {
-    const itemId = el.getAttribute("data-itemid");
-    const questionId = el.getAttribute("data-questionid");
+    const name = el.getAttribute("name") || "";
+    const itemId = name.startsWith("q_") ? name.slice(2) : null; // efter q_
     const value = (el.value ?? "").trim();
 
-    if (!itemId || !questionId) return;
-
-    answers.push({
-      itemId,
-      questionId,
-      value: value || null
-    });
+    if (!itemId) return;
+    answers.push({ itemId, value: value || null });
   });
 
   return answers;
 }
+
 
 
 async function submitSurvey(code) {
@@ -202,5 +198,5 @@ async function init() {
     ui.errorText.textContent = e.message;
   }
 }
-
+window.collectAnswers = collectAnswers;
 document.addEventListener("DOMContentLoaded", init);
