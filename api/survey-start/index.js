@@ -36,6 +36,16 @@ const instPath =
       return json(context, 404, { error: "invalid_code", message: "Koden er ugyldig eller findes ikke." });
     }
 
+    // --- Check om survey allerede er gennemført ---
+const STATUS_COMPLETED = 776350001; // <-- SKIFT 3 til den rigtige værdi fra crcc8_status
+
+if (Number(inst.crcc8_status) === STATUS_COMPLETED) {
+  return json(context, 409, {
+    error: "already_completed",
+    message: "Surveyen er allerede gennemført."
+  });
+}
+
     const instanceId = inst.crcc8_lch_surveyinstanceid;
     const customerName = inst.crcc8_lch_customername || "";
 
