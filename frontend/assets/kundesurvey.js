@@ -23,6 +23,9 @@ async function fetchJson(url, opts) {
   if (!r.ok) throw new Error(`${r.status} ${t}`);
   return t ? JSON.parse(t) : null;
 }
+const result = await fetchJson("/api/survey-submit", {...});
+console.log("survey-submit result:", result);
+
 
 function getCodeFromUrl() {
   const u = new URL(location.href);
