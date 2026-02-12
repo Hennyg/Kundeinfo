@@ -137,19 +137,26 @@ async function loadSurvey() {
 }
 
 function collectAnswers() {
-  const inputs = ui.form.querySelectorAll("[data-itemid]");
+  const inputs = ui.form.querySelectorAll("[data-itemid][data-questionid]");
   const answers = [];
 
   inputs.forEach(el => {
     const itemId = el.getAttribute("data-itemid");
+    const questionId = el.getAttribute("data-questionid");
     const value = (el.value ?? "").trim();
 
-    if (!itemId) return;
-    answers.push({ itemId, value: value || null });
+    if (!itemId || !questionId) return;
+
+    answers.push({
+      itemId,
+      questionId,
+      value: value || null
+    });
   });
 
   return answers;
 }
+
 
 async function submitSurvey(code) {
   ui.status.textContent = "Sender…";
