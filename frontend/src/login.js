@@ -4,10 +4,10 @@ const errBox = document.getElementById("loginError");
 
 function showError(msg) {
   if (!errBox) return;
-  errBox.style.display = "block";
-  errBox.className = "panel";
   errBox.innerHTML = msg;
+  errBox.classList.remove("hidden");
 }
+
 
 function normalizeCode(s) {
   return String(s || "").trim().replace(/\s+/g, "").replace(/\D/g, "");
