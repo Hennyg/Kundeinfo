@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8" />
+  <title>Admin – Spørgegrupper</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="./assets/style.css" rel="stylesheet" />
+  <style>
+    .center-card { max-width: 520px; margin: 64px auto; }
+    .container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+    header { display:flex; justify-content: space-between; align-items:center; gap:16px; }
+    .card { border:1px solid #ddd; border-radius:8px; padding:16px; margin:16px 0; background:#fff; }
+    form .row { display:grid; grid-template-columns: 1fr 2fr; gap:10px; margin-bottom:10px; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { border-bottom:1px solid #eee; padding:8px; text-align:left; vertical-align:top; }
+    .actions button { margin-right:8px; }
+    .muted { color:#666; }
+    .hidden { display:none; }
+    .tag { background:#eef; padding:2px 8px; border-radius:12px; font-size:12px; }
+    textarea { width:100%; }
+  </style>
+</head>
+
+<body>
+  <div class="container" id="loading">
+    <div class="card center-card">
+      <h2>Indlæser…</h2>
+      <p class="muted">Tjekker loginstatus.</p>
+    </div>
+  </div>
+
+  <div class="container" id="authDenied" style="display:none">
+    <div class="card center-card">
+      <h2>Log ind kræves</h2>
+      <p class="muted">Du skal være logget ind for at administrere grupper.</p>
+      <a class="btn btnlink" href="/.auth/login/aad">Log ind</a>
+      <a class="btn" style="margin-left:8px" href="./admin.html">Tilbage</a>
+    </div>
+  </div>
+
+  <div id="app" style="display:none">
+    <div class="navbar">
+      <div class="navbar-inner">
+        <div class="brand">Admin - spørgegrupper</div>
+        <nav class="nav">
+          <a href="./index.html">Hjem</a>
+          <span class="sep">•</span>
+          <a href="./admin.html">Admin</a>
+        </nav>
+      </div>
+    </div>
+    <div class="nav-accent"></div>
+
+    <div class="container">
+      <header>
+        <h1>Admin · LCH Question Groups</h1>
+        <div id="authArea">
+          <span id="userInfo" class="muted"></span>
+          <a class="tag" href="/.auth/logout?post_logout_redirect_uri=/">Log ud</a>
+        </div>
+      </header>
+
+      <section class="card">
+        <h2>Opret/ret gruppe</h2>
+        <form id="groupForm">
+          <input type="hidden" id="gid" />
+
+          <div class="row">
+            <label for="gsurveytype">Surveytype</label>
+            <select id="gsurveytype" required></select>
+          </div>
+
+          <div class="row">
+            <label for="gname">Navn (intern)</label>
+            <input id="gname" placeholder="fx billing" required />
+          </div>
+
+          <div class="row">
+            <label for="gtitle">Titel (visning)</label>
+            <input id="gtitle" placeholder="fx Fakturering" required />
+          </div>
+
+          <div class="row">
+            <label for="gdesc">Beskrivelse (valgfri)</label>
+            <textarea id="gdesc" rows="3" placeholder="Kort forklaring for sektionen..."></textarea>
+          </div>
+
+          <div class="row">
+            <label for="gsort">Sortorder</label>
+            <input id="gsort" type="number" placeholder="fx 10" />
+          </div>
+
+          <div class="row">
+            <label for="gactive">Aktiv?</label>
+            <input id="gactive" type="checkbox" checked />
+          </div>
+
+          <div class="row">
+            <label for="gcolor">Farve (valgfri)</label>
+            <select id="gcolor"></select>
+          </div>
+
+          <div>
+            <button type="submit" id="btnSave">Gem</button>
+            <button type="button" id="btnReset">Nulstil</button>
+          </div>
+
+          <div id="formStatus" class="muted" style="margin-top:8px;"></div>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Eksisterende grupper</h2>
+        <div class="muted" id="listStatus">Indlæser…</div>
+
+        <table id="gtable">
+          <thead>
+            <tr>
+              <th>Surveytype</th>
+              <th>Sort</th>
+              <th>Titel</th>
+              <th>Navn</th>
+              <th>Aktiv</th>
+              <th style="width:180px;">Handling</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+    </div>
+  </div>
+
+  <!-- Auth-guard -->
+  <script type="module">
+    import { requireAuth } from "./assets/auth-guard.js";
+    requireAuth({ autoRedirect: false });
+  </script>
+
+  <script src="./assets/adminquestiongroup.js" type="module"></script>
+</body>
+</html>
