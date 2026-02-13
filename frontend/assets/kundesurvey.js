@@ -48,6 +48,7 @@ function renderQuestions(items) {
     const qText = it.text || "";
     const required = !!it.required;
     const prefill = it.prefillText || "";
+    const saved = it.savedValue || "";
 
     const inputType = resolveInputType(it.answertype);
 
@@ -71,8 +72,8 @@ function renderQuestions(items) {
           <div class="muted">Svar</div>
           <select name="${name}" data-itemid="${escapeHtml(it.itemId || "")}" ${required ? "required" : ""}>
             <option value="">Vælg…</option>
-            <option value="Ja">Ja</option>
-            <option value="Nej">Nej</option>
+            <option value="Ja"  ${saved === "Ja"  ? "selected" : ""}>Ja</option>
+            <option value="Nej" ${saved === "Nej" ? "selected" : ""}>Nej</option>
           </select>
         </div>
       `;
@@ -80,21 +81,33 @@ function renderQuestions(items) {
       inputHtml = `
         <div class="row">
           <div class="muted">Svar</div>
-          <input type="number" name="${name}" data-itemid="${escapeHtml(it.itemId || "")}" ${required ? "required" : ""} />
+          <input type="number"
+  name="${name}"
+  data-itemid="${escapeHtml(it.itemId || "")}"
+  value="${escapeHtml(saved)}"
+  ${required ? "required" : ""} />
         </div>
       `;
     } else if (inputType === "longtext") {
       inputHtml = `
         <div class="row">
           <div class="muted">Svar</div>
-          <textarea name="${name}" data-itemid="${escapeHtml(it.itemId || "")}" ${required ? "required" : ""}></textarea>
+          <textarea
+  name="${name}"
+  data-itemid="${escapeHtml(it.itemId || "")}"
+  ${required ? "required" : ""}>${escapeHtml(saved)}</textarea>
+
         </div>
       `;
     } else {
       inputHtml = `
         <div class="row">
           <div class="muted">Svar</div>
-          <input type="text" name="${name}" data-itemid="${escapeHtml(it.itemId || "")}" ${required ? "required" : ""} />
+          <input type="text"
+  name="${name}"
+  data-itemid="${escapeHtml(it.itemId || "")}"
+  value="${escapeHtml(saved)}"
+  ${required ? "required" : ""} />
         </div>
       `;
     }
