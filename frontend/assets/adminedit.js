@@ -1,13 +1,20 @@
 // /frontend/assets/adminedit.js
-// Robust version til brug sammen med auth-guard (auth-guard viser først #app når du er logget ind)
+// Opdateret: surveytype + questiongroup (lookup) i stedet for lch_group (optionset)
 
 let els = null;
+
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 function getEls() {
   return {
     me: document.getElementById('userInfo'),
-    login: document.getElementById('btnLogin'),     // kan være null (hvis du ikke bruger dem længere)
-    logout: document.getElementById('btnLogout'),   // kan være null
+    login: document.getElementById('btnLogin'),
+    logout: document.getElementById('btnLogout'),
     listStatus: document.getElementById('listStatus'),
     tableBody: document.querySelector('#qtable tbody'),
     table: document.getElementById('qtable'),
@@ -15,11 +22,19 @@ function getEls() {
     status: document.getElementById('formStatus'),
     btnReset: document.getElementById('btnReset'),
     btnSave: document.getElementById('btnSave'),
+
+    // form fields
     qid: document.getElementById('qid'),
     qnumber: document.getElementById('qnumber'),
     qtext: document.getElementById('qtext'),
     qexplanation: document.getElementById('qexplanation'),
+
+    // NEW
+    qsurveytype: document.getElementById('qsurveytype'),
+
+    // now means questiongroup lookup id
     qgroup: document.getElementById('qgroup'),
+
     qanswertype: document.getElementById('qanswertype'),
     qrequired: document.getElementById('qrequired'),
     qconditionalon: document.getElementById('qconditionalon'),
@@ -39,43 +54,31 @@ async function getMe() {
 }
 
 function setAuthUI(isAuthed, userLabel) {
-  // Null-safe (så den aldrig kan crashe)
   const userInfo = document.getElementById("userInfo");
   const btnLogin = document.getElementById("btnLogin");
   const btnLogout = document.getElementById("btnLogout");
 
   if (userInfo) userInfo.textContent = userLabel || "";
-
   if (btnLogin) btnLogin.classList.toggle("hidden", isAuthed);
   if (btnLogout) btnLogout.classList.toggle("hidden", !isAuthed);
 }
 
-async function loadOptionSets() {
-  // Henter picklist options fra Dataverse via metadata endpoint
+/* -----------------------
+   Load option sets (only answertype now)
+----------------------- */
+async function loadAnswerTypeOptions() {
   try {
     const r = await fetch('/api/questions-metadata', { cache: "no-store" });
     if (!r.ok) throw new Error(`metadata fejl (${r.status})`);
     const meta = await r.json();
 
-    if (!els.qgroup || !els.qanswertype) return;
-
-    // Udfyld gruppe
-    els.qgroup.innerHTML = (meta.group || [])
-      .map(o => `<option value="${o.value}">${o.label}</option>`).join('');
-
-    // Udfyld svar-type
+    if (!els.qanswertype) return;
     els.qanswertype.innerHTML = (meta.answertype || [])
-      .map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+      .map(o => `<option value="${o.value}">${escapeHtml(o.label)}</option>`)
+      .join('');
   } catch (e) {
-    console.warn("Fald tilbage til hardcoded option sets:", e);
-
-    if (!els.qgroup || !els.qanswertype) return;
-
-    // fallback hvis metadata ikke findes – tilpas labels/values manuelt
-    els.qgroup.innerHTML = `
-      <option value="100000000">Generelt</option>
-      <option value="100000001">Teknisk</option>
-    `;
+    console.warn("Fald tilbage til hardcoded answertype:", e);
+    if (!els.qanswertype) return;
     els.qanswertype.innerHTML = `
       <option value="100000000">Ja/Nej</option>
       <option value="100000001">Tal</option>
@@ -85,12 +88,92 @@ async function loadOptionSets() {
   }
 }
 
+/* -----------------------
+   Load surveytypes + groups (lookup)
+----------------------- */
+let surveyTypesCache = [];   // [{id,type}]
+let groupsCache = [];        // [{id,title,sortorder,isactive,surveyTypeId}]
+
+async function loadSurveyTypes() {
+  if (!els.qsurveytype) return;
+
+  els.qsurveytype.innerHTML = `<option value="">Indlæser…</option>`;
+  const r = await fetch('/api/surveytypes-get', { cache: "no-store" });
+
+  if (!r.ok) {
+    const text = await r.text().catch(() => "");
+    console.error("surveytypes-get fejlede:", r.status, text);
+    els.qsurveytype.innerHTML = `<option value="">Fejl ved hentning</option>`;
+    return;
+  }
+
+  const data = await r.json();
+  const rows = data?.value || data || [];
+  surveyTypesCache = rows.map(x => ({
+    id: x.crcc8_lch_surveytypeid || x.id,
+    type: x.crcc8_lch_type || x.type || x.name
+  }));
+
+  els.qsurveytype.innerHTML =
+    `<option value="">Vælg surveytype…</option>` +
+    surveyTypesCache.map(st =>
+      `<option value="${st.id}">${escapeHtml(st.type)}</option>`
+    ).join('');
+}
+
+async function loadGroupsForSurveyType(surveyTypeId) {
+  if (!els.qgroup) return;
+
+  if (!surveyTypeId) {
+    els.qgroup.innerHTML = `<option value="">Vælg surveytype først…</option>`;
+    groupsCache = [];
+    return;
+  }
+
+  els.qgroup.innerHTML = `<option value="">Indlæser…</option>`;
+
+  const r = await fetch(`/api/questiongroups-get?surveyTypeId=${encodeURIComponent(surveyTypeId)}`, { cache: "no-store" });
+
+  if (!r.ok) {
+    const text = await r.text().catch(() => "");
+    console.error("questiongroups-get fejlede:", r.status, text);
+    els.qgroup.innerHTML = `<option value="">Fejl ved hentning</option>`;
+    groupsCache = [];
+    return;
+  }
+
+  const data = await r.json();
+  const rows = data?.value || data || [];
+
+  groupsCache = rows.map(g => ({
+    id: g.crcc8_lch_questiongroupid || g.id,
+    title: g.crcc8_lch_title || g.title || g.crcc8_lch_name || "",
+    sortorder: g.crcc8_lch_sortorder ?? g.sortorder ?? 0,
+    isactive: g.crcc8_lch_isactive ?? g.isactive ?? true,
+    surveyTypeId: surveyTypeId
+  }));
+
+  groupsCache.sort((a,b) => (a.sortorder ?? 0) - (b.sortorder ?? 0));
+
+  els.qgroup.innerHTML =
+    `<option value="">Vælg gruppe…</option>` +
+    groupsCache
+      .filter(g => g.isactive !== false)
+      .map(g => `<option value="${g.id}">${escapeHtml(g.title)}</option>`)
+      .join('');
+}
+
+/* -----------------------
+   List questions
+----------------------- */
 async function listQuestions() {
   if (!els.listStatus || !els.tableBody) return;
 
   els.listStatus.textContent = 'Indlæser…';
 
   try {
+    // For at kunne vise group-title kræver det at /api/questions-get returnerer
+    // enten formatted value for lookup eller et expand på questiongroup.
     const r = await fetch('/api/questions-get?top=200', { cache: "no-store" });
 
     if (!r.ok) {
@@ -101,15 +184,24 @@ async function listQuestions() {
     }
 
     const data = await r.json();
+    const rows = (data?.value || data || []);
 
     els.tableBody.innerHTML = '';
-    (data?.value || data || []).forEach(q => {
+    rows.forEach(q => {
+      const groupLabel =
+        // lookup formatted value hvis din API sender den med
+        q['crcc8_lch_questiongroup@OData.Community.Display.V1.FormattedValue']
+        // eller hvis din API sender expand objekt
+        ?? q.crcc8_lch_questiongroup?.crcc8_lch_title
+        ?? q.crcc8_lch_questiongroup?.lch_title
+        ?? '';
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${q.crcc8_lch_number ?? ''}</td>
-        <td>${q.crcc8_lch_text ?? ''}</td>
-        <td>${q['crcc8_lch_group@OData.Community.Display.V1.FormattedValue'] ?? q.crcc8_lch_group ?? ''}</td>
-        <td>${q['crcc8_lch_answertype@OData.Community.Display.V1.FormattedValue'] ?? q.crcc8_lch_answertype ?? ''}</td>
+        <td>${escapeHtml(q.crcc8_lch_number ?? '')}</td>
+        <td>${escapeHtml(q.crcc8_lch_text ?? '')}</td>
+        <td>${escapeHtml(groupLabel)}</td>
+        <td>${escapeHtml(q['crcc8_lch_answertype@OData.Community.Display.V1.FormattedValue'] ?? q.crcc8_lch_answertype ?? '')}</td>
         <td>${q.crcc8_lch_isrequired ? 'Ja' : 'Nej'}</td>
         <td class="actions">
           <button data-act="edit" data-id="${q.crcc8_lch_questionid}">Redigér</button>
@@ -126,13 +218,23 @@ async function listQuestions() {
   }
 }
 
+/* -----------------------
+   Form read/fill
+----------------------- */
 function readForm() {
+  const surveyTypeId = (els.qsurveytype?.value || "").trim() || null;
+  const groupId = (els.qgroup?.value || "").trim() || null;
+
   return {
     id: els.qid?.value || null,
     number: (els.qnumber?.value || "").trim(),
     text: (els.qtext?.value || "").trim(),
     explanation: (els.qexplanation?.value || "").trim() || null,
-    group: parseInt(els.qgroup?.value || "0", 10),
+
+    // NEW
+    surveytypeid: surveyTypeId,
+    questiongroupid: groupId,
+
     answertype: parseInt(els.qanswertype?.value || "0", 10),
     isrequired: !!els.qrequired?.checked,
     conditionalon: (els.qconditionalon?.value || "").trim() || null,
@@ -142,26 +244,67 @@ function readForm() {
 
 function fillForm(q) {
   if (!q) return;
+
   els.qid.value = q.crcc8_lch_questionid || '';
   els.qnumber.value = q.crcc8_lch_number || '';
   els.qtext.value = q.crcc8_lch_text || '';
   els.qexplanation.value = q.crcc8_lch_explanation || '';
-  if (q.crcc8_lch_group != null) els.qgroup.value = q.crcc8_lch_group;
   if (q.crcc8_lch_answertype != null) els.qanswertype.value = q.crcc8_lch_answertype;
   els.qrequired.checked = !!q.crcc8_lch_isrequired;
   els.qconditionalon.value = q.crcc8_lch_conditionalon || '';
   els.qconditionalvalue.value = q.crcc8_lch_conditionalvalue || '';
+
+  // Lookup: questiongroup id (kan ligge på flere måder alt efter din API)
+  const groupId =
+    q._crcc8_lch_questiongroup_value
+    ?? q.crcc8_lch_questiongroupid
+    ?? q.crcc8_lch_questiongroup?.crcc8_lch_questiongroupid
+    ?? q.crcc8_lch_questiongroup?.id
+    ?? null;
+
+  // Lookup: surveytype id (fra group -> surveytype) hvis din API giver den
+  const surveyTypeId =
+    q._crcc8_lch_surveytype_value
+    ?? q.crcc8_lch_surveytypeid
+    ?? q.crcc8_lch_questiongroup?._crcc8_lch_surveytype_value
+    ?? q.crcc8_lch_questiongroup?.crcc8_lch_surveytypeid
+    ?? null;
+
+  // Sæt surveytype først, og reload grupper, derefter sæt gruppe
+  (async () => {
+    if (els.qsurveytype) {
+      els.qsurveytype.value = surveyTypeId || "";
+      await loadGroupsForSurveyType(els.qsurveytype.value);
+    }
+    if (els.qgroup) {
+      els.qgroup.value = groupId || "";
+    }
+  })();
 }
 
 function resetForm() {
   els.form?.reset();
   if (els.qid) els.qid.value = '';
   if (els.status) els.status.textContent = '';
+
+  // hvis surveytype er valgt, reload grupper så dropdown ikke står tom
+  if (els.qsurveytype?.value) {
+    loadGroupsForSurveyType(els.qsurveytype.value);
+  } else if (els.qgroup) {
+    els.qgroup.innerHTML = `<option value="">Vælg surveytype først…</option>`;
+  }
 }
 
+/* -----------------------
+   Upsert / Delete
+----------------------- */
 async function upsertQuestion(payload) {
   const isNew = !payload.id;
   if (els.status) els.status.textContent = isNew ? 'Opretter…' : 'Opdaterer…';
+
+  // Valider: skal have group + surveytype (du kan slække hvis du vil)
+  if (!payload.surveytypeid) throw new Error("Vælg en surveytype");
+  if (!payload.questiongroupid) throw new Error("Vælg en gruppe");
 
   const url = isNew
     ? '/api/questions-post'
@@ -198,7 +341,16 @@ async function deleteQuestion(id) {
   await listQuestions();
 }
 
+/* -----------------------
+   Events
+----------------------- */
 function wireEvents() {
+  if (els.qsurveytype) {
+    els.qsurveytype.addEventListener("change", async () => {
+      await loadGroupsForSurveyType(els.qsurveytype.value);
+    });
+  }
+
   if (els.form) {
     els.form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -242,11 +394,12 @@ function wireEvents() {
   }
 }
 
+/* -----------------------
+   Init
+----------------------- */
 async function init() {
   els = getEls();
 
-  // Hvis du kører auth-guard på siden, ER du typisk allerede logget ind når #app vises.
-  // Men vi holder den her for at udfylde userInfo + understøtte brug uden guard.
   const me = await getMe();
   const isAuthed = !!me;
   const label = me?.userDetails || "";
@@ -254,16 +407,22 @@ async function init() {
   setAuthUI(isAuthed, label);
 
   if (!isAuthed) {
-    // Hvis SWA routes kræver authenticated, vil server typisk redirecte/401 før du når hertil.
-    // Men vi stopper pænt.
     if (els.listStatus) els.listStatus.textContent = 'Ikke logget ind.';
     return;
   }
 
   wireEvents();
-  await loadOptionSets();
+
+  await loadAnswerTypeOptions();
+  await loadSurveyTypes();
+
+  // hvis der er præcis 1 surveytype, auto-vælg den
+  if (els.qsurveytype && els.qsurveytype.options.length === 2) {
+    els.qsurveytype.selectedIndex = 1;
+  }
+  await loadGroupsForSurveyType(els.qsurveytype?.value || "");
+
   await listQuestions();
 }
 
-// Sørg for DOM er klar
 document.addEventListener("DOMContentLoaded", init);
