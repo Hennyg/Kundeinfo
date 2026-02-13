@@ -25,6 +25,23 @@ const instPath =
   `&$filter=${encodeURIComponent(`crcc8_lch_code eq '${escODataString(code)}'`)}` +
   `&$top=1`;
 
+    const ansPath =
+  `crcc8_lch_answers` +
+  `?$select=crcc8_lch_value,_crcc8_lch_question_value` +
+  `&$filter=${encodeURIComponent(`_crcc8_lch_surveyinstance_value eq ${instanceId}`)}` +
+  `&$top=5000`;
+
+const ansRes = await dvFetch(ansPath);
+const ansData = await ansRes.json();
+const ansRows = ansData?.value || [];
+
+const answerByQuestionId = new Map(
+  ansRows
+    .filter(a => a?._crcc8_lch_question_value)
+    .map(a => [String(a._crcc8_lch_question_value), a.crcc8_lch_value ?? ""])
+);
+
+
 
     const instRes = await dvFetch(instPath, {
       headers: { Prefer: 'odata.include-annotations="OData.Community.Display.V1.FormattedValue"' }
@@ -76,6 +93,9 @@ if (Number(inst.crcc8_status) === STATUS_COMPLETED) {
           q.crcc8_lch_answertype ??
           "";
 
+        const qid = String(q.crcc8_lch_questionid || "");
+        const savedValue = answerByQuestionId.get(qid);
+
         return {
           itemId: row.crcc8_lch_surveyitemid,
           questionId: q.crcc8_lch_questionid,
@@ -84,6 +104,7 @@ if (Number(inst.crcc8_status) === STATUS_COMPLETED) {
           required: !!q.crcc8_lch_isrequired,
           answertype,
           prefillText: row.crcc8_lch_prefilltext || "",
+          savedValue: savedValue ?? "",
           explanation: q.crcc8_lch_explanation || "",
           group: q.crcc8_lch_group || "",
           conditionalOn: q.crcc8_lch_conditionalon || null,
