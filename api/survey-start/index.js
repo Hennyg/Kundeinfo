@@ -19,29 +19,11 @@ module.exports = async function (context, req) {
     if (!code) return json(context, 400, { error: "missing_code", message: "Mangler code i body." });
 
     // 1) Find surveyinstance på code
-const instPath =
-  `crcc8_lch_surveyinstances` +
-  `?$select=crcc8_lch_surveyinstanceid,crcc8_lch_code,crcc8_lch_customername,crcc8_expiresat,crcc8_status` +
-  `&$filter=${encodeURIComponent(`crcc8_lch_code eq '${escODataString(code)}'`)}` +
-  `&$top=1`;
-
-    const ansPath =
-  `crcc8_lch_answers` +
-  `?$select=crcc8_lch_value,_crcc8_lch_question_value` +
-  `&$filter=${encodeURIComponent(`_crcc8_lch_surveyinstance_value eq ${instanceId}`)}` +
-  `&$top=5000`;
-
-const ansRes = await dvFetch(ansPath);
-const ansData = await ansRes.json();
-const ansRows = ansData?.value || [];
-
-const answerByQuestionId = new Map(
-  ansRows
-    .filter(a => a?._crcc8_lch_question_value)
-    .map(a => [String(a._crcc8_lch_question_value), a.crcc8_lch_value ?? ""])
-);
-
-
+    const instPath =
+      `crcc8_lch_surveyinstances` +
+      `?$select=crcc8_lch_surveyinstanceid,crcc8_lch_code,crcc8_lch_customername,crcc8_expiresat,crcc8_status` +
+      `&$filter=${encodeURIComponent(`crcc8_lch_code eq '${escODataString(code)}'`)}` +
+      `&$top=1`;
 
     const instRes = await dvFetch(instPath, {
       headers: { Prefer: 'odata.include-annotations="OData.Community.Display.V1.FormattedValue"' }
@@ -54,20 +36,36 @@ const answerByQuestionId = new Map(
     }
 
     // --- Check om survey allerede er gennemført ---
-const STATUS_COMPLETED = 776350001; // <-- SKIFT 3 til den rigtige værdi fra crcc8_status
-
-if (Number(inst.crcc8_status) === STATUS_COMPLETED) {
-  return json(context, 409, {
-    error: "already_completed",
-    message: "Surveyen er allerede gennemført."
-  });
-}
+    const STATUS_COMPLETED = 776350001;
+    if (Number(inst.crcc8_status) === STATUS_COMPLETED) {
+      return json(context, 409, {
+        error: "already_completed",
+        message: "Surveyen er allerede gennemført."
+      });
+    }
 
     const instanceId = inst.crcc8_lch_surveyinstanceid;
     const customerName = inst.crcc8_lch_customername || "";
 
+    // 1b) Hent tidligere svar (answers) for denne surveyinstance
+    const ansPath =
+      `crcc8_lch_answers` +
+      `?$select=crcc8_lch_value,_crcc8_lch_question_value` +
+      `&$filter=${encodeURIComponent(`_crcc8_lch_surveyinstance_value eq ${instanceId}`)}` +
+      `&$top=5000`;
+
+    const ansRes = await dvFetch(ansPath);
+    const ansData = await ansRes.json();
+    const ansRows = ansData?.value || [];
+
+    // Map: questionId -> saved value
+    const answerByQuestionId = new Map(
+      ansRows
+        .filter(a => a?._crcc8_lch_question_value)
+        .map(a => [String(a._crcc8_lch_question_value), a.crcc8_lch_value ?? ""])
+    );
+
     // 2) Hent survey items for denne instans + udvid question
-    // Bemærk: _crcc8_lch_surveyinstance_value er lookupens rå værdi i OData
     const itemsPath =
       `crcc8_lch_surveyitems` +
       `?$select=crcc8_lch_surveyitemid,crcc8_lch_prefilltext,crcc8_lch_sortorder,crcc8_lch_sortordertal,_crcc8_lch_question_value` +
@@ -103,8 +101,13 @@ if (Number(inst.crcc8_status) === STATUS_COMPLETED) {
           text: q.crcc8_lch_text,
           required: !!q.crcc8_lch_isrequired,
           answertype,
+
+          // ✅ behold prefill som før
           prefillText: row.crcc8_lch_prefilltext || "",
+
+          // ✅ tidligere svar til inputfelter
           savedValue: savedValue ?? "",
+
           explanation: q.crcc8_lch_explanation || "",
           group: q.crcc8_lch_group || "",
           conditionalOn: q.crcc8_lch_conditionalon || null,
@@ -112,12 +115,7 @@ if (Number(inst.crcc8_status) === STATUS_COMPLETED) {
         };
       })
       .filter(Boolean)
-      // sortering: brug tal hvis du har det, ellers tekst
-      .sort((a, b) => {
-        const an = Number(a.number ?? 0);
-        const bn = Number(b.number ?? 0);
-        return an - bn;
-      });
+      .sort((a, b) => Number(a.number ?? 0) - Number(b.number ?? 0));
 
     if (!items.length) {
       return json(context, 404, {
