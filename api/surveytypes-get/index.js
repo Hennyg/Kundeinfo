@@ -1,4 +1,3 @@
-// /api/surveytypes-get/index.js
 const { dvFetch } = require('../_dataverse');
 
 module.exports = async function (context, req) {
@@ -6,9 +5,7 @@ module.exports = async function (context, req) {
     const { id, top = 200 } = req.query;
 
     if (id) {
-      const r = await dvFetch(
-        `crcc8_lch_surveytypes(${id})?$select=crcc8_lch_surveytypeid,crcc8_lch_type`
-      );
+      const r = await dvFetch(`crcc8_lch_surveytypes(${id})?$select=crcc8_lch_surveytypeid,crcc8_lch_type`);
       const row = await r.json();
       return (context.res = { body: row });
     }
