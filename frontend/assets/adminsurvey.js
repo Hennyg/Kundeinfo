@@ -105,33 +105,31 @@ async function loadGroupTitles() {
 }
 
 function getGroupLabel(q) {
-  // 1) formatted value hvis API sender den
+  // 1) formatted value (lookup) -> viser Primary Name (hos dig: lch_name)
   const formatted =
     q['_crcc8_lch_questiongroup_value@OData.Community.Display.V1.FormattedValue'] ??
     q['crcc8_lch_questiongroup@OData.Community.Display.V1.FormattedValue'];
 
   if (formatted) return String(formatted);
 
-  // 2) expand objekt -> brug title
-  const expanded =
-    q.crcc8_lch_questiongroup?.crcc8_lch_title ??
-    q.crcc8_lch_questiongroup?.title ??
+  // 2) expand (hvis du har det) -> brug name hvis den findes
+  const expandedName =
+    q.crcc8_lch_questiongroup?.crcc8_lch_name ??
+    q.crcc8_lch_questiongroup?.name ??
     null;
 
-  if (expanded) return String(expanded);
+  if (expandedName) return String(expandedName);
 
-  // 3) fallback via cache
+  // 3) fallback: guid->name cache (hvis du vil)
   const gid =
     q._crcc8_lch_questiongroup_value ??
     q.crcc8_lch_questiongroupid ??
     null;
 
-  if (gid && groupTitleById.has(String(gid)))
-    return groupTitleById.get(String(gid));
+  if (gid && groupTitleById.has(String(gid))) return String(groupTitleById.get(String(gid)));
 
   return "";
 }
-
 
 function getAnswerTypeLabel(q) {
   // 1) formatted value (hvis annotations er med)
