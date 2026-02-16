@@ -96,7 +96,7 @@ async function loadGroupTitles() {
     const rows = data?.value || data || [];
     rows.forEach(g => {
       const id = g.crcc8_lch_questiongroupid || g.id;
-      const title = g.crcc8_lch_title || g.title || g.crcc8_lch_name || g.name || "";
+      const title = g.crcc8_lch_title || g.title || "";
       if (id) groupTitleById.set(String(id), String(title));
     });
   } catch (e) {
