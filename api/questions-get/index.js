@@ -20,8 +20,8 @@ module.exports = async function (context, req) {
       '_crcc8_lch_conditionalon_value'
     ].join(',');
 
-    const expand =
-      'crcc8_lch_questiongroup($select=crcc8_lch_title,crcc8_lch_name,_crcc8_lch_surveytype_value)';
+const expand =
+  'crcc8_lch_questiongroup($select=crcc8_lch_title,_crcc8_lch_surveytype_value)';
 
     // =========================
     // SINGLE RECORD
