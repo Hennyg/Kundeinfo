@@ -6,11 +6,9 @@ module.exports = async function (context, req) {
 
     if (id) {
 const r = await dvFetch(
-  `crcc8_lch_questiongroups?` +
+  `crcc8_lch_questiongroups(${id})?` +
   `$select=crcc8_lch_questiongroupid,crcc8_lch_name,crcc8_lch_title,crcc8_lch_description,crcc8_lch_sortorder,crcc8_lch_isactive,crcc8_lch_color,_crcc8_lch_surveytype_value` +
-  `&$expand=crcc8_lch_surveytype($select=crcc8_lch_type)` +
-  `${filter}` +
-  `&$orderby=crcc8_lch_sortorder asc&$top=${encodeURIComponent(top)}`
+  `&$expand=crcc8_lch_surveytype($select=crcc8_lch_type)`
 );
       const row = await r.json();
       return (context.res = { body: row });
@@ -18,9 +16,13 @@ const r = await dvFetch(
 
     const filter = surveyTypeId ? `&$filter=_crcc8_lch_surveytype_value eq ${surveyTypeId}` : '';
 
-    const r = await dvFetch(
-      `crcc8_lch_questiongroups?$select=crcc8_lch_questiongroupid,crcc8_lch_name,crcc8_lch_title,crcc8_lch_description,crcc8_lch_sortorder,crcc8_lch_isactive,crcc8_lch_color,_crcc8_lch_surveytype_value${filter}&$orderby=crcc8_lch_sortorder asc&$top=${encodeURIComponent(top)}`
-    );
+const r = await dvFetch(
+  `crcc8_lch_questiongroups?` +
+  `$select=crcc8_lch_questiongroupid,crcc8_lch_name,crcc8_lch_title,crcc8_lch_description,crcc8_lch_sortorder,crcc8_lch_isactive,crcc8_lch_color,_crcc8_lch_surveytype_value` +
+  `&$expand=crcc8_lch_surveytype($select=crcc8_lch_type)` +
+  `${filter}` +
+  `&$orderby=crcc8_lch_sortorder asc&$top=${encodeURIComponent(top)}`
+);
     const data = await r.json();
     return (context.res = { body: data });
 
