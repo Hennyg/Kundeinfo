@@ -1,67 +1,96 @@
-async function getMe() {
-  const r = await fetch("/.auth/me");
-  if (!r.ok) return null;
-  const j = await r.json();
-  return j?.clientPrincipal ?? null;
+function $(id) { return document.getElementById(id); }
+
+async function fetchJson(url, opts) {
+  const r = await fetch(url, opts);
+  const t = await r.text().catch(() => "");
+  if (!r.ok) throw new Error(`${r.status} ${t}`);
+  return t ? JSON.parse(t) : null;
 }
 
-function statusPill(row) {
-  if (!row.crcc8_expiresat) {
-    return `<span class="pill active">Aktiv</span>`;
-  }
-  const exp = new Date(row.crcc8_expiresat);
-  return exp < new Date()
-    ? `<span class="pill expired">Udløbet</span>`
-    : `<span class="pill active">Aktiv</span>`;
+function fmtDate(dt) {
+  if (!dt) return "";
+  try {
+    const d = new Date(dt);
+    return d.toLocaleString("da-DK");
+  } catch { return String(dt); }
+}
+
+function pill(statusText) {
+  const s = String(statusText || "").toLowerCase();
+  if (s.includes("expired") || s.includes("udløb")) return `<span class="pill expired">Udløbet</span>`;
+  return `<span class="pill active">${statusText || "Aktiv"}</span>`;
 }
 
 async function loadSurveys() {
-  const status = document.getElementById("status");
-  const table = document.getElementById("surveyTable");
-  const tbody = table.querySelector("tbody");
+  $("status").textContent = "Indlæser surveys…";
 
-  const r = await fetch("/api/survey-list?top=50");
-  if (!r.ok) {
-    status.textContent = "Kunne ikke hente surveys";
-    return;
-  }
+  // ✅ Her bruger vi dit eksisterende endpoint hvis du har det.
+  // Hvis du ikke har et, kan vi lave /api/surveyinstances-get
+  const data = await fetchJson("/api/surveyinstances-get?top=500", { cache: "no-store" });
 
-  const data = await r.json();
+  const rows = data?.value || data || [];
+  const tbody = document.querySelector("#surveyTable tbody");
   tbody.innerHTML = "";
 
-  for (const s of data.value ?? []) {
+  rows.forEach(r => {
+    const instanceId = r.crcc8_lch_surveyinstanceid || r.id;
+    const code = r.crcc8_lch_code || "";
+    const customerName = r.crcc8_lch_customername || "";
+    const expiresAt = r.crcc8_expiresat || null;
+
+    // template lookup (kræver felt på surveyinstance)
+    const templateId = r._crcc8_lch_surveytemplate_value || null;
+    const templateName =
+      r["_crcc8_lch_surveytemplate_value@OData.Community.Display.V1.FormattedValue"] ||
+      r.crcc8_lch_surveytemplate?.crcc8_lch_name ||
+      "";
+
+    const createdOn = r.createdon || r.crcc8_createdon || null;
+
+    // Kunde-link
+    const customerUrl = `${location.origin}/kundeinfo.html?t=${encodeURIComponent(code)}`;
+    // Admin prefill
+    const adminPrefillUrl = `${location.origin}/adminprefill.html?id=${encodeURIComponent(instanceId)}`;
+    // Ny fra template (hvis vi kender template)
+    const adminCreateFromTplUrl = templateId
+      ? `${location.origin}/admincreate.html?templateId=${encodeURIComponent(templateId)}`
+      : `${location.origin}/admincreate.html`;
+
     const tr = document.createElement("tr");
-
-    const link = `/kundesurvey.html?code=${encodeURIComponent(s.crcc8_lch_code)}`;
-
     tr.innerHTML = `
-      <td><strong>${s.crcc8_lch_customername ?? "—"}</strong></td>
-      <td><strong>${s.crcc8_lch_code}</strong></td>
-      <td>${statusPill(s)}</td>
-      <td>${s.crcc8_expiresat ? new Date(s.crcc8_expiresat).toLocaleDateString("da-DK") : "—"}</td>
-      <td>${s.crcc8_templateversion ?? ""}</td>
-      <td>${new Date(s.createdon).toLocaleDateString("da-DK")}</td>
-      <td class="actions">
-        <a class="tag" href="${link}" target="_blank">Åbn</a>
-        <button data-link="${link}">Kopiér</button>
+      <td>${escapeHtml(customerName)}</td>
+      <td>${escapeHtml(code)}</td>
+      <td>${pill(r.crcc8_status || "")}</td>
+      <td>${escapeHtml(fmtDate(expiresAt))}</td>
+      <td>${escapeHtml(templateName)}</td>
+      <td>${escapeHtml(fmtDate(createdOn))}</td>
+      <td>
+        <a class="tag" href="${customerUrl}" target="_blank" rel="noopener">Åbn kunde</a>
+        <a class="tag" href="${adminPrefillUrl}">Prefill</a>
+        <a class="tag" href="${adminCreateFromTplUrl}">Ny fra template</a>
       </td>
     `;
     tbody.appendChild(tr);
-  }
+  });
 
-  table.style.display = "";
-  status.style.display = "none";
+  $("surveyTable").style.display = "";
+  $("status").textContent = rows.length ? "" : "Ingen surveys fundet.";
 }
 
-document.addEventListener("click", e => {
-  const btn = e.target.closest("button[data-link]");
-  if (!btn) return;
-  navigator.clipboard.writeText(location.origin + btn.dataset.link);
-  alert("Link kopieret");
-});
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
 
-(async () => {
-  const me = await getMe();
-  if (me) document.getElementById("userInfo").textContent = me.userDetails;
-  await loadSurveys();
-})();
+document.addEventListener("DOMContentLoaded", async () => {
+  try {
+    await loadSurveys();
+  } catch (e) {
+    console.error(e);
+    $("status").textContent = "Fejl: " + e.message;
+  }
+});
