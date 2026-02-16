@@ -108,10 +108,13 @@
 
           <details style="margin:10px 0;">
             <summary>Betingelser (valgfrit)</summary>
-            <div class="row">
-              <label for="qconditionalon">Betinget af (spm-ID)</label>
-              <input id="qconditionalon" name="qconditionalon" placeholder="GUID for andet spørgsmål" />
-            </div>
+<div class="row">
+  <label for="qconditionalon">Betinget af (spørgsmål)</label>
+  <select id="qconditionalon" name="qconditionalon">
+    <option value="">(Ingen)</option>
+  </select>
+</div>
+            
             <div class="row">
               <label for="qconditionalvalue">Betingelsesværdi</label>
               <input id="qconditionalvalue" name="qconditionalvalue" placeholder="fx 'Ja' eller '1' afhængig af svartype" />
