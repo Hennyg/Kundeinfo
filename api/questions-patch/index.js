@@ -14,6 +14,7 @@ module.exports = async function (context, req) {
       crcc8_lch_explanation: p.explanation ?? null,
       crcc8_lch_answertype: p.answertype,
       crcc8_lch_isrequired: !!p.isrequired,
+      crcc8_lch_sortorder: p.sortorder ?? null,
       crcc8_lch_conditionalvalue: (p.conditionalvalue ?? null)
     };
 
