@@ -105,34 +105,33 @@ async function loadGroupTitles() {
 }
 
 function getGroupLabel(q) {
-  // 1) Hvis API sender formatted lookup label:
+  // 1) formatted value hvis API sender den
   const formatted =
     q['_crcc8_lch_questiongroup_value@OData.Community.Display.V1.FormattedValue'] ??
     q['crcc8_lch_questiongroup@OData.Community.Display.V1.FormattedValue'];
 
   if (formatted) return String(formatted);
 
-  // 2) Hvis API sender expand objekt:
+  // 2) expand objekt -> brug title
   const expanded =
     q.crcc8_lch_questiongroup?.crcc8_lch_title ??
-    q.crcc8_lch_questiongroup?.crcc8_lch_name ??
     q.crcc8_lch_questiongroup?.title ??
-    q.crcc8_lch_questiongroup?.name;
+    null;
 
   if (expanded) return String(expanded);
 
-  // 3) Lookup GUID -> slå op i cache:
+  // 3) fallback via cache
   const gid =
     q._crcc8_lch_questiongroup_value ??
     q.crcc8_lch_questiongroupid ??
-    q.crcc8_lch_questiongroup?.crcc8_lch_questiongroupid ??
     null;
 
-  if (gid && groupTitleById.has(String(gid))) return groupTitleById.get(String(gid));
+  if (gid && groupTitleById.has(String(gid)))
+    return groupTitleById.get(String(gid));
 
-  // 4) Fallback: vis tomt (i stedet for tal)
   return "";
 }
+
 
 function getAnswerTypeLabel(q) {
   // 1) formatted value (hvis annotations er med)
