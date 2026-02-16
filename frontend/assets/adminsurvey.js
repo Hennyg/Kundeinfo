@@ -21,6 +21,7 @@ function getEls() {
     btnCreate: $("btnCreate"),
     btnCopy: $("btnCopy"),
     btnOpen: $("btnOpen"),
+    btnOpenAdminPrefill: $("btnOpenAdminPrefill"),
 
     // Result UI
     result: $("result"),
@@ -260,14 +261,40 @@ async function createSurvey() {
       questionItems
     };
 
-    const result = await fetchJson("/api/survey-create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
+const result = await fetchJson("/api/survey-create", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(payload)
+});
 
-    showResult(result.code, result.link);
-    setStatus("Oprettet ✔");
+// Vis kunde-link (som før)
+showResult(result.code, result.link);
+
+// NYT: lav admin-prefill link
+// Forudsætter at survey-create returnerer instanceId (anbefalet)
+const instanceId =
+  result.instanceId ||
+  result.id ||
+  result.surveyinstanceid ||
+  result.crcc8_lch_surveyinstanceid ||
+  null;
+
+if (els.btnOpenAdminPrefill) {
+  if (instanceId) {
+    const adminUrl = `${location.origin}/adminprefill.html?id=${encodeURIComponent(instanceId)}`;
+    els.btnOpenAdminPrefill.href = adminUrl;
+    els.btnOpenAdminPrefill.classList.remove("hidden");
+  } else {
+    // fallback: hvis du ikke får instanceId endnu, kan vi åbne via code
+    const adminUrl = `${location.origin}/adminprefill.html?code=${encodeURIComponent(result.code || "")}`;
+    els.btnOpenAdminPrefill.href = adminUrl;
+    els.btnOpenAdminPrefill.classList.remove("hidden");
+    console.warn("survey-create returnerede ikke instanceId. Bruger code fallback.");
+  }
+}
+
+setStatus("Oprettet ✔");
+
 
   } catch (e) {
     console.error(e);
@@ -314,7 +341,17 @@ async function init() {
   els = getEls();
   sanityCheckDom();
 
-  hideResult();
+function hideResult() {
+  els.result?.classList.add("hidden");
+  els.resultEmpty?.classList.remove("hidden");
+
+  // NYT: skjul admin-prefill link
+  els.btnOpenAdminPrefill?.classList.add("hidden");
+  if (els.btnOpenAdminPrefill) {
+    els.btnOpenAdminPrefill.href = "#";
+  }
+}
+
   wireEvents();
 
   // important: hent labels først, så vi kan vise tekst (ikke tal)
