@@ -140,7 +140,9 @@ async function listGroups() {
 const surveyTypeLabel =
   g.crcc8_lch_surveytype?.crcc8_lch_type
   ?? g['crcc8_lch_surveytype@OData.Community.Display.V1.FormattedValue']
+  ?? g['_crcc8_lch_surveytype_value@OData.Community.Display.V1.FormattedValue']
   ?? '';
+
 
     tr.innerHTML = `
       <td>${escapeHtml(
