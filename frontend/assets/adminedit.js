@@ -63,7 +63,9 @@ async function loadConditionalQuestionsForSurveyType(surveyTypeId) {
   if (!surveyTypeId) return;
 
   // kræver at API kan filtrere på surveytype (se punkt C)
-  const r = await fetch(`/api/questions-get?top=500&surveyTypeId=${encodeURIComponent(surveyTypeId)}`, { cache: "no-store" });
+  const st = String(surveyTypeId || "").replace(/[{}]/g, "");
+  const r = await fetch(`/api/questions-get?top=500&surveyTypeId=${encodeURIComponent(st)}`, { cache: "no-store" });
+
   if (!r.ok) {
     console.warn("Kunne ikke hente conditional questions:", r.status);
     return;
