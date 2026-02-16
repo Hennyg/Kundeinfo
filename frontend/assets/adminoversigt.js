@@ -32,7 +32,7 @@ async function loadSurveys() {
   for (const s of data.value ?? []) {
     const tr = document.createElement("tr");
 
-    const link = `/kundeinfo.html?code=${encodeURIComponent(s.crcc8_lch_code)}`;
+    const link = `/kundesurvey.html?code=${encodeURIComponent(s.crcc8_lch_code)}`;
 
     tr.innerHTML = `
       <td><strong>${s.crcc8_lch_customername ?? "—"}</strong></td>
