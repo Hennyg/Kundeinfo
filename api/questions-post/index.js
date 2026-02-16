@@ -27,8 +27,7 @@ module.exports = async function (context, req) {
 
     // NEW: lookup til questiongroup
     if (p.questiongroupid) {
-      body['crcc8_lch_questiongroup@odata.bind'] =
-        `/crcc8_lch_questiongroups(${p.questiongroupid})`;
+      body['crcc8_lch_questiongroup@odata.bind'] = `/crcc8_lch_questiongroups(${p.questiongroupid})`;
     } else {
       // Hvis du kræver group, så returnér 400 i stedet
       // return (context.res = { status: 400, body: 'Missing questiongroupid' });
