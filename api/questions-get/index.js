@@ -20,8 +20,9 @@ module.exports = async function (context, req) {
       '_crcc8_lch_conditionalon_value'
     ].join(',');
 
-const expand =
-  'crcc8_lch_questiongroup($select=crcc8_lch_title,_crcc8_lch_surveytype_value)';
+    // Expand group så UI kan bruge name/title + surveytype
+    const expand =
+      'crcc8_lch_questiongroup($select=crcc8_lch_name,crcc8_lch_title,_crcc8_lch_surveytype_value)';
 
     // =========================
     // SINGLE RECORD
@@ -37,18 +38,20 @@ const expand =
     // =========================
     // LIST
     // =========================
-
     let url =
-      `crcc8_lch_questions?$select=${select}&$expand=${expand}&$orderby=crcc8_lch_number asc&$top=${encodeURIComponent(top)}`;
+      `crcc8_lch_questions?$select=${select}` +
+      `&$expand=${expand}` +
+      `&$orderby=crcc8_lch_number asc` +
+      `&$top=${encodeURIComponent(top)}`;
 
-    // ✅ FILTER på surveytype via questiongroup
+    // ✅ FILTER på surveytype via questiongroup (GUID-literal korrekt)
     if (surveyTypeId) {
-      url += `&$filter=crcc8_lch_questiongroup/_crcc8_lch_surveytype_value eq ${surveyTypeId}`;
+      const st = String(surveyTypeId).replace(/[{}]/g, "");
+      url += `&$filter=crcc8_lch_questiongroup/_crcc8_lch_surveytype_value eq guid'${st}'`;
     }
 
     const r = await dvFetch(url);
     const data = await r.json();
-
     context.res = { body: data };
 
   } catch (err) {
