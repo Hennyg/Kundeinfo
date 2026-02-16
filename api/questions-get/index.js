@@ -16,6 +16,7 @@ module.exports = async function (context, req) {
       'crcc8_lch_conditionalon',
       'crcc8_lch_conditionalvalue',
       '_crcc8_lch_questiongroup_value',
+      'crcc8_lch_sortorder',
       '_crcc8_lch_conditionalon_value'
     ].join(',');
 
