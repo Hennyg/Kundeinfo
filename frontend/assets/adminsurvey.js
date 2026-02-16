@@ -112,7 +112,7 @@ function renderQuestions(rows) {
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td><input type="checkbox" data-qid="${escapeHtml(id)}"></td>
+      <td><input type="checkbox" data-qid="${escapeHtml(id)}" checked></td>
       <td>${escapeHtml(number)}</td>
       <td>${escapeHtml(text)}</td>
       <td>${escapeHtml(String(group))}</td>
