@@ -15,6 +15,7 @@ module.exports = async function (context, req) {
       crcc8_lch_text: p.text,
       crcc8_lch_explanation: p.explanation ?? null,
       crcc8_lch_answertype: p.answertype, // Choice -> integer
+      crcc8_lch_sortorder: p.sortorder ?? null,
       crcc8_lch_isrequired: !!p.isrequired
     };
 
