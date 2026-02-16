@@ -77,6 +77,7 @@ module.exports = async function (context, req) {
         crcc8_lch_repeatindex: 0,
         crcc8_lch_sortordertal: sortOrder,
         "crcc8_lch_surveyinstance@odata.bind": `/crcc8_lch_surveyinstances(${instanceId})`,
+        "crcc8_lch_surveytemplate@odata.bind": `/crcc8_lch_surveytemplates(${templateId})`,
         "crcc8_lch_question@odata.bind": `/crcc8_lch_questions(${qid})`
       };
 
