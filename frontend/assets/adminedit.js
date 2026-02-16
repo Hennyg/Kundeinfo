@@ -22,6 +22,7 @@ function getEls() {
     status: document.getElementById('formStatus'),
     btnReset: document.getElementById('btnReset'),
     btnSave: document.getElementById('btnSave'),
+    qsortorder: document.getElementById('qsortorder'),
 
     // form fields
     qid: document.getElementById('qid'),
@@ -228,17 +229,21 @@ async function listQuestions() {
         ?? '';
 
       const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${escapeHtml(q.crcc8_lch_number ?? '')}</td>
-        <td>${escapeHtml(q.crcc8_lch_text ?? '')}</td>
-        <td>${escapeHtml(groupLabel)}</td>
-        <td>${escapeHtml(q['crcc8_lch_answertype@OData.Community.Display.V1.FormattedValue'] ?? q.crcc8_lch_answertype ?? '')}</td>
-        <td>${q.crcc8_lch_isrequired ? 'Ja' : 'Nej'}</td>
-        <td class="actions">
-          <button data-act="edit" data-id="${q.crcc8_lch_questionid}">Redigér</button>
-          <button data-act="del" data-id="${q.crcc8_lch_questionid}">Slet</button>
-        </td>
-      `;
+const sort = q.crcc8_lch_sortorder ?? "";
+
+tr.innerHTML = `
+  <td>${escapeHtml(q.crcc8_lch_number ?? '')}</td>
+  <td>${escapeHtml(q.crcc8_lch_text ?? '')}</td>
+  <td>${escapeHtml(groupLabel)}</td>
+  <td>${escapeHtml(q['crcc8_lch_answertype@OData.Community.Display.V1.FormattedValue'] ?? q.crcc8_lch_answertype ?? '')}</td>
+  <td>${escapeHtml(sort)}</td>
+  <td>${q.crcc8_lch_isrequired ? 'Ja' : 'Nej'}</td>
+  <td class="actions">
+    <button data-act="edit" data-id="${q.crcc8_lch_questionid}">Redigér</button>
+    <button data-act="del" data-id="${q.crcc8_lch_questionid}">Slet</button>
+  </td>
+`;
+
       els.tableBody.appendChild(tr);
     });
 
@@ -262,9 +267,10 @@ function readForm() {
     text: (els.qtext?.value || "").trim(),
     explanation: (els.qexplanation?.value || "").trim() || null,
 
-    // NEW
     surveytypeid: surveyTypeId,
     questiongroupid: groupId,
+
+    sortorder: (els.qsortorder?.value === "" ? null : parseInt(els.qsortorder.value, 10)),
 
     answertype: parseInt(els.qanswertype?.value || "0", 10),
     isrequired: !!els.qrequired?.checked,
@@ -272,6 +278,7 @@ function readForm() {
     conditionalvalue: (els.qconditionalvalue?.value || "").trim() || null
   };
 }
+
 
 function fillForm(q) {
   if (!q) return;
@@ -282,7 +289,6 @@ function fillForm(q) {
   els.qexplanation.value = q.crcc8_lch_explanation || '';
   if (q.crcc8_lch_answertype != null) els.qanswertype.value = q.crcc8_lch_answertype;
   els.qrequired.checked = !!q.crcc8_lch_isrequired;
-  els.qconditionalon.value = q.crcc8_lch_conditionalon || '';
   els.qconditionalvalue.value = q.crcc8_lch_conditionalvalue || '';
 
   // Lookup: questiongroup id (kan ligge på flere måder alt efter din API)
@@ -301,23 +307,29 @@ function fillForm(q) {
     ?? q.crcc8_lch_questiongroup?.crcc8_lch_surveytypeid
     ?? null;
 
-  const condId =
+const condId =
   q._crcc8_lch_conditionalon_value
   ?? q.crcc8_lch_conditionalon?.crcc8_lch_questionid
   ?? null;
 
 els.qconditionalon.value = condId || "";
 
+if (els.qsortorder) els.qsortorder.value = (q.crcc8_lch_sortorder ?? "");
+
   // Sæt surveytype først, og reload grupper, derefter sæt gruppe
-  (async () => {
-    if (els.qsurveytype) {
-      els.qsurveytype.value = surveyTypeId || "";
-      await loadGroupsForSurveyType(els.qsurveytype.value);
-    }
-    if (els.qgroup) {
-      els.qgroup.value = groupId || "";
-    }
-  })();
+(async () => {
+  if (els.qsurveytype) {
+    els.qsurveytype.value = surveyTypeId || "";
+    await loadGroupsForSurveyType(els.qsurveytype.value);
+    await loadConditionalQuestionsForSurveyType(els.qsurveytype.value);
+  }
+  if (els.qgroup) {
+    els.qgroup.value = groupId || "";
+  }
+  if (els.qconditionalon) {
+    els.qconditionalon.value = condId || "";
+  }
+})();
 }
 
 function resetForm() {
@@ -452,18 +464,17 @@ async function init() {
 
   wireEvents();
 
-  await loadAnswerTypeOptions();
-  await loadSurveyTypes();
-  await loadGroupsForSurveyType(els.qsurveytype?.value || "");
-  await loadConditionalQuestionsForSurveyType(els.qsurveytype?.value || "");  
+await loadAnswerTypeOptions();
+await loadSurveyTypes();
 
-  // hvis der er præcis 1 surveytype, auto-vælg den
-  if (els.qsurveytype && els.qsurveytype.options.length === 2) {
-    els.qsurveytype.selectedIndex = 1;
-  }
-  await loadGroupsForSurveyType(els.qsurveytype?.value || "");
+// auto-vælg hvis kun én surveytype
+if (els.qsurveytype && els.qsurveytype.options.length === 2) {
+  els.qsurveytype.selectedIndex = 1;
+}
 
-  await listQuestions();
+await loadGroupsForSurveyType(els.qsurveytype?.value || "");
+await loadConditionalQuestionsForSurveyType(els.qsurveytype?.value || "");
+await listQuestions();
 }
 
 document.addEventListener("DOMContentLoaded", init);
