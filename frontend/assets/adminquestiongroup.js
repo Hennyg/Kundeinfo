@@ -137,10 +137,10 @@ async function listGroups() {
   rows.forEach(g => {
     const tr = document.createElement("tr");
 
-    const surveyTypeLabel =
-      g['_crcc8_lch_surveytype_value@OData.Community.Display.V1.FormattedValue'] ??
-      g['crcc8_lch_surveytype@OData.Community.Display.V1.FormattedValue'] ??
-      '';
+const surveyTypeLabel =
+  g.crcc8_lch_surveytype?.crcc8_lch_type
+  ?? g['crcc8_lch_surveytype@OData.Community.Display.V1.FormattedValue']
+  ?? '';
 
     tr.innerHTML = `
       <td>${escapeHtml(g.crcc8_lch_surveytype ?? '')}</td>
