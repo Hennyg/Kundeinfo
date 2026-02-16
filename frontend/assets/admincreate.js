@@ -1,5 +1,10 @@
 function $(id){ return document.getElementById(id); }
 
+function qs(name){
+  const u = new URL(location.href);
+  return u.searchParams.get(name);
+}
+
 async function fetchJson(url, opts) {
   const r = await fetch(url, opts);
   const t = await r.text().catch(() => "");
@@ -51,5 +56,15 @@ async function createFromTemplate() {
 
 document.addEventListener("DOMContentLoaded", async () => {
   await loadTemplates();
+
+  const tid = qs("templateId");
+  if (tid) {
+    const sel = document.getElementById("templateSelect");
+    if ([...sel.options].some(o => o.value === tid)) {
+      sel.value = tid;
+    }
+  }
+
   $("btnCreate").addEventListener("click", createFromTemplate);
 });
+
