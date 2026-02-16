@@ -53,6 +53,37 @@ async function getMe() {
   }
 }
 
+async function loadConditionalQuestionsForSurveyType(surveyTypeId) {
+  if (!els.qconditionalon) return;
+
+  // start-state
+  els.qconditionalon.innerHTML = `<option value="">(Ingen)</option>`;
+
+  if (!surveyTypeId) return;
+
+  // kræver at API kan filtrere på surveytype (se punkt C)
+  const r = await fetch(`/api/questions-get?top=500&surveyTypeId=${encodeURIComponent(surveyTypeId)}`, { cache: "no-store" });
+  if (!r.ok) {
+    console.warn("Kunne ikke hente conditional questions:", r.status);
+    return;
+  }
+
+  const data = await r.json();
+  const rows = (data?.value || data || []);
+
+  // valgfrit: sorter efter nummer
+  rows.sort((a,b) => String(a.crcc8_lch_number||'').localeCompare(String(b.crcc8_lch_number||'')));
+
+  els.qconditionalon.innerHTML =
+    `<option value="">(Ingen)</option>` +
+    rows.map(q => {
+      const id = q.crcc8_lch_questionid;
+      const num = q.crcc8_lch_number || '';
+      const txt = q.crcc8_lch_text || '';
+      return `<option value="${id}">${escapeHtml(num)} — ${escapeHtml(txt)}</option>`;
+    }).join('');
+}
+
 function setAuthUI(isAuthed, userLabel) {
   const userInfo = document.getElementById("userInfo");
   const btnLogin = document.getElementById("btnLogin");
@@ -270,6 +301,13 @@ function fillForm(q) {
     ?? q.crcc8_lch_questiongroup?.crcc8_lch_surveytypeid
     ?? null;
 
+  const condId =
+  q._crcc8_lch_conditionalon_value
+  ?? q.crcc8_lch_conditionalon?.crcc8_lch_questionid
+  ?? null;
+
+els.qconditionalon.value = condId || "";
+
   // Sæt surveytype først, og reload grupper, derefter sæt gruppe
   (async () => {
     if (els.qsurveytype) {
@@ -346,9 +384,10 @@ async function deleteQuestion(id) {
 ----------------------- */
 function wireEvents() {
   if (els.qsurveytype) {
-    els.qsurveytype.addEventListener("change", async () => {
-      await loadGroupsForSurveyType(els.qsurveytype.value);
-    });
+els.qsurveytype.addEventListener("change", async () => {
+  await loadGroupsForSurveyType(els.qsurveytype.value);
+  await loadConditionalQuestionsForSurveyType(els.qsurveytype.value);
+});
   }
 
   if (els.form) {
@@ -415,6 +454,8 @@ async function init() {
 
   await loadAnswerTypeOptions();
   await loadSurveyTypes();
+  await loadGroupsForSurveyType(els.qsurveytype?.value || "");
+  await loadConditionalQuestionsForSurveyType(els.qsurveytype?.value || "");  
 
   // hvis der er præcis 1 surveytype, auto-vælg den
   if (els.qsurveytype && els.qsurveytype.options.length === 2) {
