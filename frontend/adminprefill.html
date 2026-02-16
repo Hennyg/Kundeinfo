@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8" />
+  <title>Admin – Prefill spørgeskema</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="./assets/style.css" rel="stylesheet" />
+
+  <style>
+    .container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+    header { display:flex; justify-content: space-between; align-items:center; gap:16px; margin-bottom:16px; }
+    .card { border:1px solid #ddd; border-radius:10px; padding:16px; background:#fff; margin:16px 0; }
+    .muted { color:#666; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .btn { border:1px solid #ccc; background:#f7f7f7; padding:8px 12px; border-radius:8px; cursor:pointer; }
+    .btn.primary { background:#1f6c7a; color:#fff; border-color:#1f6c7a; }
+    .btn.danger { background:#b42318; color:#fff; border-color:#b42318; }
+    .btn:disabled { opacity:.6; cursor:not-allowed; }
+    .group-title { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:10px; }
+    .group-title h2 { margin:0; font-size:18px; }
+    .repeat-block { border:1px dashed rgba(0,0,0,.18); border-radius:10px; padding:12px; margin:12px 0; }
+    .repeat-head { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:8px; }
+    .repeat-head .tag { background:#eef; padding:2px 8px; border-radius:999px; font-size:12px; }
+    .grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:12px; }
+    @media (max-width: 800px){ .grid{ grid-template-columns:1fr; } }
+    label { display:block; font-weight:600; margin-bottom:4px; }
+    input[type="text"], input[type="number"], textarea, select {
+      width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid #ccc;
+      font:inherit; background:#fff;
+    }
+    textarea { min-height:80px; resize:vertical; }
+    .status { padding:10px 12px; border-radius:10px; background:#f6f7fb; border:1px solid rgba(0,0,0,.08); }
+    .center-card { max-width: 520px; margin: 64px auto; }
+  </style>
+</head>
+
+<body>
+
+<!-- Loading -->
+<div class="container" id="loading">
+  <div class="card center-card">
+    <h2>Indlæser…</h2>
+    <p class="muted">Tjekker loginstatus.</p>
+  </div>
+</div>
+
+<!-- Not authed -->
+<div class="container" id="authDenied" style="display:none">
+  <div class="card center-card">
+    <h2>Log ind kræves</h2>
+    <p class="muted">Du skal være logget ind for at prefill’e spørgeskemaer.</p>
+    <a class="btn btnlink" href="/.auth/login/aad">Log ind</a>
+    <a class="btn" style="margin-left:8px" href="./admin.html">Tilbage</a>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app" style="display:none">
+  <div class="navbar">
+    <div class="navbar-inner">
+      <div class="brand">Admin - Prefill</div>
+      <nav class="nav">
+        <a href="./index.html">Hjem</a>
+        <span class="sep">•</span>
+        <a href="./admin.html">Admin</a>
+        <span class="sep">•</span>
+        <a href="./adminsurvey.html">Opret instans</a>
+      </nav>
+    </div>
+  </div>
+  <div class="nav-accent"></div>
+
+  <div class="container">
+    <header>
+      <div>
+        <h1 style="margin:0">Admin – Prefill spørgeskema</h1>
+        <div class="muted" id="subtitle"></div>
+      </div>
+      <div class="row">
+        <button class="btn" id="reloadBtn">Genindlæs</button>
+        <button class="btn primary" id="saveBtn">Gem</button>
+      </div>
+    </header>
+
+    <div class="status" id="statusBox">Indlæser…</div>
+
+    <div class="card" id="openBox" style="display:none">
+      <h3 style="margin-top:0">Åbn survey</h3>
+      <div class="row">
+        <div style="flex:1; min-width:240px">
+          <label>6-cifret code</label>
+          <input id="openCode" type="text" placeholder="000123" />
+        </div>
+        <div style="flex:2; min-width:240px">
+          <label>Surveyinstance ID (GUID)</label>
+          <input id="openId" type="text" placeholder="xxxxxxxx-xxxx-...." />
+        </div>
+        <div style="align-self:flex-end">
+          <button class="btn primary" id="openGo">Åbn</button>
+        </div>
+      </div>
+      <div class="muted" style="margin-top:8px">
+        Tip: repeatable grupper styres af feltet <code>crcc8_crcc8_repeatable</code> på questiongroups.
+      </div>
+    </div>
+
+    <div id="surveyRoot"></div>
+  </div>
+</div>
+
+<!-- Auth-guard -->
+<script type="module">
+import { requireAuth } from "./assets/auth-guard.js";
+requireAuth({ autoRedirect: false });
+document.getElementById("loading").style.display = "none";
+document.getElementById("app").style.display = "block";
+</script>
+
+<script type="module" src="./assets/adminprefill.js"></script>
+</body>
+</html>
