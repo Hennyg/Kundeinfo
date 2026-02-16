@@ -22,15 +22,11 @@ module.exports = async function (context, req) {
       body.crcc8_lch_group = p.group;
     }
 
-    // NEW: questiongroup lookup (bind eller nulstil)
-    if (p.questiongroupid) {
-      body['crcc8_lch_questiongroup@odata.bind'] =
-        `/crcc8_lch_questiongroups(${p.questiongroupid})`;
-    } else {
-      // Nulstil lookup hvis UI sender tom
-      // I Dataverse nulstiller man lookup ved at sætte selve lookupfeltet til null:
-      body.crcc8_lch_questiongroup = null;
-    }
+if (p.questiongroupid) {
+  body['crcc8_lch_questiongroup@odata.bind'] = `/crcc8_lch_questiongroups(${p.questiongroupid})`;
+} else {
+  body.crcc8_lch_questiongroup = null;
+}
 
     // conditionalon lookup bind/null
     if (p.conditionalon) {
