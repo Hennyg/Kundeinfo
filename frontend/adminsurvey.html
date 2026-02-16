@@ -1,432 +1,159 @@
 <!doctype html>
 <html lang="da">
 <head>
-  <meta charset="utf-8" />
-  <title>Admin – Spørgeskema</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link href="/assets/style.css" rel="stylesheet" />
+<meta charset="utf-8" />
+<title>Admin – Spørgeskema</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="./assets/style.css" rel="stylesheet" />
 
-  <style>
-    .container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
-    header { display:flex; justify-content: space-between; align-items:center; gap:16px; margin-bottom:16px; }
-    .card { border:1px solid #ddd; border-radius:10px; padding:16px; background:#fff; margin:16px 0; }
-    .muted { color:#666; }
-    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
-    .btn { border:1px solid #ccc; background:#f7f7f7; padding:8px 12px; border-radius:8px; cursor:pointer; }
-    .btn.primary { background:#1f6c7a; color:#fff; border-color:#1f6c7a; }
-    .btn.danger { background:#b42318; color:#fff; border-color:#b42318; }
-    .btn:disabled { opacity:.6; cursor:not-allowed; }
-    .group-title { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:10px; }
-    .group-title h2 { margin:0; font-size:18px; }
-    .repeat-block { border:1px dashed rgba(0,0,0,.18); border-radius:10px; padding:12px; margin:12px 0; }
-    .repeat-head { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:8px; }
-    .repeat-head .tag { background:#eef; padding:2px 8px; border-radius:999px; font-size:12px; }
-    .grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:12px; }
-    @media (max-width: 800px){ .grid{ grid-template-columns:1fr; } }
-    label { display:block; font-weight:600; margin-bottom:4px; }
-    input[type="text"], input[type="number"], textarea, select {
-      width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid #ccc;
-      font:inherit; background:#fff;
-    }
-    textarea { min-height:80px; resize:vertical; }
-    .hr { height:1px; background:rgba(0,0,0,.08); margin:12px 0; }
-    .status { padding:10px 12px; border-radius:10px; background:#f6f7fb; border:1px solid rgba(0,0,0,.08); }
-    .hidden { display:none; }
-  </style>
+<style>
+.container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+header { display:flex; justify-content: space-between; align-items:center; gap:16px; }
+.card { border:1px solid #ddd; border-radius:8px; padding:16px; margin:16px 0; background:#fff; }
+.muted { color:#666; }
+.hidden { display:none; }
+.tag { background:#eef; padding:2px 8px; border-radius:12px; font-size:12px; }
+.row { display:grid; grid-template-columns: 1fr 2fr; gap:10px; margin-bottom:10px; }
+.grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:16px; align-items:start; }
+table { width:100%; border-collapse: collapse; }
+th, td { border-bottom:1px solid #eee; padding:8px; text-align:left; vertical-align:top; }
+th { white-space:nowrap; }
+.actions button { margin-right:8px; }
+.pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#f3f3f3; font-size:12px; }
+#result .btnrow { align-items:center; }
+input[type="text"], input[type="datetime-local"], input[type="number"] { width:100%; padding:.5rem; }
+
+/* Auth-guard skærme */
+.center-card { max-width: 520px; margin: 64px auto; }
+</style>
 </head>
+
 <body>
-  <div class="container">
-    <header>
-      <div>
-        <h1 style="margin:0">Admin – Prefill spørgeskema</h1>
-        <div class="muted" id="subtitle"></div>
-      </div>
-      <div class="row">
-        <button class="btn" id="reloadBtn">Genindlæs</button>
-        <button class="btn primary" id="saveBtn">Gem</button>
-      </div>
-    </header>
 
-    <div class="status" id="statusBox">Indlæser…</div>
+<!-- Loading -->
+<div class="container" id="loading">
+<div class="card center-card">
+<h2>Indlæser…</h2>
+<p class="muted">Tjekker loginstatus.</p>
+</div>
+</div>
 
-    <div id="surveyRoot"></div>
+<!-- Not authed -->
+<div class="container" id="authDenied" style="display:none">
+<div class="card center-card">
+<h2>Log ind kræves</h2>
+<p class="muted">Du skal være logget ind for at oprette spørgeskemaer.</p>
+<a class="btn btnlink" href="/.auth/login/aad">Log ind</a>
+<a class="btn" style="margin-left:8px" href="./admin.html">Tilbage</a>
+</div>
+</div>
 
-    <div class="card">
-      <div class="row" style="justify-content:space-between">
-        <div class="muted">
-          Tip: Repeatable grupper (feltet <code>crcc8_crcc8_repeatable</code>) kan udvides med “+ Tilføj”.
-        </div>
-        <div class="row">
-          <button class="btn" id="debugBtn" title="Vis rå data (i console)">Debug</button>
-        </div>
-      </div>
-    </div>
-  </div>
+<!-- App (skjult indtil authed) -->
+<div id="app" style="display:none">
 
-<script>
-/* ===========================
-   Konfiguration / hjælper
-=========================== */
-function qs(name) {
-  const u = new URL(location.href);
-  return u.searchParams.get(name);
-}
-function setStatus(msg, isError=false) {
-  const el = document.getElementById("statusBox");
-  el.textContent = msg;
-  el.style.borderColor = isError ? "rgba(180,35,24,.35)" : "rgba(0,0,0,.08)";
-  el.style.background = isError ? "rgba(180,35,24,.06)" : "#f6f7fb";
-}
+<div class="navbar">
+<div class="navbar-inner">
+<div class="brand">Admin - Opret spørgeskema</div>
+<nav class="nav">
+<a href="./index.html">Hjem</a>
+<span class="sep">•</span>
+<a href="./admin.html">Admin</a>
+</nav>
+</div>
+</div>
+<div class="nav-accent"></div>
 
-/* ===========================
-   State
-=========================== */
-let DATA = null;
-/*
-DATA = {
-  instance: {...},
-  groups: [{ id, name, sort, repeatable }],
-  questions: [{ id, text, explanation, answerType, sort, groupId }],
-  items: [{ id, questionId, repeatIndex, value }]
-}
-*/
-const repeatCounters = {};           // groupId -> max repeatIndex
-const removedRepeats = new Set();    // `${groupId}:${repeatIndex}`
+<div class="container">
+<header>
+<h1>Admin · Opret spørgeskema</h1>
+<div id="authArea">
+<span id="userInfo" class="muted"></span>
+<a class="tag" href="/.auth/logout?post_logout_redirect_uri=/">Log ud</a>
+</div>
+</header>
 
-/* ===========================
-   Load
-=========================== */
-async function loadAll() {
-  removedRepeats.clear();
-  DATA = null;
-  document.getElementById("surveyRoot").innerHTML = "";
-  setStatus("Indlæser…");
+<section class="card">
+<div class="grid2">
+<div>
+<h2>Indstillinger</h2>
+            
+<div class="row">
+  <label for="customerName">Kundenavn</label>
+  <input id="customerName" type="text" placeholder="fx B.F. Malketeknik A/S" />
+</div>
+            
+<div class="row">
+<label for="expiresAt">Udløber (valgfri)</label>
+<input id="expiresAt" type="datetime-local" />
+</div>
 
-  const instanceId = qs("id");
-  const code = qs("code");
+<div class="row">
+<label for="templateVersion">Template version</label>
+<input id="templateVersion" type="number" min="1" value="1" />
+</div>
 
-  if (!instanceId && !code) {
-    setStatus("Mangler ?id=<surveyinstance-guid> eller ?code=<6-cifret code> i URL.", true);
-    return;
-  }
+<div class="row">
+<label for="note">Intern note (valgfri)</label>
+<input id="note" type="text" placeholder="fx 'Februar kampagne – Nord'" />
+</div>
 
-  try {
-    const res = await fetch("/api/admin-survey-load", {
-      method: "POST",
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-      body: JSON.stringify({ instanceId, code })
-    });
+<div class="btnrow">
+<button id="btnReload" type="button">Genindlæs spørgsmål</button>
+<button id="btnCreate" type="button">Opret survey-instans</button>
+</div>
 
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setStatus((body && body.message) ? body.message : ("Load fejlede: HTTP " + res.status), true);
-      console.error(body);
-      return;
-    }
+<div id="status" class="muted" style="margin-top:10px;"></div>
+</div>
 
-    DATA = body;
-    window.__ADMINSURVEY_DATA__ = DATA;
+<div>
+<h2>Resultat</h2>
+<div id="result" class="hidden">
+<p><span class="pill">Kunde-kode</span> <strong id="codeOut"></strong></p>
+<p class="muted">Link (kunden kan åbne dette direkte):</p>
+<input id="linkOut" type="text" readonly />
 
-    // subtitle
-    const inst = DATA.instance || {};
-    document.getElementById("subtitle").textContent =
-      `Survey: ${inst.customerName || ""}  •  Code: ${inst.code || ""}  •  Status: ${inst.status || ""}`;
+<div class="btnrow">
+<button id="btnCopy" type="button">Kopiér link</button>
+<a id="btnOpen" class="tag" href="#" target="_blank" rel="noopener">Åbn link</a>
+</div>
+</div>
 
-    initRepeatCounters();
-    renderSurvey();
+<div id="resultEmpty" class="muted">
+Opret en survey-instans, så får du kode og link her.
+</div>
+</div>
+</div>
+</section>
 
-    setStatus("Klar.");
-  } catch (e) {
-    console.error(e);
-    setStatus("Load fejlede: " + (e?.message || e), true);
-  }
-}
+<section class="card">
+<h2>Vælg spørgsmål</h2>
+<div id="listStatus" class="muted">Indlæser…</div>
 
-function initRepeatCounters() {
-  // Default: repeatCounters[groupId] = 0 (kun base)
-  Object.keys(repeatCounters).forEach(k => delete repeatCounters[k]);
+<table>
+<thead>
+<tr>
+<th style="width:40px;">✓</th>
+<th>Nummer</th>
+<th>Tekst</th>
+<th>Gruppe</th>
+<th>Svar-type</th>
+<th>Required</th>
+<th>Forudfyldt tekst</th>
+</tr>
+</thead>
+<tbody id="qbody"></tbody>
+</table>
+</section>
+</div>
+</div>
 
-  const groupByQuestion = new Map();
-  for (const q of (DATA.questions || [])) groupByQuestion.set(q.id, q.groupId);
-
-  // Find max repeatIndex pr gruppe baseret på eksisterende items
-  for (const g of (DATA.groups || [])) repeatCounters[g.id] = 0;
-
-  for (const it of (DATA.items || [])) {
-    const gid = groupByQuestion.get(it.questionId);
-    if (!gid) continue;
-    const ri = Number.isFinite(it.repeatIndex) ? it.repeatIndex : 0;
-    if (ri > (repeatCounters[gid] ?? 0)) repeatCounters[gid] = ri;
-  }
-}
-
-/* ===========================
-   Render
-=========================== */
-function renderSurvey() {
-  const root = document.getElementById("surveyRoot");
-  root.innerHTML = "";
-
-  const groups = [...(DATA.groups || [])].sort((a,b) => (a.sort ?? 0) - (b.sort ?? 0));
-  const questions = [...(DATA.questions || [])];
-
-  const qByGroup = new Map();
-  for (const q of questions) {
-    if (!qByGroup.has(q.groupId)) qByGroup.set(q.groupId, []);
-    qByGroup.get(q.groupId).push(q);
-  }
-  for (const [gid, arr] of qByGroup.entries()) {
-    arr.sort((a,b) => (a.sort ?? 0) - (b.sort ?? 0));
-  }
-
-  const itemMap = makeItemMap(DATA.items || []); // key: qid|ri -> value
-
-  for (const g of groups) {
-    const card = document.createElement("div");
-    card.className = "card";
-
-    const titleRow = document.createElement("div");
-    titleRow.className = "group-title";
-
-    const h2 = document.createElement("h2");
-    h2.textContent = g.name || "(gruppe)";
-    titleRow.appendChild(h2);
-
-    const right = document.createElement("div");
-    right.className = "row";
-
-    if (g.repeatable) {
-      const addBtn = document.createElement("button");
-      addBtn.className = "btn";
-      addBtn.textContent = "+ Tilføj";
-      addBtn.addEventListener("click", () => {
-        const next = (repeatCounters[g.id] ?? 0) + 1;
-        repeatCounters[g.id] = next;
-        renderSurvey(); // simpelt: rerender alt
-        // scroll til ny repeat
-        setTimeout(() => {
-          const el = document.getElementById(`repeat_${g.id}_${next}`);
-          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-        }, 50);
-      });
-      right.appendChild(addBtn);
-    } else {
-      const badge = document.createElement("span");
-      badge.className = "muted";
-      badge.textContent = "Fast gruppe";
-      right.appendChild(badge);
-    }
-
-    titleRow.appendChild(right);
-    card.appendChild(titleRow);
-
-    const qs = qByGroup.get(g.id) || [];
-    if (!qs.length) {
-      const p = document.createElement("div");
-      p.className = "muted";
-      p.textContent = "Ingen spørgsmål i gruppen.";
-      card.appendChild(p);
-      root.appendChild(card);
-      continue;
-    }
-
-    // Render repeat blocks
-    const maxRI = g.repeatable ? (repeatCounters[g.id] ?? 0) : 0;
-    for (let ri = 0; ri <= maxRI; ri++) {
-      const removedKey = `${g.id}:${ri}`;
-      if (removedRepeats.has(removedKey)) continue;
-
-      const block = document.createElement("div");
-      block.className = g.repeatable ? "repeat-block" : "";
-      block.id = `repeat_${g.id}_${ri}`;
-
-      if (g.repeatable) {
-        const head = document.createElement("div");
-        head.className = "repeat-head";
-
-        const tag = document.createElement("span");
-        tag.className = "tag";
-        tag.textContent = (ri === 0) ? "Standard" : (`Gentagelse ${ri}`);
-        head.appendChild(tag);
-
-        const headBtns = document.createElement("div");
-        headBtns.className = "row";
-
-        if (ri > 0) {
-          const delBtn = document.createElement("button");
-          delBtn.className = "btn danger";
-          delBtn.textContent = "Fjern";
-          delBtn.title = "Skjuler gentagelsen og sletter værdier ved gem.";
-          delBtn.addEventListener("click", () => {
-            removedRepeats.add(removedKey);
-            renderSurvey();
-          });
-          headBtns.appendChild(delBtn);
-        }
-
-        head.appendChild(headBtns);
-        block.appendChild(head);
-      }
-
-      const grid = document.createElement("div");
-      grid.className = "grid";
-
-      for (const q of qs) {
-        const field = document.createElement("div");
-
-        const lab = document.createElement("label");
-        lab.textContent = q.text || "(spørgsmål)";
-        field.appendChild(lab);
-
-        if (q.explanation) {
-          const ex = document.createElement("div");
-          ex.className = "muted";
-          ex.style.marginBottom = "6px";
-          ex.textContent = q.explanation;
-          field.appendChild(ex);
-        }
-
-        const key = `${q.id}|${ri}`;
-        const val = itemMap.get(key) ?? "";
-
-        const input = buildInput(q, val);
-        input.dataset.questionId = q.id;
-        input.dataset.groupId = g.id;
-        input.dataset.repeatIndex = String(ri);
-        field.appendChild(input);
-
-        grid.appendChild(field);
-      }
-
-      block.appendChild(grid);
-      card.appendChild(block);
-    }
-
-    root.appendChild(card);
-  }
-}
-
-function buildInput(q, value) {
-  const t = String(q.answerType || "").toLowerCase();
-
-  // Simple mapping (tilpas hvis du har specifikke answertype-værdier)
-  if (t.includes("note") || t.includes("long") || t.includes("textarea")) {
-    const ta = document.createElement("textarea");
-    ta.value = value ?? "";
-    return ta;
-  }
-
-  if (t.includes("number") || t.includes("tal")) {
-    const inp = document.createElement("input");
-    inp.type = "number";
-    inp.value = value ?? "";
-    return inp;
-  }
-
-  if (t.includes("bool") || t.includes("yesno") || t.includes("ja") || t.includes("nej")) {
-    const sel = document.createElement("select");
-    const opt0 = document.createElement("option"); opt0.value = ""; opt0.textContent = "—";
-    const opt1 = document.createElement("option"); opt1.value = "true"; opt1.textContent = "Ja";
-    const opt2 = document.createElement("option"); opt2.value = "false"; opt2.textContent = "Nej";
-    sel.appendChild(opt0); sel.appendChild(opt1); sel.appendChild(opt2);
-    sel.value = (value === true || value === "true") ? "true" : (value === false || value === "false") ? "false" : (value ?? "");
-    return sel;
-  }
-
-  // default: text
-  const inp = document.createElement("input");
-  inp.type = "text";
-  inp.value = value ?? "";
-  return inp;
-}
-
-function makeItemMap(items) {
-  const m = new Map();
-  for (const it of items) {
-    const qid = it.questionId;
-    const ri = Number.isFinite(it.repeatIndex) ? it.repeatIndex : 0;
-    m.set(`${qid}|${ri}`, it.value ?? "");
-  }
-  return m;
-}
-
-/* ===========================
-   Save
-=========================== */
-async function saveAll() {
-  if (!DATA?.instance?.id) {
-    setStatus("Kan ikke gemme: surveyinstance mangler.", true);
-    return;
-  }
-
-  const saveBtn = document.getElementById("saveBtn");
-  saveBtn.disabled = true;
-  setStatus("Gemmer…");
-
-  try {
-    // Collect answers
-    const answers = [];
-    const els = document.querySelectorAll("[data-question-id]");
-    for (const el of els) {
-      const questionId = el.dataset.questionId;
-      const groupId = el.dataset.groupId;
-      const repeatIndex = parseInt(el.dataset.repeatIndex || "0", 10);
-
-      let value = "";
-      if (el.tagName === "SELECT") value = el.value;
-      else value = el.value ?? "";
-
-      answers.push({ questionId, groupId, repeatIndex, value });
-    }
-
-    // Collect removed repeats (to delete items for that group/repeatIndex)
-    const removed = [];
-    for (const key of removedRepeats) {
-      const [groupId, riStr] = key.split(":");
-      removed.push({ groupId, repeatIndex: parseInt(riStr, 10) });
-    }
-
-    const res = await fetch("/api/admin-survey-save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-      body: JSON.stringify({
-        instanceId: DATA.instance.id,
-        answers,
-        removed
-      })
-    });
-
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      console.error(body);
-      setStatus((body && body.message) ? body.message : ("Save fejlede: HTTP " + res.status), true);
-      return;
-    }
-
-    // Genindlæs for at få canonical data + nye IDs
-    await loadAll();
-    setStatus(`Gemt. Oprettet: ${body.created ?? 0}, Opdateret: ${body.updated ?? 0}, Slettet: ${body.deleted ?? 0}`);
-  } catch (e) {
-    console.error(e);
-    setStatus("Save fejlede: " + (e?.message || e), true);
-  } finally {
-    saveBtn.disabled = false;
-  }
-}
-
-/* ===========================
-   Events
-=========================== */
-document.getElementById("reloadBtn").addEventListener("click", loadAll);
-document.getElementById("saveBtn").addEventListener("click", saveAll);
-document.getElementById("debugBtn").addEventListener("click", () => {
-  console.log("DATA:", DATA);
-  console.log("repeatCounters:", repeatCounters);
-  console.log("removedRepeats:", [...removedRepeats]);
-  alert("Debug info er sendt til console (F12).");
-});
-
-loadAll();
+<!-- Auth-guard (fælles) -->
+<script type="module">
+import { requireAuth } from "./assets/auth-guard.js";
+requireAuth({ autoRedirect: false }); // sæt true hvis du vil auto-sende til login
 </script>
+
+<!-- Din eksisterende side-logik -->
+<script type="module" src="./assets/adminsurvey.js"></script>
 </body>
 </html>
