@@ -11,7 +11,7 @@ function getEls() {
     qbody: $("qbody"),
 
     // Inputs
-    customerName: $("customerName"),   // <-- kræver at feltet findes i HTML
+    customerName: $("customerName"),
     expiresAt: $("expiresAt"),
     templateVersion: $("templateVersion"),
     note: $("note"),
@@ -51,7 +51,7 @@ function hideResult() {
 
 async function fetchJson(url, opts) {
   const r = await fetch(url, opts);
-  const t = await r.text();
+  const t = await r.text().catch(() => "");
   if (!r.ok) throw new Error(`${r.status} ${t}`);
   return t ? JSON.parse(t) : null;
 }
@@ -65,7 +65,92 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 
-// ✅ ENESTE version – returnerer {id, prefillText}
+/* ---------------------------
+   Label maps (answertype + groups)
+--------------------------- */
+let answerTypeLabelByValue = new Map();   // value(int) -> label(string)
+let groupTitleById = new Map();           // questiongroupid(guid) -> title(string)
+
+async function loadAnswerTypeLabels() {
+  answerTypeLabelByValue = new Map();
+  try {
+    const meta = await fetchJson("/api/questions-metadata", { cache: "no-store" });
+    const opts = meta?.answertype || [];
+    opts.forEach(o => {
+      const v = Number(o.value);
+      if (!Number.isNaN(v)) answerTypeLabelByValue.set(v, String(o.label || ""));
+    });
+  } catch (e) {
+    // fallback (hvis metadata fejler)
+    answerTypeLabelByValue.set(100000000, "Ja/Nej");
+    answerTypeLabelByValue.set(100000001, "Tal");
+    answerTypeLabelByValue.set(100000002, "Tekst");
+    answerTypeLabelByValue.set(100000003, "Valgliste");
+  }
+}
+
+async function loadGroupTitles() {
+  groupTitleById = new Map();
+  try {
+    const data = await fetchJson("/api/questiongroups-get?top=500", { cache: "no-store" });
+    const rows = data?.value || data || [];
+    rows.forEach(g => {
+      const id = g.crcc8_lch_questiongroupid || g.id;
+      const title = g.crcc8_lch_title || g.title || g.crcc8_lch_name || g.name || "";
+      if (id) groupTitleById.set(String(id), String(title));
+    });
+  } catch (e) {
+    // hvis endpoint ikke findes / fejler, lader vi bare kortet være tomt
+  }
+}
+
+function getGroupLabel(q) {
+  // 1) Hvis API sender formatted lookup label:
+  const formatted =
+    q['_crcc8_lch_questiongroup_value@OData.Community.Display.V1.FormattedValue'] ??
+    q['crcc8_lch_questiongroup@OData.Community.Display.V1.FormattedValue'];
+
+  if (formatted) return String(formatted);
+
+  // 2) Hvis API sender expand objekt:
+  const expanded =
+    q.crcc8_lch_questiongroup?.crcc8_lch_title ??
+    q.crcc8_lch_questiongroup?.crcc8_lch_name ??
+    q.crcc8_lch_questiongroup?.title ??
+    q.crcc8_lch_questiongroup?.name;
+
+  if (expanded) return String(expanded);
+
+  // 3) Lookup GUID -> slå op i cache:
+  const gid =
+    q._crcc8_lch_questiongroup_value ??
+    q.crcc8_lch_questiongroupid ??
+    q.crcc8_lch_questiongroup?.crcc8_lch_questiongroupid ??
+    null;
+
+  if (gid && groupTitleById.has(String(gid))) return groupTitleById.get(String(gid));
+
+  // 4) Fallback: vis tomt (i stedet for tal)
+  return "";
+}
+
+function getAnswerTypeLabel(q) {
+  // 1) formatted value (hvis annotations er med)
+  const formatted = q['crcc8_lch_answertype@OData.Community.Display.V1.FormattedValue'];
+  if (formatted) return String(formatted);
+
+  // 2) tal -> label map
+  const raw = q.crcc8_lch_answertype;
+  const v = raw == null ? null : Number(raw);
+  if (v != null && answerTypeLabelByValue.has(v)) return answerTypeLabelByValue.get(v);
+
+  // 3) fallback: vis raw hvis vi ingen label har
+  return (raw ?? "").toString();
+}
+
+/* ---------------------------
+   Selection helper
+--------------------------- */
 function getSelectedQuestionItems() {
   const rows = document.querySelectorAll("#qbody tr");
   const items = [];
@@ -76,7 +161,6 @@ function getSelectedQuestionItems() {
 
     const qid = cb.dataset.qid;
 
-    // prefill input i samme række: den har data-prefill="<id>"
     const pre = tr.querySelector(`input[type="text"][data-prefill="${CSS.escape(qid)}"]`);
     const prefillText = (pre?.value || "").trim();
 
@@ -89,6 +173,9 @@ function getSelectedQuestionItems() {
   return items;
 }
 
+/* ---------------------------
+   Render
+--------------------------- */
 function renderQuestions(rows) {
   if (!els.qbody) return;
   els.qbody.innerHTML = "";
@@ -98,16 +185,8 @@ function renderQuestions(rows) {
     const number = q.crcc8_lch_number ?? "";
     const text = q.crcc8_lch_text ?? "";
 
-    const group =
-      q["crcc8_lch_group@OData.Community.Display.V1.FormattedValue"]
-      ?? q.crcc8_lch_group
-      ?? "";
-
-    const answertype =
-      q["crcc8_lch_answertype@OData.Community.Display.V1.FormattedValue"]
-      ?? q.crcc8_lch_answertype
-      ?? "";
-
+    const groupLabel = getGroupLabel(q);
+    const answertypeLabel = getAnswerTypeLabel(q);
     const required = q.crcc8_lch_isrequired ? "Ja" : "Nej";
 
     const tr = document.createElement("tr");
@@ -115,8 +194,8 @@ function renderQuestions(rows) {
       <td><input type="checkbox" data-qid="${escapeHtml(id)}" checked></td>
       <td>${escapeHtml(number)}</td>
       <td>${escapeHtml(text)}</td>
-      <td>${escapeHtml(String(group))}</td>
-      <td>${escapeHtml(String(answertype))}</td>
+      <td>${escapeHtml(groupLabel)}</td>
+      <td>${escapeHtml(answertypeLabel)}</td>
       <td>${escapeHtml(required)}</td>
       <td>
         <input type="text"
@@ -133,8 +212,13 @@ async function loadQuestions() {
   setListStatus("Indlæser…");
 
   try {
-    const data = await fetchJson("/api/questions-get?top=500");
+    // hent spørgsmål
+    const data = await fetchJson("/api/questions-get?top=500", { cache: "no-store" });
     const rows = data?.value || data || [];
+
+    // sortér (valgfrit) - efter nummer som tekst
+    rows.sort((a, b) => String(a.crcc8_lch_number || "").localeCompare(String(b.crcc8_lch_number || "")));
+
     renderQuestions(rows);
     setListStatus(rows.length ? "" : "Ingen spørgsmål fundet.");
   } catch (e) {
@@ -143,6 +227,9 @@ async function loadQuestions() {
   }
 }
 
+/* ---------------------------
+   Create survey
+--------------------------- */
 async function createSurvey() {
   try {
     hideResult();
@@ -191,6 +278,9 @@ async function createSurvey() {
   }
 }
 
+/* ---------------------------
+   Events / Init
+--------------------------- */
 function wireEvents() {
   els.btnReload?.addEventListener("click", loadQuestions);
   els.btnCreate?.addEventListener("click", createSurvey);
@@ -214,7 +304,11 @@ function wireEvents() {
 }
 
 function sanityCheckDom() {
-  const must = ["status","listStatus","qbody","btnReload","btnCreate","expiresAt","templateVersion","note","result","resultEmpty","codeOut","linkOut","customerName"];
+  const must = [
+    "status","listStatus","qbody","btnReload","btnCreate",
+    "expiresAt","templateVersion","note","result","resultEmpty",
+    "codeOut","linkOut","customerName"
+  ];
   const missing = must.filter(k => !els[k]);
   if (missing.length) console.warn("adminsurvey.js: Mangler DOM elementer:", missing);
 }
@@ -225,6 +319,13 @@ async function init() {
 
   hideResult();
   wireEvents();
+
+  // important: hent labels først, så vi kan vise tekst (ikke tal)
+  await Promise.all([
+    loadAnswerTypeLabels(),
+    loadGroupTitles()
+  ]);
+
   await loadQuestions();
 }
 
