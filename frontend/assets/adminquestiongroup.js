@@ -143,7 +143,7 @@ async function listGroups() {
       '';
 
     tr.innerHTML = `
-      <td>${escapeHtml(surveyTypeLabel)}</td>
+      <td>${escapeHtml(g.crcc8_lch_surveytype ?? '')}</td>
       <td>${escapeHtml(g.crcc8_lch_sortorder ?? '')}</td>
       <td>${escapeHtml(g.crcc8_lch_title ?? '')}</td>
       <td>${escapeHtml(g.crcc8_lch_name ?? '')}</td>
