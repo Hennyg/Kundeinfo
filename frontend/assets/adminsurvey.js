@@ -45,9 +45,14 @@ function showResult(code, link) {
   if (els.linkOut) els.linkOut.value = link || "";
   if (els.btnOpen) els.btnOpen.href = link || "#";
 }
+
 function hideResult() {
   els.result?.classList.add("hidden");
   els.resultEmpty?.classList.remove("hidden");
+
+  // skjul admin-prefill link
+  els.btnOpenAdminPrefill?.classList.add("hidden");
+  if (els.btnOpenAdminPrefill) els.btnOpenAdminPrefill.href = "#";
 }
 
 async function fetchJson(url, opts) {
@@ -340,18 +345,6 @@ function sanityCheckDom() {
 async function init() {
   els = getEls();
   sanityCheckDom();
-
-function hideResult() {
-  els.result?.classList.add("hidden");
-  els.resultEmpty?.classList.remove("hidden");
-
-  // NYT: skjul admin-prefill link
-  els.btnOpenAdminPrefill?.classList.add("hidden");
-  if (els.btnOpenAdminPrefill) {
-    els.btnOpenAdminPrefill.href = "#";
-  }
-}
-
   wireEvents();
 
   // important: hent labels først, så vi kan vise tekst (ikke tal)
