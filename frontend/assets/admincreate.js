@@ -36,30 +36,64 @@ function getPrefillItems(){
 async function loadTemplates(){
   setStatus("");
   els.templateSelect.innerHTML = `<option value="">Indlæser templates…</option>`;
+
   const data = await fetchJson("/api/templates-get?top=500", { cache: "no-store" });
   const rows = data?.value || data || [];
 
-  rows.sort((a,b)=> String(a.crcc8_lch_name||"").localeCompare(String(b.crcc8_lch_name||""),"da"));
+  // Hjælpere der matcher Dataverse naming
+  const getId = (t) =>
+    t.crcc8_lch_surveytemplateid ||
+    t.crcc8_lch_surveytemplate ||
+    t.lch_surveytemplateid ||
+    t.id ||
+    null;
+
+  const getName = (t) =>
+    t.crcc8_lch_name ||
+    t.lch_name ||
+    t.name ||
+    t["crcc8_lch_name@OData.Community.Display.V1.FormattedValue"] ||
+    "";
+
+  const getActive = (t) =>
+    t.crcc8_lch_isactive ??
+    t.lch_isactive ??
+    t.isactive ??
+    true;
+
+  // Sortér på navn
+  rows.sort((a,b)=> String(getName(a)).localeCompare(String(getName(b)), "da"));
 
   els.templateSelect.innerHTML = `<option value="">Vælg template…</option>`;
+
   rows.forEach(t=>{
-    const id = t.crcc8_lch_surveytemplateid || t.id;
-    const name = t.crcc8_lch_name || "(uden navn)";
-    const active = t.crcc8_lch_isactive;
-    const label = active === false ? `${name} (inaktiv)` : name;
+    const id = getId(t);
+    const name = (getName(t) || "").trim();
+    const active = getActive(t);
+
+    // hvis id mangler, så kan vi ikke bruge den i UI
+    if (!id) return;
+
+    const label = name ? name : "(uden navn)";
+    const text = active === false ? `${label} (inaktiv)` : label;
 
     const opt = document.createElement("option");
-    opt.value = id;
-    opt.textContent = label;
+    opt.value = String(id);
+    opt.textContent = text;
     els.templateSelect.appendChild(opt);
   });
 
+  // Auto-vælg fra URL hvis den er der
   const tid = qs("templateId");
   if (tid) {
     els.templateSelect.value = tid;
-    await loadTemplateItems(tid);
   }
+
+  // Hvis der allerede er valgt noget (fra URL eller manuelt), load items
+  const selected = els.templateSelect.value;
+  if (selected) await loadTemplateItems(selected);
 }
+
 
 /* ---------- Load template items + render prefill ---------- */
 async function loadTemplateItems(templateId){
