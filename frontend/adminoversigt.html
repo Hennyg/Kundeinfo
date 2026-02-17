@@ -2,7 +2,7 @@
 <html lang="da">
 <head>
   <meta charset="utf-8" />
-  <title>Admin – Kundesurveys. Klar til udfyldning, under udflydning eller færdige kundeinfo</title>
+  <title>Admin – Kundesurveys</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="./assets/style.css" rel="stylesheet" />
 
@@ -16,36 +16,39 @@
     .pill { padding:2px 8px; border-radius:999px; font-size:12px; }
     .pill.active { background:#e6f4ea; color:#137333; }
     .pill.expired { background:#fdecea; color:#b3261e; }
-    .actions button { margin-right:6px; }
   </style>
 </head>
 
 <body>
 
-  <!-- Navbar -->
-    <div class="navbar">
-      <div class="navbar-inner">
-        <div class="brand">Admin – Kundesurveys</div>
-        <nav class="nav">
-          <a href="./index.html">Hjem</a>
-          <span class="sep">•</span>
-          <a href="./admin.html">Admin</a>
-        </nav>
-      </div>
+  <div class="navbar">
+    <div class="navbar-inner">
+      <div class="brand">Admin – Kundesurveys</div>
+      <nav class="nav">
+        <a href="./index.html">Hjem</a>
+        <span class="sep">•</span>
+        <a href="./admin.html">Admin</a>
+      </nav>
     </div>
-    <div class="nav-accent"></div>
+  </div>
+  <div class="nav-accent"></div>
 
   <div class="container">
     <header>
-      <h1>Survey oversigt</h1>
+      <div>
+        <h1 style="margin:0;">Kundesurveys</h1>
+        <div class="muted" style="margin-top:6px;">
+          Oprettede kundesurveys (kode + link) – herfra kan du åbne kundelink, prefill eller oprette ny fra template.
+        </div>
+      </div>
       <div>
         <span id="userInfo" class="muted"></span>
         <a class="tag" href="/.auth/logout?post_logout_redirect_uri=/">Log ud</a>
       </div>
     </header>
 
-    <div class="card">
-      <div id="status" class="muted">Indlæser surveys…</div>
+    <div class="card" style="margin-top:16px;">
+      <div id="status" class="muted">Indlæser kundesurveys…</div>
 
       <table id="surveyTable" style="display:none">
         <thead>
@@ -64,13 +67,11 @@
     </div>
   </div>
 
-  <!-- Auth guard -->
   <script type="module">
     import { requireAuth } from "./assets/auth-guard.js";
     requireAuth({ autoRedirect: true });
   </script>
 
-  <!-- Page logic -->
   <script type="module" src="./assets/adminoversigt.js"></script>
 </body>
 </html>
