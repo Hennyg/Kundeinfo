@@ -1,96 +1,55 @@
-function $(id) { return document.getElementById(id); }
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8" />
+  <title>Admin – Opret fra template</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="./assets/style.css" rel="stylesheet" />
+  <style>
+    .container { max-width: 900px; margin: 24px auto; padding: 0 16px; }
+    .card { border:1px solid #ddd; border-radius:10px; padding:16px; background:#fff; margin:16px 0; }
+    .row { display:grid; grid-template-columns: 1fr 2fr; gap:10px; margin-bottom:10px; }
+    .muted { color:#666; }
+    input, select { width:100%; padding:.55rem; }
+    .btnrow { display:flex; gap:10px; flex-wrap:wrap; }
+  </style>
+</head>
+<body>
 
-async function fetchJson(url, opts) {
-  const r = await fetch(url, opts);
-  const t = await r.text().catch(() => "");
-  if (!r.ok) throw new Error(`${r.status} ${t}`);
-  return t ? JSON.parse(t) : null;
-}
+<div class="container">
+  <div class="card">
+    <h1>Opret kundesurvey fra template</h1>
 
-function fmtDate(dt) {
-  if (!dt) return "";
-  try {
-    const d = new Date(dt);
-    return d.toLocaleString("da-DK");
-  } catch { return String(dt); }
-}
+    <div class="row">
+      <label>Template</label>
+      <select id="templateSelect"></select>
+    </div>
 
-function pill(statusText) {
-  const s = String(statusText || "").toLowerCase();
-  if (s.includes("expired") || s.includes("udløb")) return `<span class="pill expired">Udløbet</span>`;
-  return `<span class="pill active">${statusText || "Aktiv"}</span>`;
-}
+    <div class="row">
+      <label>Kundenavn</label>
+      <input id="customerName" type="text" placeholder="fx B.F. Malketeknik A/S" />
+    </div>
 
-async function loadSurveys() {
-  $("status").textContent = "Indlæser surveys…";
+    <div class="row">
+      <label>Udløber (valgfri)</label>
+      <input id="expiresAt" type="datetime-local" />
+    </div>
 
-  // ✅ Her bruger vi dit eksisterende endpoint hvis du har det.
-  // Hvis du ikke har et, kan vi lave /api/surveyinstances-get
-  const data = await fetchJson("/api/surveyinstances-get?top=500", { cache: "no-store" });
+    <div class="row">
+      <label>Intern note (valgfri)</label>
+      <input id="note" type="text" placeholder="fx Februar kampagne – Nord" />
+    </div>
 
-  const rows = data?.value || data || [];
-  const tbody = document.querySelector("#surveyTable tbody");
-  tbody.innerHTML = "";
+    <div class="btnrow">
+      <button id="btnCreate">Opret</button>
+      <a class="btn btnlink" href="./adminsurvey.html">Til templates</a>
+      <a class="btn btnlink" href="./admin.html">Admin</a>
+    </div>
 
-  rows.forEach(r => {
-    const instanceId = r.crcc8_lch_surveyinstanceid || r.id;
-    const code = r.crcc8_lch_code || "";
-    const customerName = r.crcc8_lch_customername || "";
-    const expiresAt = r.crcc8_expiresat || null;
+    <div id="status" class="muted" style="margin-top:10px;"></div>
+  </div>
+</div>
 
-    // template lookup (kræver felt på surveyinstance)
-    const templateId = r._crcc8_lch_surveytemplate_value || null;
-    const templateName =
-      r["_crcc8_lch_surveytemplate_value@OData.Community.Display.V1.FormattedValue"] ||
-      r.crcc8_lch_surveytemplate?.crcc8_lch_name ||
-      "";
-
-    const createdOn = r.createdon || r.crcc8_createdon || null;
-
-    // Kunde-link
-    const customerUrl = `${location.origin}/kundeinfo.html?t=${encodeURIComponent(code)}`;
-    // Admin prefill
-    const adminPrefillUrl = `${location.origin}/adminprefill.html?id=${encodeURIComponent(instanceId)}`;
-    // Ny fra template (hvis vi kender template)
-    const adminCreateFromTplUrl = templateId
-      ? `${location.origin}/admincreate.html?templateId=${encodeURIComponent(templateId)}`
-      : `${location.origin}/admincreate.html`;
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${escapeHtml(customerName)}</td>
-      <td>${escapeHtml(code)}</td>
-      <td>${pill(r.crcc8_status || "")}</td>
-      <td>${escapeHtml(fmtDate(expiresAt))}</td>
-      <td>${escapeHtml(templateName)}</td>
-      <td>${escapeHtml(fmtDate(createdOn))}</td>
-      <td>
-        <a class="tag" href="${customerUrl}" target="_blank" rel="noopener">Åbn kunde</a>
-        <a class="tag" href="${adminPrefillUrl}">Prefill</a>
-        <a class="tag" href="${adminCreateFromTplUrl}">Ny fra template</a>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  $("surveyTable").style.display = "";
-  $("status").textContent = rows.length ? "" : "Ingen surveys fundet.";
-}
-
-function escapeHtml(s) {
-  return String(s ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-document.addEventListener("DOMContentLoaded", async () => {
-  try {
-    await loadSurveys();
-  } catch (e) {
-    console.error(e);
-    $("status").textContent = "Fejl: " + e.message;
-  }
-});
+<script type="module" src="./assets/admincreate.js"></script>
+</body>
+</html>
