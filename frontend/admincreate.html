@@ -2,54 +2,129 @@
 <html lang="da">
 <head>
   <meta charset="utf-8" />
-  <title>Admin – Opret fra template</title>
+  <title>Admin – Opret kundesurvey</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="./assets/style.css" rel="stylesheet" />
   <style>
-    .container { max-width: 900px; margin: 24px auto; padding: 0 16px; }
-    .card { border:1px solid #ddd; border-radius:10px; padding:16px; background:#fff; margin:16px 0; }
+    .container { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
+    .grid2 { display:grid; grid-template-columns: 1fr; gap:16px; align-items:start; }
+    @media (min-width: 980px){ .grid2{ grid-template-columns: 420px 1fr; } }
+
+    .card { border:1px solid #ddd; border-radius:12px; padding:16px; background:#fff; margin:16px 0; }
     .row { display:grid; grid-template-columns: 1fr 2fr; gap:10px; margin-bottom:10px; }
     .muted { color:#666; }
     input, select { width:100%; padding:.55rem; }
-    .btnrow { display:flex; gap:10px; flex-wrap:wrap; }
+    .btnrow { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { border-bottom:1px solid #eee; padding:8px; text-align:left; vertical-align:top; }
+    th { background:#fafafa; white-space:nowrap; }
+    .hidden { display:none; }
+    .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#f3f3f3; font-size:12px; }
   </style>
 </head>
+
 <body>
-
-<div class="container">
-  <div class="card">
-    <h1>Opret kundesurvey fra template</h1>
-
-    <div class="row">
-      <label>Template</label>
-      <select id="templateSelect"></select>
+  <!-- Navbar -->
+  <div class="navbar">
+    <div class="navbar-inner">
+      <div class="brand">Admin – Opret kundesurvey</div>
+      <nav class="nav">
+        <a href="./index.html">Hjem</a>
+        <span class="sep">•</span>
+        <a href="./admin.html">Admin</a>
+        <span class="sep">•</span>
+        <a href="./admintemplates.html">Templates</a>
+        <span class="sep">•</span>
+        <a href="./adminoversigt.html">Kundesurveys</a>
+      </nav>
     </div>
-
-    <div class="row">
-      <label>Kundenavn</label>
-      <input id="customerName" type="text" placeholder="fx B.F. Malketeknik A/S" />
-    </div>
-
-    <div class="row">
-      <label>Udløber (valgfri)</label>
-      <input id="expiresAt" type="datetime-local" />
-    </div>
-
-    <div class="row">
-      <label>Intern note (valgfri)</label>
-      <input id="note" type="text" placeholder="fx Februar kampagne – Nord" />
-    </div>
-
-    <div class="btnrow">
-      <button id="btnCreate">Opret</button>
-      <a class="btn btnlink" href="./adminsurvey.html">Til templates</a>
-      <a class="btn btnlink" href="./admin.html">Admin</a>
-    </div>
-
-    <div id="status" class="muted" style="margin-top:10px;"></div>
   </div>
-</div>
+  <div class="nav-accent"></div>
 
-<script type="module" src="./assets/admincreate.js"></script>
+  <div class="container">
+    <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">
+      <div>
+        <h1 style="margin:0;">Opret kundesurvey fra template</h1>
+        <div class="muted" style="margin-top:6px;">
+          Vælg en template, udfyld prefill (valgfrit), og opret en ny kundesurvey med kode + link.
+        </div>
+      </div>
+      <div class="muted" id="userInfo"></div>
+    </header>
+
+    <div class="grid2">
+      <!-- Venstre: indstillinger -->
+      <section class="card">
+        <h2 style="margin-top:0;">Indstillinger</h2>
+
+        <div class="row">
+          <label for="templateSelect">Template</label>
+          <select id="templateSelect"></select>
+        </div>
+
+        <div class="row">
+          <label for="customerName">Kundenavn</label>
+          <input id="customerName" type="text" placeholder="fx B.F. Malketeknik A/S" />
+        </div>
+
+        <div class="row">
+          <label for="expiresAt">Udløber (valgfri)</label>
+          <input id="expiresAt" type="datetime-local" />
+        </div>
+
+        <div class="row">
+          <label for="note">Intern note (valgfri)</label>
+          <input id="note" type="text" placeholder="fx Februar kampagne – Nord" />
+        </div>
+
+        <div class="btnrow" style="margin-top:12px;">
+          <button id="btnCreate">Opret kundesurvey</button>
+          <span id="status" class="muted"></span>
+        </div>
+
+        <div id="result" class="hidden" style="margin-top:14px;">
+          <div style="margin-bottom:8px;">
+            <span class="pill">Kode</span> <strong id="codeOut"></strong>
+          </div>
+          <div class="muted">Kundelink:</div>
+          <input id="linkOut" type="text" readonly style="margin-top:6px;" />
+          <div class="btnrow" style="margin-top:10px;">
+            <button id="btnCopy">Kopiér link</button>
+            <a id="btnOpen" class="tag" href="#" target="_blank" rel="noopener">Åbn kunde</a>
+            <a id="btnPrefill" class="tag" href="#">Prefill</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- Højre: prefill -->
+      <section class="card">
+        <h2 style="margin-top:0;">Prefill fra template</h2>
+        <div class="muted" id="listStatus">Vælg en template…</div>
+
+        <div id="prefillArea" class="hidden">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:90px;">Nr</th>
+                <th>Spørgsmål</th>
+                <th style="width:220px;">Gruppe</th>
+                <th style="width:140px;">Svar-type</th>
+                <th style="width:320px;">Prefill (valgfri)</th>
+              </tr>
+            </thead>
+            <tbody id="qbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Auth guard -->
+  <script type="module">
+    import { requireAuth } from "./assets/auth-guard.js";
+    requireAuth({ autoRedirect: true });
+  </script>
+
+  <script type="module" src="./assets/admincreate.js"></script>
 </body>
 </html>
