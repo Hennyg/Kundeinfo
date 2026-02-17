@@ -7,10 +7,10 @@ function json(context, status, body) {
 
 module.exports = async function (context, req) {
   try {
-    const path =
-      `crcc8_lch_surveytemplates` +
-      `?$select=crcc8_lch_surveytemplateid,crcc8_lch_name,crcc8_lch_isactive,crcc8_lch_description` +
-      `&$orderby=crcc8_lch_name asc`;
+const path =
+  `crcc8_lch_surveytemplates` +
+  `?$select=crcc8_lch_surveytemplateid,crcc8_lch_name,crcc8_lch_isactive,crcc8_lch_description` +
+  `&$orderby=crcc8_lch_name asc`;
 
     const res = await dvFetch(path);
     if (!res.ok) return json(context, res.status, { error: "read_failed", detail: await res.text() });
