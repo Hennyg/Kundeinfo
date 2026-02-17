@@ -99,6 +99,7 @@ async function loadTemplates(){
 async function loadTemplateItems(templateId){
   if (!templateId) {
     els.prefillArea.classList.add("hidden");
+    els.qbody.innerHTML = "";
     setListStatus("Vælg en template…");
     return;
   }
@@ -107,35 +108,50 @@ async function loadTemplateItems(templateId){
   els.prefillArea.classList.add("hidden");
   els.qbody.innerHTML = "";
 
-  const data = await fetchJson(`/api/templateitems-get?templateId=${encodeURIComponent(templateId)}`, { cache: "no-store" });
-  const rows = data?.value || data || [];
+  let data;
+  try {
+    data = await fetchJson(`/api/templateitems-get?templateId=${encodeURIComponent(templateId)}`, { cache: "no-store" });
+  } catch (e) {
+    console.error("templateitems-get fejl:", e);
+    setListStatus(`Fejl: kunne ikke hente template-spørgsmål (${e.message})`);
+    return;
+  }
 
+  const rows = data?.value || data || [];
   if (!rows.length) {
     setListStatus("Denne template har ingen spørgsmål.");
     return;
   }
 
-  // rows forventes som "flat" med question data:
-  // { questionId, number, text, group, answertypeLabel, defaultPrefillText }
+  // fleksible field maps
+  const getQid = (x) =>
+    x.questionId ||
+    x.crcc8_lch_questionid ||
+    x._crcc8_lch_question_value ||
+    x.crcc8_lch_question?.crcc8_lch_questionid ||
+    null;
+
+  const getNumber = (x) => x.number || x.crcc8_lch_number || x.crcc8_lch_question?.crcc8_lch_number || "";
+  const getText = (x) => x.text || x.crcc8_lch_text || x.crcc8_lch_question?.crcc8_lch_text || "";
+  const getGroup = (x) => x.group || x.groupLabel || x.crcc8_lch_group || x.crcc8_lch_questiongroup || "";
+  const getAT = (x) => x.answertypeLabel || x.answertype || x.crcc8_lch_answertype || "";
+  const getPref = (x) => x.defaultPrefillText || x.crcc8_lch_defaultprefilltext || "";
+
   rows.forEach(item=>{
-    const qid = item.questionId || item.crcc8_lch_questionid || item._crcc8_lch_question_value;
-    const number = item.number || item.crcc8_lch_number || "";
-    const text = item.text || item.crcc8_lch_text || "";
-    const group = item.group || item.groupLabel || "";
-    const at = item.answertypeLabel || item.answertype || "";
-    const pre = item.defaultPrefillText || item.crcc8_lch_defaultprefilltext || "";
+    const qid = getQid(item);
+    if (!qid) return;
 
     const tr = document.createElement("tr");
-    tr.dataset.qid = qid;
+    tr.dataset.qid = String(qid);
     tr.innerHTML = `
-      <td>${escapeHtml(number)}</td>
-      <td>${escapeHtml(text)}</td>
-      <td>${escapeHtml(group || "–")}</td>
-      <td>${escapeHtml(at || "–")}</td>
+      <td>${escapeHtml(getNumber(item))}</td>
+      <td>${escapeHtml(getText(item))}</td>
+      <td>${escapeHtml(getGroup(item) || "–")}</td>
+      <td>${escapeHtml(getAT(item) || "–")}</td>
       <td>
         <input type="text"
                data-prefill="1"
-               value="${escapeHtml(pre)}"
+               value="${escapeHtml(getPref(item))}"
                placeholder="valgfrit"
                style="width:100%;padding:.5rem" />
       </td>
@@ -146,6 +162,7 @@ async function loadTemplateItems(templateId){
   els.prefillArea.classList.remove("hidden");
   setListStatus("");
 }
+
 
 /* ---------- Create survey from template ---------- */
 async function createFromTemplate(){
