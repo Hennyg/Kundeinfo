@@ -38,9 +38,10 @@ const expand =
         "crcc8_lch_answertype",
         "_crcc8_lch_questiongroup_value"
       ].join(",") +
-    "&$expand=" +
+    ";$expand=" +
       "crcc8_lch_questiongroup($select=crcc8_lch_title,crcc8_lch_name,crcc8_lch_sortorder)" +
   ")";
+
 
 const path =
   "crcc8_lch_surveytemplateitems" +
