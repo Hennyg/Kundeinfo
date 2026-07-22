@@ -8,24 +8,24 @@
   <style>
     .center-card { max-width: 520px; margin: 64px auto; }
 
-    /* 2 kolonner (3 på store skærme) */
+    /* 1 kolonne (3 på store skærme) */
     .grid {
       display: grid;
       grid-template-columns: 1fr;
       gap: 16px;
       margin-top: 16px;
+      max-width: 980px;
     }
     @media (min-width: 900px) {
-      .grid { grid-template-columns: 1fr 1fr; }
-    }
-    @media (min-width: 1200px) {
       .grid { grid-template-columns: 1fr 1fr 1fr; }
     }
 
     .card h2 { margin-top: 0; }
     .card p { margin: 8px 0 12px; }
     .muted { color:#666; }
-    .pill { display:inline-block; padding:2px 10px; border-radius:999px; background:#f3f3f3; font-size:12px; }
+
+    .card .btnrow { display:flex; gap:8px; flex-wrap:wrap; }
+    .card .btnrow .btn { margin: 0; }
   </style>
 </head>
 
@@ -54,11 +54,9 @@
 
     <div class="navbar">
       <div class="navbar-inner">
-        <div class="brand">Admin - forside</div>
+        <div class="brand">Admin - Kundeinfo</div>
         <nav class="nav">
-          <a href="./index.html">Hjem</a>
-          <span class="sep">•</span>
-          <a href="./admin.html">Admin</a>
+          <a href="./index.html">Kundeindgang</a>
         </nav>
       </div>
     </div>
@@ -73,65 +71,36 @@
         </div>
       </header>
 
-      <section class="card">
+      <section class="card" style="max-width:980px;">
         <p class="muted" style="margin:0;">
-          Her vedligeholder du <span class="pill">spørgsmål</span>, <span class="pill">templates</span> og
-          <span class="pill">kundesurveys</span>.
-          <br>
-          <strong>Templates</strong> = <code>lch_surveytemplate</code> + <code>lch_surveytemplateitem</code> ·
-          <strong>Kundesurveys</strong> = <code>lch_surveyinstance</code> + <code>lch_surveyitem</code>
+          Her vedligeholder du <span class="pill">spørgsmål</span>, opretter nye
+          <span class="pill">kundeforespørgsler</span> og følger op på svar.
         </p>
       </section>
 
       <div class="grid">
-        <!-- Spørgsmål -->
+        <!-- Spørgsmål (spørgsmål + grupper samlet, indtil de to sider er slået sammen) -->
         <section class="card">
           <h2>Spørgsmål</h2>
-          <p class="muted">Opret/ret spørgsmål i <code>lch_question</code>.</p>
-          <a class="btn btnlink" href="./adminedit.html">Åbn spørgsmål</a>
+          <p class="muted">Opret/ret spørgsmål og de grupper de hører under.</p>
+          <div class="btnrow">
+            <a class="btn btnlink" href="./adminedit.html">Spørgsmål</a>
+            <a class="btn btnlink" href="./adminquestiongroup.html">Grupper</a>
+          </div>
         </section>
 
-        <!-- Grupper -->
+        <!-- Opret kundeforespørgsel -->
         <section class="card">
-          <h2>Spørgegrupper</h2>
-          <p class="muted">Vedligehold grupper i <code>lch_questiongroup</code>.</p>
-          <a class="btn btnlink" href="./adminquestiongroup.html">Åbn grupper</a>
+          <h2>Opret kundeforespørgsel</h2>
+          <p class="muted">Opret en ny forespørgsel til en kunde – du får en kode og et link med det samme.</p>
+          <a class="btn btnlink" href="./admincreate.html">Opret ny</a>
         </section>
 
-        <!-- Templates: oversigt -->
+        <!-- Oversigt -->
         <section class="card">
-          <h2>Templates</h2>
-          <p class="muted">Se eksisterende templates og opret kundesurveys fra dem.</p>
-          <a class="btn btnlink" href="./admintemplates.html">Åbn templates-oversigt</a>
-        </section>
-
-        <!-- Templates: builder -->
-        <section class="card">
-          <h2>Template builder</h2>
-          <p class="muted">Opret/ret template i <code>lch_surveytemplate</code> og items i <code>lch_surveytemplateitem</code>.</p>
-          <a class="btn btnlink" href="./admintemplatebuilder.html">Åbn template builder</a>
-          <!-- Hvis du ikke har siden endnu, skift til ./adminsurvey.html midlertidigt -->
-        </section>
-
-        <!-- Kundesurvey: opret -->
-        <section class="card">
-          <h2>Opret kundesurvey</h2>
-          <p class="muted">Opret en <code>lch_surveyinstance</code> (kundelink + kode) ud fra en template.</p>
-          <a class="btn btnlink" href="./admincreate.html">Åbn “opret kundesurvey”</a>
-        </section>
-
-        <!-- Kundesurveys: oversigt -->
-        <section class="card">
-          <h2>Kundesurveys</h2>
-          <p class="muted">Oversigt over oprettede kundesurveys, prefill og links.</p>
-          <a class="btn btnlink" href="./adminoversigt.html">Åbn kundesurveys</a>
-        </section>
-
-        <!-- Forside -->
-        <section class="card">
-          <h2>Kundeindgang</h2>
-          <p class="muted">Gå til kundeindgang (6-cifret kode).</p>
-          <a class="btn btnlink" href="./index.html">Åbn index</a>
+          <h2>Oversigt</h2>
+          <p class="muted">Se oprettede kundeforespørgsler, status og svar.</p>
+          <a class="btn btnlink" href="./adminoversigt.html">Åbn oversigt</a>
         </section>
       </div>
     </div>
