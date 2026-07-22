@@ -12,7 +12,8 @@ module.exports = async function (context, req) {
       crcc8_lch_title: p.title,
       crcc8_lch_description: p.description ?? null,
       crcc8_lch_sortorder: (p.sortorder ?? null),
-      crcc8_lch_isactive: !!p.isactive
+      crcc8_lch_isactive: !!p.isactive,
+      crcc8_crcc8_repeatable: !!p.repeatable
     };
 
     if (p.color != null && p.color !== "") {
