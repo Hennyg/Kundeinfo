@@ -18,6 +18,19 @@
     th { background:#fafafa; white-space:nowrap; }
     .hidden { display:none; }
     .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#f3f3f3; font-size:12px; }
+
+    /* Kunde-autocomplete */
+    .autocomplete { position:relative; }
+    .autocomplete-list {
+      position:absolute; z-index:20; left:0; right:0; top:calc(100% + 4px);
+      background:#fff; border:1px solid #ddd; border-radius:8px;
+      max-height:260px; overflow-y:auto; box-shadow:0 6px 18px rgba(0,0,0,.08);
+    }
+    .autocomplete-list .item { padding:8px 10px; cursor:pointer; }
+    .autocomplete-list .item:hover, .autocomplete-list .item.active { background:#f3f6f7; }
+    .autocomplete-list .item .navn { font-weight:600; }
+    .autocomplete-list .item .meta { color:#666; font-size:12px; }
+    .autocomplete-list .empty { padding:8px 10px; color:#666; font-size:13px; }
   </style>
 </head>
 
@@ -31,8 +44,6 @@
         <span class="sep">•</span>
         <a href="./admin.html">Admin</a>
         <span class="sep">•</span>
-        <a href="./admintemplates.html">Templates</a>
-        <span class="sep">•</span>
         <a href="./adminoversigt.html">Kundesurveys</a>
       </nav>
     </div>
@@ -42,9 +53,9 @@
   <div class="container">
     <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">
       <div>
-        <h1 style="margin:0;">Opret kundesurvey fra template</h1>
+        <h1 style="margin:0;">Opret kundesurvey</h1>
         <div class="muted" style="margin-top:6px;">
-          Vælg en template, udfyld prefill (valgfrit), og opret en ny kundesurvey med kode + link.
+          Vælg kunden fra listen, udfyld evt. prefill, og opret en ny kundesurvey med kode + link.
         </div>
       </div>
       <div class="muted" id="userInfo"></div>
@@ -55,14 +66,22 @@
       <section class="card">
         <h2 style="margin-top:0;">Indstillinger</h2>
 
-        <div class="row">
-          <label for="templateSelect">Template</label>
+        <!-- Skema (auto-valgt, ingen manuel valg-mulighed når der kun findes ét aktivt skema) -->
+        <div class="row" id="templateRow" style="display:none;">
+          <label for="templateSelect">Skema</label>
           <select id="templateSelect"></select>
+        </div>
+        <div class="row" id="templateInfoRow">
+          <label>Skema</label>
+          <div class="muted" id="templateInfo" style="padding:.55rem 0;">Indlæser…</div>
         </div>
 
         <div class="row">
-          <label for="customerName">Kundenavn</label>
-          <input id="customerName" type="text" placeholder="fx B.F. Malketeknik A/S" />
+          <label for="customerName">Kunde</label>
+          <div class="autocomplete">
+            <input id="customerName" type="text" placeholder="Skriv navn eller kundenr…" autocomplete="off" />
+            <div id="customerSuggest" class="autocomplete-list hidden"></div>
+          </div>
         </div>
 
         <div class="row">
@@ -96,8 +115,8 @@
 
       <!-- Højre: prefill -->
       <section class="card">
-        <h2 style="margin-top:0;">Prefill fra template</h2>
-        <div class="muted" id="listStatus">Vælg en template…</div>
+        <h2 style="margin-top:0;">Prefill</h2>
+        <div class="muted" id="listStatus">Indlæser…</div>
 
         <div id="prefillArea" class="hidden">
           <table>
