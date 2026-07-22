@@ -30,6 +30,7 @@ function getEls() {
     gdesc: document.getElementById("gdesc"),
     gsort: document.getElementById("gsort"),
     gactive: document.getElementById("gactive"),
+    grepeatable: document.getElementById("grepeatable"),
     gcolor: document.getElementById("gcolor"),
   };
 }
@@ -93,6 +94,7 @@ function readForm() {
     description: (els.gdesc.value || "").trim() || null,
     sortorder: els.gsort.value === "" ? null : parseInt(els.gsort.value, 10),
     isactive: !!els.gactive.checked,
+    repeatable: !!els.grepeatable.checked,
     color: (els.gcolor.value || "").trim() || null
   };
 }
@@ -104,6 +106,7 @@ function fillForm(g) {
   els.gdesc.value = g.crcc8_lch_description || "";
   els.gsort.value = (g.crcc8_lch_sortorder ?? "") === null ? "" : (g.crcc8_lch_sortorder ?? "");
   els.gactive.checked = (g.crcc8_lch_isactive ?? true) === true;
+  els.grepeatable.checked = (g.crcc8_crcc8_repeatable ?? false) === true;
 
   // surveytype lookup value kommer som _crcc8_lch_surveytype_value
   const st = g._crcc8_lch_surveytype_value || "";
@@ -137,24 +140,19 @@ async function listGroups() {
   rows.forEach(g => {
     const tr = document.createElement("tr");
 
-const surveyTypeLabel =
-  g.crcc8_lch_surveytype?.crcc8_lch_type
-  ?? g['crcc8_lch_surveytype@OData.Community.Display.V1.FormattedValue']
-  ?? g['_crcc8_lch_surveytype_value@OData.Community.Display.V1.FormattedValue']
-  ?? '';
-
+    const surveyTypeLabel =
+      g.crcc8_lch_surveytype?.crcc8_lch_type
+      ?? g['crcc8_lch_surveytype@OData.Community.Display.V1.FormattedValue']
+      ?? g['_crcc8_lch_surveytype_value@OData.Community.Display.V1.FormattedValue']
+      ?? '';
 
     tr.innerHTML = `
-      <td>${escapeHtml(
-  g.crcc8_lch_surveytype?.crcc8_lch_type
-  ?? surveyTypeLabel
-  ?? ''
-)}</td>
-
+      <td>${escapeHtml(surveyTypeLabel)}</td>
       <td>${escapeHtml(g.crcc8_lch_sortorder ?? '')}</td>
       <td>${escapeHtml(g.crcc8_lch_title ?? '')}</td>
       <td>${escapeHtml(g.crcc8_lch_name ?? '')}</td>
       <td>${(g.crcc8_lch_isactive ?? true) ? 'Ja' : 'Nej'}</td>
+      <td>${g.crcc8_crcc8_repeatable ? 'Ja' : 'Nej'}</td>
       <td class="actions">
         <button data-act="edit" data-id="${g.crcc8_lch_questiongroupid}">Redigér</button>
         <button data-act="del"  data-id="${g.crcc8_lch_questiongroupid}">Slet</button>
