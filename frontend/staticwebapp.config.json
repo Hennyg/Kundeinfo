@@ -1,50 +1,34 @@
 {
   "routes": [
-    { "route": "/admin.html",          "allowedRoles": ["authenticated"] },
-    { "route": "/adminedit.html",      "allowedRoles": ["authenticated"] },
-    { "route": "/adminsurvey.html",    "allowedRoles": ["authenticated"] },
-    { "route": "/adminoversigt.html",  "allowedRoles": ["authenticated"] },
+    { "route": "/SalesForce.html",       "allowedRoles": ["authenticated"] },
+    { "route": "/admin.html",            "allowedRoles": ["authenticated"] },
+    { "route": "/adminedit.html",        "allowedRoles": ["authenticated"] },
+    { "route": "/adminsurvey.html",      "allowedRoles": ["authenticated"] },
+    { "route": "/adminoversigt.html",    "allowedRoles": ["authenticated"] },
+    { "route": "/admincreate.html",      "allowedRoles": ["authenticated"] },
+    { "route": "/adminprefill.html",     "allowedRoles": ["authenticated"] },
+    { "route": "/adminquestiongroup.html", "allowedRoles": ["authenticated"] },
+    { "route": "/admintemplatebuilder.html", "allowedRoles": ["authenticated"] },
+    { "route": "/admintemplates.html",   "allowedRoles": ["authenticated"] },
 
-    // ✅ Kunde-side uden login
     { "route": "/kundesurvey.html", "allowedRoles": ["anonymous", "authenticated"] },
-
-    // ✅ Kunde-API uden login (skal ligge FØR /api/*)
     { "route": "/api/survey-start",  "allowedRoles": ["anonymous", "authenticated"] },
     { "route": "/api/survey-submit", "allowedRoles": ["anonymous", "authenticated"] },
-
-    // Admin/API kræver login
     { "route": "/api/*", "allowedRoles": ["authenticated"] },
-
     { "route": "/survey/*", "allowedRoles": ["anonymous", "authenticated"] }
   ],
-
   "responseOverrides": {
-    "401": {
-      "redirect": "/.auth/login/aad?post_login_redirect_uri=/admin.html",
-      "statusCode": 302
-    },
-    "403": {
-      "redirect": "/.auth/login/aad?post_login_redirect_uri=/admin.html",
-      "statusCode": 302
-    }
+    "401": { "redirect": "/.auth/login/aad?post_login_redirect_uri=/admin.html", "statusCode": 302 },
+    "403": { "redirect": "/.auth/login/aad?post_login_redirect_uri=/admin.html", "statusCode": 302 }
   },
-
   "navigationFallback": {
     "rewrite": "/index.html",
     "exclude": [
-      "/assets/*",
-      "/api/*",
-      "/admin.html",
-      "/adminedit.html",
-      "/adminsurvey.html",
-      "/adminoversigt.html",
-      "/kundesurvey.html",
-      "/survey/*",
-      "/.auth/*"
+      "/assets/*", "/api/*", "/SalesForce.html", "/admin.html", "/adminedit.html",
+      "/adminsurvey.html", "/adminoversigt.html", "/admincreate.html", "/adminprefill.html",
+      "/adminquestiongroup.html", "/admintemplatebuilder.html", "/admintemplates.html",
+      "/kundesurvey.html", "/survey/*", "/.auth/*"
     ]
   },
-
-  "globalHeaders": {
-    "Cache-Control": "no-store"
-  }
+  "globalHeaders": { "Cache-Control": "no-store" }
 }
