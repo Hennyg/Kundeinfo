@@ -29,3 +29,6 @@ export function renderQuestion(item) {
 
     return wrapper;
 }
+
+
+

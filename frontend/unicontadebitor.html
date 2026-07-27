@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Uniconta – Debitorer</title>
+  <link rel="stylesheet" href="./assets/style.css" />
+  <style>
+    .sales-page { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
+    .sales-toolbar { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+    .sales-toolbar input { flex:1 1 340px; padding:.65rem .75rem; border:1px solid #ccc; border-radius:8px; }
+    .sales-table-wrap { overflow:auto; border:1px solid #ddd; border-radius:10px; background:#fff; }
+    .sales-table { width:100%; border-collapse:collapse; min-width:760px; }
+    .sales-table th, .sales-table td { padding:10px 12px; border-bottom:1px solid #eee; text-align:left; vertical-align:middle; }
+    .sales-table th { background:#f7f7f7; position:sticky; top:0; z-index:1; }
+    .sales-table tbody tr:hover { background:#fafafa; }
+    .sales-table td:last-child, .sales-table th:last-child { width:90px; text-align:right; }
+    .statusbox { padding:12px; border-radius:8px; background:#f5f5f5; margin-bottom:14px; }
+    .statusbox.error { background:#fdecec; color:#8a1f1f; border:1px solid #f5a5a5; }
+    .hidden { display:none !important; }
+    .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; padding:20px; z-index:1000; }
+    .modal-card { width:min(760px, 100%); max-height:90vh; overflow:auto; background:#fff; border-radius:12px; padding:20px; box-shadow:0 20px 60px rgba(0,0,0,.25); }
+    .modal-head { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
+    .detail-grid { display:grid; grid-template-columns:180px 1fr; gap:9px 14px; margin-top:18px; }
+    .detail-label { color:#666; font-weight:600; }
+    @media (max-width:640px) { .detail-grid { grid-template-columns:1fr; } .detail-label { margin-top:8px; } }
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <div class="navbar-inner">
+      <div class="brand">Uniconta debitorer</div>
+      <nav class="nav">
+        <a href="./index.html">Hjem</a>
+        <span class="sep">•</span>
+        <a href="./admin.html">Admin</a>
+        <span class="sep">•</span>
+        <a href="./unicontadebitor.html" aria-current="page">Uniconta debitorer</a>
+      </nav>
+    </div>
+  </div>
+  <div class="nav-accent"></div>
+
+  <main class="sales-page">
+    <header>
+      <div>
+        <h1>Debitorer</h1>
+        <p class="muted">Debitorer hentet direkte fra Uniconta.</p>
+      </div>
+      <div id="userInfo" class="muted"></div>
+    </header>
+
+    <section class="card">
+      <div class="sales-toolbar">
+        <input id="searchInput" type="search" placeholder="Søg på debitornr., navn, adresse, postnr. eller by…" autocomplete="off" />
+        <button id="reloadBtn" class="btn" type="button">Opdater</button>
+      </div>
+      <div id="status" class="statusbox">Henter debitorer…</div>
+      <div id="tableWrap" class="sales-table-wrap hidden">
+        <table class="sales-table">
+          <thead><tr><th>Debitornr.</th><th>Navn</th><th>Adresse</th><th>Postnr.</th><th>By</th><th></th></tr></thead>
+          <tbody id="debtorBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="detailModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+    <section class="modal-card">
+      <div class="modal-head">
+        <div><h2 id="detailTitle" style="margin:0;">Debitor</h2><div id="detailAccount" class="muted"></div></div>
+        <button id="closeModalBtn" class="btn" type="button">Luk</button>
+      </div>
+      <div id="detailStatus" class="statusbox" style="margin-top:16px;">Henter detaljer…</div>
+      <div id="detailGrid" class="detail-grid hidden"></div>
+    </section>
+  </div>
+
+  <script type="module">
+    import { requireAuth } from "./assets/auth-guard.js";
+    requireAuth({ autoRedirect: true });
+  </script>
+  <script type="module" src="./assets/unicontadebitor.js"></script>
+</body>
+</html>
+
+
+

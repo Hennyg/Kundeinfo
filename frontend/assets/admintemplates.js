@@ -102,3 +102,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     $("status").textContent = "Fejl: " + e.message;
   }
 });
+
+
+

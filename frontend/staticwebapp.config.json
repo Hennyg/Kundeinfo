@@ -1,6 +1,6 @@
 {
   "routes": [
-    { "route": "/SalesForce.html",       "allowedRoles": ["authenticated"] },
+    { "route": "/unicontadebitor.html",       "allowedRoles": ["authenticated"] },
     { "route": "/admin.html",            "allowedRoles": ["authenticated"] },
     { "route": "/adminedit.html",        "allowedRoles": ["authenticated"] },
     { "route": "/adminsurvey.html",      "allowedRoles": ["authenticated"] },
@@ -24,7 +24,7 @@
   "navigationFallback": {
     "rewrite": "/index.html",
     "exclude": [
-      "/assets/*", "/api/*", "/SalesForce.html", "/admin.html", "/adminedit.html",
+      "/assets/*", "/api/*", "/unicontadebitor.html", "/admin.html", "/adminedit.html",
       "/adminsurvey.html", "/adminoversigt.html", "/admincreate.html", "/adminprefill.html",
       "/adminquestiongroup.html", "/admintemplatebuilder.html", "/admintemplates.html",
       "/kundesurvey.html", "/survey/*", "/.auth/*"
@@ -32,3 +32,6 @@
   },
   "globalHeaders": { "Cache-Control": "no-store" }
 }
+
+
+

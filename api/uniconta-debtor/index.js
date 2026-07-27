@@ -21,3 +21,6 @@ module.exports = async function (context, req) {
     return json(context, 502, { error: "uniconta_error", message: error.message });
   }
 };
+
+
+

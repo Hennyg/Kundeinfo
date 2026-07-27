@@ -72,3 +72,6 @@ function normalizeDebtor(row) {
 }
 
 module.exports = { unicontaFetch, normalizeDebtor };
+
+
+

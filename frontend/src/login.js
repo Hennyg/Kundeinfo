@@ -88,3 +88,6 @@ async function startSurveyWithCode(code) {
     showError("Der opstod en fejl. Prøv igen.");
   }
 }
+
+
+

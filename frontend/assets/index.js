@@ -14,3 +14,6 @@ btn.addEventListener("click", () => {
     // Redirect til spørgeskema-siden
     location.href = `./kundesurvey.html?code=${encodeURIComponent(code)}`;
 });
+
+
+

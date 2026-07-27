@@ -483,3 +483,6 @@ lch_surveyinstance (ich_token, ich_expiresat, ich_status, ich_templateversion)
 lch_surveyitem (ich_surveyinstance lookup, ich_question lookup, ich_sortorder)
 
 Hvis du sender de 2 filer, svarer jeg med de 2 nye API’er + evt. små tilpasninger i GetSurvey, så conditional og sortorder kommer “rent” ud til frontend.
+
+
+
