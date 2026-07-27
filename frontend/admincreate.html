@@ -249,6 +249,60 @@
       max-width: 760px;
     }
 
+
+    /* Knapper i overskriften på gentagelige Prefill-grupper */
+    .prefillGroupBar {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+
+    .prefillGroupActions {
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+
+    .prefillAddButton,
+    .prefillRemoveButton {
+      width:32px;
+      height:32px;
+      padding:0;
+      border:1px solid #bbb;
+      border-radius:50%;
+      background:#fff;
+      color:#333;
+      font-size:22px;
+      line-height:1;
+      cursor:pointer;
+    }
+
+    .prefillAddButton:hover,
+    .prefillRemoveButton:hover { background:#f5f5f5; }
+
+    .prefillRepeatBlock + .prefillRepeatBlock {
+      border-top:1px solid #d7d7d7;
+    }
+
+    .prefillRepeatHeading {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:8px 12px;
+      background:#f7f7f7;
+      border-bottom:1px solid #eee;
+      font-weight:600;
+    }
+
+    .prefillBottomActions {
+      display:flex;
+      align-items:center;
+      gap:12px;
+      margin-top:18px;
+    }
+
     @media (max-width: 800px) {
       .row {
         grid-template-columns: 140px minmax(0, 1fr);
@@ -534,6 +588,11 @@
           id="prefillArea"
           class="prefillGroups hidden"
         ></div>
+
+        <div id="prefillBottomActions" class="prefillBottomActions hidden">
+          <button id="btnCreateBottom" type="button">Gem og opret spørgeskema</button>
+          <span id="statusBottom" class="muted"></span>
+        </div>
       </section>
     </div>
   </div>

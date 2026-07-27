@@ -8,172 +8,103 @@ function json(context, status, body) {
   };
 }
 
+function numberKey(value) {
+  const text = String(value || "").trim();
+  const match = /^(\d+)([a-zA-Z]*)$/.exec(text);
+  if (!match) return { number: 999999, suffix: text.toLowerCase() };
+  return {
+    number: Number.parseInt(match[1], 10) || 0,
+    suffix: (match[2] || "").toLowerCase()
+  };
+}
+
 module.exports = async function (context, req) {
   try {
     const templateId = String(req.query?.templateId || "").trim();
     if (!templateId) {
-      return json(context, 400, { error: "missing_templateId", message: "Mangler templateId i query." });
+      return json(context, 400, {
+        error: "missing_templateId",
+        message: "Mangler templateId i query."
+      });
     }
 
-    const top = Math.min(parseInt(req.query?.top || "500", 10) || 500, 2000);
+    const top = Math.min(Number.parseInt(req.query?.top || "500", 10) || 500, 2000);
+    const select = [
+      "crcc8_lch_surveytemplateitemid",
+      "crcc8_lch_defaultprefilltext",
+      "crcc8_lch_sortorder",
+      "_crcc8_lch_question_value"
+    ].join(",");
 
-    // TemplateItems: crcc8_lch_surveytemplateitems
-    // Lookup til template ligger som _crcc8_lch_surveytemplate_value
-    // Lookup til question: crcc8_lch_question
-    const select =
-      [
-        "crcc8_lch_surveytemplateitemid",
-        "crcc8_lch_defaultprefilltext",
-        "crcc8_lch_sortorder",
-        "_crcc8_lch_question_value"
-      ].join(",");
+    const expand =
+      "crcc8_lch_question(" +
+        "$select=" + [
+          "crcc8_lch_questionid",
+          "crcc8_lch_number",
+          "crcc8_lch_text",
+          "crcc8_lch_answertype",
+          "_crcc8_lch_questiongroup_value"
+        ].join(",") +
+        ";$expand=crcc8_lch_questiongroup(" +
+          "$select=crcc8_lch_questiongroupid,crcc8_lch_title,crcc8_lch_name," +
+          "crcc8_lch_sortorder,crcc8_crcc8_repeatable" +
+        ")" +
+      ")";
 
-const expand =
-  "crcc8_lch_question(" +
-    "$select=" +
-      [
-        "crcc8_lch_questionid",
-        "crcc8_lch_number",
-        "crcc8_lch_text",
-        "crcc8_lch_answertype",
-        "_crcc8_lch_questiongroup_value"
-      ].join(",") +
-    ";$expand=" +
-      "crcc8_lch_questiongroup($select=crcc8_lch_title,crcc8_lch_name,crcc8_lch_sortorder)" +
-  ")";
+    const path =
+      "crcc8_lch_surveytemplateitems" +
+      `?$select=${encodeURIComponent(select)}` +
+      `&$expand=${encodeURIComponent(expand)}` +
+      `&$filter=_crcc8_lch_surveytemplate_value eq ${templateId}` +
+      `&$top=${top}`;
 
-
-const path =
-  "crcc8_lch_surveytemplateitems" +
-  `?$select=${encodeURIComponent(select)}` +
-  `&$expand=${encodeURIComponent(expand)}` +
-  `&$filter=_crcc8_lch_surveytemplate_value eq ${templateId}` +
-  `&$top=${top}`;
-
-    const res = await dvFetch(path, {
-      headers: {
-        "Prefer": 'odata.include-annotations="*"'
-      }
+    const response = await dvFetch(path, {
+      headers: { Prefer: 'odata.include-annotations="*"' }
     });
-
-    if (!res.ok) {
-      return json(context, res.status, { error: "read_failed", detail: await res.text() });
-    }
-
-    const data = await res.json();
+    const data = await response.json();
     const rows = data?.value || [];
 
-    function numberKey(n) {
-  // Sortér "006a" efter 006 og bogstav
-  const s = String(n || "").trim();
-  const m = /^(\d+)([a-zA-Z]*)$/.exec(s);
-  if (!m) return { num: 999999, suf: s.toLowerCase() };
-  return { num: parseInt(m[1], 10) || 0, suf: (m[2] || "").toLowerCase() };
-}
+    rows.sort((a, b) => {
+      const qa = a.crcc8_lch_question || {};
+      const qb = b.crcc8_lch_question || {};
+      const ga = qa.crcc8_lch_questiongroup || {};
+      const gb = qb.crcc8_lch_questiongroup || {};
 
-rows.sort((a, b) => {
-  const qa = a.crcc8_lch_question || {};
-  const qb = b.crcc8_lch_question || {};
+      const groupSort = (ga.crcc8_lch_sortorder ?? 999999) - (gb.crcc8_lch_sortorder ?? 999999);
+      if (groupSort !== 0) return groupSort;
 
-  // gruppe-sort (fra expand hvis den findes)
-  const ga = qa.crcc8_lch_questiongroup || {};
-  const gb = qb.crcc8_lch_questiongroup || {};
+      const na = numberKey(qa.crcc8_lch_number);
+      const nb = numberKey(qb.crcc8_lch_number);
+      if (na.number !== nb.number) return na.number - nb.number;
+      if (na.suffix !== nb.suffix) return na.suffix.localeCompare(nb.suffix, "da");
 
-  const gsa = ga.crcc8_lch_sortorder ?? 999999;
-  const gsb = gb.crcc8_lch_sortorder ?? 999999;
-  if (gsa !== gsb) return gsa - gsb;
+      return (a.crcc8_lch_sortorder ?? 999999) - (b.crcc8_lch_sortorder ?? 999999);
+    });
 
-  // fallback hvis group sortorder ikke findes: brug group title/name alfabetisk
-  const gna = String(ga.crcc8_lch_title || ga.crcc8_lch_name || "").toLowerCase();
-  const gnb = String(gb.crcc8_lch_title || gb.crcc8_lch_name || "").toLowerCase();
-  if (gna && gnb && gna !== gnb) return gna.localeCompare(gnb, "da");
-
-  // spørgsmålsnummer
-  const na = numberKey(qa.crcc8_lch_number);
-  const nb = numberKey(qb.crcc8_lch_number);
-  if (na.num !== nb.num) return na.num - nb.num;
-  if (na.suf !== nb.suf) return na.suf.localeCompare(nb.suf, "da");
-
-  // til sidst template-item sortorder hvis du har den
-  const ta = a.crcc8_lch_sortorder ?? 999999;
-  const tb = b.crcc8_lch_sortorder ?? 999999;
-  return ta - tb;
-});
-
-
-    function numberKey(n) {
-  // Sortér "006a" efter 006 og bogstav
-  const s = String(n || "").trim();
-  const m = /^(\d+)([a-zA-Z]*)$/.exec(s);
-  if (!m) return { num: 999999, suf: s.toLowerCase() };
-  return { num: parseInt(m[1], 10) || 0, suf: (m[2] || "").toLowerCase() };
-}
-
-rows.sort((a, b) => {
-  const qa = a.crcc8_lch_question || {};
-  const qb = b.crcc8_lch_question || {};
-
-  // gruppe-sort (fra expand hvis den findes)
-  const ga = qa.crcc8_lch_questiongroup || {};
-  const gb = qb.crcc8_lch_questiongroup || {};
-
-  const gsa = ga.crcc8_lch_sortorder ?? 999999;
-  const gsb = gb.crcc8_lch_sortorder ?? 999999;
-  if (gsa !== gsb) return gsa - gsb;
-
-  // fallback hvis group sortorder ikke findes: brug group title/name alfabetisk
-  const gna = String(ga.crcc8_lch_title || ga.crcc8_lch_name || "").toLowerCase();
-  const gnb = String(gb.crcc8_lch_title || gb.crcc8_lch_name || "").toLowerCase();
-  if (gna && gnb && gna !== gnb) return gna.localeCompare(gnb, "da");
-
-  // spørgsmålsnummer
-  const na = numberKey(qa.crcc8_lch_number);
-  const nb = numberKey(qb.crcc8_lch_number);
-  if (na.num !== nb.num) return na.num - nb.num;
-  if (na.suf !== nb.suf) return na.suf.localeCompare(nb.suf, "da");
-
-  // til sidst template-item sortorder hvis du har den
-  const ta = a.crcc8_lch_sortorder ?? 999999;
-  const tb = b.crcc8_lch_sortorder ?? 999999;
-  return ta - tb;
-});
-
-
-    // Map til frontend-venligt format
-    const out = rows.map(x => {
-      const q = x.crcc8_lch_question || {};
-      const qid =
-        q.crcc8_lch_questionid ||
-        x._crcc8_lch_question_value ||
-        null;
-
-const groupLabel =
-  q?.crcc8_lch_questiongroup?.crcc8_lch_title ||
-  q?.crcc8_lch_questiongroup?.crcc8_lch_name ||
-  q["_crcc8_lch_questiongroup_value@OData.Community.Display.V1.FormattedValue"] ||
-  "";
-
-      const answertypeLabel =
-        q["crcc8_lch_answertype@OData.Community.Display.V1.FormattedValue"] ||
-        (q.crcc8_lch_answertype != null ? String(q.crcc8_lch_answertype) : "");
-
+    const value = rows.map(row => {
+      const question = row.crcc8_lch_question || {};
+      const group = question.crcc8_lch_questiongroup || {};
       return {
-        templateItemId: x.crcc8_lch_surveytemplateitemid,
-        questionId: qid,
-        number: q.crcc8_lch_number || "",
-        text: q.crcc8_lch_text || "",
-        groupLabel,
-        answertypeLabel,
-        defaultPrefillText: x.crcc8_lch_defaultprefilltext || "",
-        sortorder: x.crcc8_lch_sortorder ?? null
+        templateItemId: row.crcc8_lch_surveytemplateitemid,
+        questionId: question.crcc8_lch_questionid || row._crcc8_lch_question_value || null,
+        number: question.crcc8_lch_number || "",
+        text: question.crcc8_lch_text || "",
+        groupId: group.crcc8_lch_questiongroupid || question._crcc8_lch_questiongroup_value || "_uden_gruppe_",
+        groupLabel: group.crcc8_lch_title || group.crcc8_lch_name || "Uden gruppe",
+        repeatable: group.crcc8_crcc8_repeatable === true,
+        answertypeLabel:
+          question["crcc8_lch_answertype@OData.Community.Display.V1.FormattedValue"] ||
+          (question.crcc8_lch_answertype != null ? String(question.crcc8_lch_answertype) : ""),
+        defaultPrefillText: row.crcc8_lch_defaultprefilltext || "",
+        sortorder: row.crcc8_lch_sortorder ?? null
       };
-    }).filter(r => r.questionId); // kun gyldige
+    }).filter(item => item.questionId);
 
-    return json(context, 200, { value: out });
-  } catch (e) {
-    return json(context, 500, { error: "server_error", detail: String(e?.message || e) });
+    return json(context, 200, { value });
+  } catch (error) {
+    return json(context, 500, {
+      error: "server_error",
+      detail: String(error?.message || error)
+    });
   }
 };
-
-
-

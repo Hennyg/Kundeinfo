@@ -29,7 +29,9 @@ function escapeHtml(s) {
 }
 
 function setStatus(s) {
-  els.status.textContent = s || "";
+  const text = s || "";
+  els.status.textContent = text;
+  if (els.statusBottom) els.statusBottom.textContent = text;
 }
 
 function setListStatus(s) {
@@ -48,18 +50,16 @@ function showResult({ code, link, instanceId }) {
 }
 
 function getPrefillItems() {
-  return [
-    ...els.prefillArea.querySelectorAll("tr[data-qid]")
-  ].map(tr => {
+  return [...els.prefillArea.querySelectorAll("tr[data-qid]")].map(tr => {
     const questionId = tr.dataset.qid || "";
-
-    const prefillText =
-      tr.querySelector("input[data-prefill]")
-        ?.value
-        ?.trim() || "";
+    const groupId = tr.dataset.groupId || "";
+    const repeatIndex = Number.parseInt(tr.dataset.repeatIndex || "0", 10) || 0;
+    const prefillText = tr.querySelector("input[data-prefill]")?.value?.trim() || "";
 
     return {
       questionId,
+      groupId,
+      repeatIndex,
       prefillText: prefillText || null
     };
   });
@@ -529,213 +529,150 @@ async function loadTemplates() {
 
 async function loadTemplateItems(templateId) {
   if (!templateId) {
-    els.prefillArea.classList.add(
-      "hidden"
-    );
-
+    els.prefillArea.classList.add("hidden");
     els.prefillArea.innerHTML = "";
-
-    setListStatus(
-      "Intet skema valgt."
-    );
-
+    els.prefillBottomActions?.classList.add("hidden");
+    setListStatus("Intet skema valgt.");
     return;
   }
 
-  setListStatus(
-    "Indlæser spørgsmål…"
-  );
-
-  els.prefillArea.classList.add(
-    "hidden"
-  );
-
+  setListStatus("Indlæser spørgsmål…");
+  els.prefillArea.classList.add("hidden");
   els.prefillArea.innerHTML = "";
+  els.prefillBottomActions?.classList.add("hidden");
 
   let data;
-
   try {
     data = await fetchJson(
       `/api/templateitems-get?templateId=${encodeURIComponent(templateId)}`,
-      {
-        cache: "no-store"
-      }
+      { cache: "no-store" }
     );
   } catch (e) {
-    console.error(
-      "templateitems-get fejl:",
-      e
-    );
-
-    setListStatus(
-      `Fejl: kunne ikke hente spørgsmål ` +
-      `(${e.message})`
-    );
-
+    console.error("templateitems-get fejl:", e);
+    setListStatus(`Fejl: kunne ikke hente spørgsmål (${e.message})`);
     return;
   }
 
-  const rows =
-    data?.value ||
-    data ||
-    [];
-
+  const rows = data?.value || data || [];
   if (!rows.length) {
-    setListStatus(
-      "Dette skema har ingen spørgsmål."
-    );
-
+    setListStatus("Dette skema har ingen spørgsmål.");
     return;
   }
-
-  const getQid = item =>
-    item.questionId ||
-    item.crcc8_lch_questionid ||
-    item._crcc8_lch_question_value ||
-    item.crcc8_lch_question
-      ?.crcc8_lch_questionid ||
-    null;
-
-  const getNumber = item =>
-    item.number ||
-    item.crcc8_lch_number ||
-    item.crcc8_lch_question
-      ?.crcc8_lch_number ||
-    "";
-
-  const getText = item =>
-    item.text ||
-    item.crcc8_lch_text ||
-    item.crcc8_lch_question
-      ?.crcc8_lch_text ||
-    "";
-
-  const getGroup = item =>
-    String(
-      item.groupLabel ||
-      item.group ||
-      item.crcc8_lch_questiongroup
-        ?.crcc8_lch_title ||
-      item.crcc8_lch_questiongroup
-        ?.crcc8_lch_name ||
-      "Uden gruppe"
-    ).trim() || "Uden gruppe";
-
-  const getAnswerType = item =>
-    item.answertypeLabel ||
-    item.answertype ||
-    item.crcc8_lch_answertype ||
-    "–";
-
-  const getPrefill = item =>
-    item.defaultPrefillText ||
-    item.crcc8_lch_defaultprefilltext ||
-    "";
 
   const groups = new Map();
+  for (const item of rows) {
+    const questionId = item.questionId || null;
+    if (!questionId) continue;
 
-  rows.forEach(item => {
-    const questionId =
-      getQid(item);
-
-    if (!questionId) {
-      return;
+    const groupId = item.groupId || "_uden_gruppe_";
+    if (!groups.has(groupId)) {
+      groups.set(groupId, {
+        id: groupId,
+        name: item.groupLabel || "Uden gruppe",
+        repeatable: item.repeatable === true,
+        items: []
+      });
     }
+    groups.get(groupId).items.push(item);
+  }
 
-    const groupName =
-      getGroup(item);
+  function rowsHtml(group, repeatIndex) {
+    return group.items.map(item => `
+      <tr
+        data-qid="${escapeHtml(item.questionId)}"
+        data-group-id="${escapeHtml(group.id)}"
+        data-repeat-index="${repeatIndex}"
+      >
+        <td>${escapeHtml(item.number || "")}</td>
+        <td>${escapeHtml(item.text || "")}</td>
+        <td>${escapeHtml(item.answertypeLabel || "–")}</td>
+        <td>
+          <input
+            type="text"
+            data-prefill="1"
+            value="${repeatIndex === 0 ? escapeHtml(item.defaultPrefillText || "") : ""}"
+            placeholder="valgfrit"
+            style="width:100%;padding:.5rem"
+          />
+        </td>
+      </tr>
+    `).join("");
+  }
 
-    if (!groups.has(groupName)) {
-      groups.set(
-        groupName,
-        []
-      );
-    }
+  function repeatBlockHtml(group, repeatIndex) {
+    const heading = group.repeatable
+      ? `<div class="prefillRepeatHeading">
+           <span>${escapeHtml(group.name)}${repeatIndex > 0 ? ` – ${repeatIndex + 1}` : ""}</span>
+           ${repeatIndex > 0
+             ? `<button type="button" class="prefillRemoveButton" data-remove-repeat="1" title="Fjern denne gentagelse" aria-label="Fjern denne gentagelse">×</button>`
+             : ""}
+         </div>`
+      : "";
 
-    groups
-      .get(groupName)
-      .push(item);
-  });
-
-  els.prefillArea.innerHTML = "";
-
-  for (
-    const [groupName, items]
-    of groups.entries()
-  ) {
-    const tile =
-      document.createElement("section");
-
-    tile.className =
-      "prefillGroup";
-
-    tile.innerHTML = `
-      <div class="prefillGroupBar">
-        ${escapeHtml(groupName)}
-      </div>
-
-      <div class="prefillGroupBody">
+    return `
+      <div class="prefillRepeatBlock" data-repeat-index="${repeatIndex}">
+        ${heading}
         <table class="prefillTable">
           <thead>
             <tr>
-              <th style="width:90px;">
-                Nr
-              </th>
-
-              <th>
-                Spørgsmål
-              </th>
-
-              <th style="width:140px;">
-                Svar-type
-              </th>
-
-              <th style="width:320px;">
-                Prefill (valgfri)
-              </th>
+              <th>Nr</th>
+              <th>Spørgsmål</th>
+              <th>Svar-type</th>
+              <th>Prefill (valgfri)</th>
             </tr>
           </thead>
-
-          <tbody>
-            ${items.map(item => `
-              <tr data-qid="${escapeHtml(getQid(item))}">
-                <td>
-                  ${escapeHtml(getNumber(item))}
-                </td>
-
-                <td>
-                  ${escapeHtml(getText(item))}
-                </td>
-
-                <td>
-                  ${escapeHtml(getAnswerType(item))}
-                </td>
-
-                <td>
-                  <input
-                    type="text"
-                    data-prefill="1"
-                    value="${escapeHtml(getPrefill(item))}"
-                    placeholder="valgfrit"
-                    style="width:100%;padding:.5rem"
-                  />
-                </td>
-              </tr>
-            `).join("")}
-          </tbody>
+          <tbody>${rowsHtml(group, repeatIndex)}</tbody>
         </table>
       </div>
     `;
-
-    els.prefillArea.appendChild(
-      tile
-    );
   }
 
-  els.prefillArea.classList.remove(
-    "hidden"
-  );
+  els.prefillArea.innerHTML = "";
 
+  for (const group of groups.values()) {
+    const tile = document.createElement("section");
+    tile.className = "prefillGroup";
+    tile.dataset.groupId = group.id;
+    tile.dataset.repeatable = group.repeatable ? "true" : "false";
+    tile._prefillGroup = group;
+
+    tile.innerHTML = `
+      <div class="prefillGroupBar">
+        <span>${escapeHtml(group.name)}</span>
+        ${group.repeatable
+          ? `<div class="prefillGroupActions">
+               <button type="button" class="prefillAddButton" data-add-repeat="1" title="Tilføj endnu en" aria-label="Tilføj endnu en">+</button>
+             </div>`
+          : ""}
+      </div>
+      <div class="prefillGroupBody">
+        <div class="prefillRepeatList">
+          ${repeatBlockHtml(group, 0)}
+        </div>
+      </div>
+    `;
+
+    tile.querySelector("[data-add-repeat]")?.addEventListener("click", () => {
+      const list = tile.querySelector(".prefillRepeatList");
+      const existing = [...list.querySelectorAll(".prefillRepeatBlock")];
+      const nextIndex = existing.length
+        ? Math.max(...existing.map(x => Number.parseInt(x.dataset.repeatIndex || "0", 10))) + 1
+        : 0;
+
+      list.insertAdjacentHTML("beforeend", repeatBlockHtml(group, nextIndex));
+    });
+
+    tile.addEventListener("click", event => {
+      const removeButton = event.target.closest("[data-remove-repeat]");
+      if (!removeButton) return;
+      removeButton.closest(".prefillRepeatBlock")?.remove();
+    });
+
+    els.prefillArea.appendChild(tile);
+  }
+
+  els.prefillArea.classList.remove("hidden");
+  els.prefillBottomActions?.classList.remove("hidden");
   setListStatus("");
 }
 
@@ -881,6 +818,15 @@ document.addEventListener(
       btnCreate:
         $("btnCreate"),
 
+      btnCreateBottom:
+        $("btnCreateBottom"),
+
+      prefillBottomActions:
+        $("prefillBottomActions"),
+
+      statusBottom:
+        $("statusBottom"),
+
       status:
         $("status"),
 
@@ -973,6 +919,11 @@ document.addEventListener(
     }
 
     els.btnCreate.addEventListener(
+      "click",
+      createFromTemplate
+    );
+
+    els.btnCreateBottom?.addEventListener(
       "click",
       createFromTemplate
     );
