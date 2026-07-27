@@ -31,6 +31,22 @@
     .autocomplete-list .item .navn { font-weight:600; }
     .autocomplete-list .item .meta { color:#666; font-size:12px; }
     .autocomplete-list .empty { padding:8px 10px; color:#666; font-size:13px; }
+
+    /* Uniconta Debitor data */
+    .debtorGrid { display:grid; grid-template-columns:180px minmax(0,1fr); gap:9px 16px; }
+    .debtorLabel { color:#666; font-weight:600; }
+    .debtorValue { min-width:0; overflow-wrap:anywhere; }
+
+    /* En tile pr. Prefill-gruppe */
+    .prefillGroups { display:grid; gap:16px; }
+    .prefillGroup { overflow:hidden; border:1px solid #ddd; border-radius:12px; background:#fff; }
+    .prefillGroupBar { padding:9px 14px; border-bottom:1px solid #d7d7d7; background:#ededed; color:#333; font-size:15px; font-weight:700; }
+    .prefillGroupBody { overflow-x:auto; }
+    .prefillTable { width:100%; min-width:860px; border-collapse:collapse; }
+    .prefillTable th, .prefillTable td { border-bottom:1px solid #eee; padding:8px; text-align:left; vertical-align:top; }
+    .prefillTable th { background:#fafafa; white-space:nowrap; }
+    .prefillTable tbody tr:last-child td { border-bottom:0; }
+    @media (max-width:700px) { .debtorGrid { grid-template-columns:1fr; } }
   </style>
 </head>
 
@@ -115,25 +131,16 @@
         </div>
       </section>
 
-      <!-- Højre: prefill -->
-      <section class="card">
-        <h2 style="margin-top:0;">Prefill</h2>
-        <div class="muted" id="listStatus">Indlæser…</div>
+      <section id="unicontaDebtorCard" class="card hidden">
+        <h2 style="margin-top:0;">Uniconta Debitor data</h2>
+        <div id="unicontaDebtorStatus" class="muted">Henter debitoroplysninger…</div>
+        <div id="unicontaDebtorData" class="debtorGrid hidden"></div>
+      </section>
 
-        <div id="prefillArea" class="hidden">
-          <table>
-            <thead>
-              <tr>
-                <th style="width:90px;">Nr</th>
-                <th>Spørgsmål</th>
-                <th style="width:220px;">Gruppe</th>
-                <th style="width:140px;">Svar-type</th>
-                <th style="width:320px;">Prefill (valgfri)</th>
-              </tr>
-            </thead>
-            <tbody id="qbody"></tbody>
-          </table>
-        </div>
+      <section>
+        <h2>Prefill</h2>
+        <div class="muted" id="listStatus">Indlæser…</div>
+        <div id="prefillArea" class="prefillGroups hidden"></div>
       </section>
     </div>
   </div>
@@ -147,6 +154,3 @@
   <script type="module" src="./assets/admincreate.js"></script>
 </body>
 </html>
-
-
-

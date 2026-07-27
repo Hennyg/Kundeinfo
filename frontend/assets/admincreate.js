@@ -25,10 +25,10 @@ function showResult({ code, link, instanceId }){
 }
 
 function getPrefillItems(){
-  return [...els.qbody.querySelectorAll("tr")].map(tr => {
-    const qid = tr.dataset.qid;
-    const pre = tr.querySelector("input[data-prefill]")?.value?.trim() || "";
-    return { questionId: qid, prefillText: pre || null };
+  return [...els.prefillArea.querySelectorAll("tr[data-qid]")].map(tr => {
+    const questionId = tr.dataset.qid || "";
+    const prefillText = tr.querySelector("input[data-prefill]")?.value?.trim() || "";
+    return { questionId, prefillText: prefillText || null };
   });
 }
 
@@ -73,7 +73,9 @@ function selectCustomer(index){
   els.customerName.value = k.kundenr ? `${k.navn} (${k.kundenr})` : k.navn;
   els.customerName.dataset.kundeId = k.id || "";
   els.customerName.dataset.kundenr = k.kundenr || "";
+  els.customerName.dataset.kundenavn = k.navn || "";
   hideSuggestions();
+  loadUnicontaDebtor(k.kundenr);
 }
 
 async function searchCustomers(q){
@@ -91,6 +93,8 @@ function onCustomerInput(){
   // hvis brugeren skriver videre, er et tidligere valg ikke længere gyldigt
   delete els.customerName.dataset.kundeId;
   delete els.customerName.dataset.kundenr;
+  delete els.customerName.dataset.kundenavn;
+  clearUnicontaDebtor();
 
   const q = els.customerName.value.trim();
   clearTimeout(acTimer);
@@ -128,6 +132,48 @@ function onCustomerKeydown(e){
   }
 
   nodes.forEach((n, i) => n.classList.toggle("active", i === acActiveIndex));
+}
+
+/* ---------- Uniconta Debitor data ---------- */
+function customerNumberToUnicontaAccount(kundenr){
+  return String(kundenr || "").trim().replace(/\s+/g, "").replace(/^00/, "");
+}
+function debtorRow(label, value){
+  const shown = value === true ? "Ja" : value === false ? "Nej" : (String(value || "").trim() || "—");
+  return `<div class="debtorLabel">${escapeHtml(label)}</div><div class="debtorValue">${escapeHtml(shown)}</div>`;
+}
+function clearUnicontaDebtor(){
+  els.unicontaDebtorCard.classList.add("hidden");
+  els.unicontaDebtorStatus.classList.remove("hidden");
+  els.unicontaDebtorStatus.textContent = "";
+  els.unicontaDebtorData.classList.add("hidden");
+  els.unicontaDebtorData.innerHTML = "";
+}
+async function loadUnicontaDebtor(kundenr){
+  const account = customerNumberToUnicontaAccount(kundenr);
+  els.unicontaDebtorCard.classList.remove("hidden");
+  els.unicontaDebtorStatus.classList.remove("hidden");
+  els.unicontaDebtorStatus.textContent = account ? `Henter Uniconta debitor ${account}…` : "Kunden har ikke et gyldigt kundenummer.";
+  els.unicontaDebtorData.classList.add("hidden");
+  els.unicontaDebtorData.innerHTML = "";
+  if (!account) return;
+  try {
+    const data = await fetchJson(`/api/uniconta/debtors/${encodeURIComponent(account)}`, { cache:"no-store" });
+    const d = data?.debtor;
+    if (!d) throw new Error("Ingen debitoroplysninger returneret.");
+    els.unicontaDebtorData.innerHTML = [
+      debtorRow("Debitornr.", d.account), debtorRow("Navn", d.name),
+      debtorRow("Adresse", [d.address1,d.address2].filter(Boolean).join(", ")),
+      debtorRow("Postnr. og by", [d.zipCode,d.city].filter(Boolean).join(" ")),
+      debtorRow("Land", d.country), debtorRow("Telefon", d.phone), debtorRow("Mobil", d.mobile),
+      debtorRow("E-mail", d.email), debtorRow("Kontaktperson", d.contactPerson), debtorRow("CVR-nr.", d.vatNumber),
+      debtorRow("Valuta", d.currency), debtorRow("Betaling", d.payment), debtorRow("Spærret", d.blocked)
+    ].join("");
+    els.unicontaDebtorStatus.classList.add("hidden");
+    els.unicontaDebtorData.classList.remove("hidden");
+  } catch(e) {
+    els.unicontaDebtorStatus.textContent = `Kunne ikke finde Uniconta Debitor data for ${account}: ${e.message}`;
+  }
 }
 
 /* ---------- Skema (template) – auto-valgt ---------- */
@@ -207,40 +253,42 @@ async function loadTemplateItems(templateId){
     return;
   }
 
-  const getQid = (x) =>
-    x.questionId ||
-    x.crcc8_lch_questionid ||
-    x._crcc8_lch_question_value ||
-    x.crcc8_lch_question?.crcc8_lch_questionid ||
-    null;
+  const getQid = x => x.questionId || x.crcc8_lch_questionid || x._crcc8_lch_question_value || x.crcc8_lch_question?.crcc8_lch_questionid || null;
+  const getNumber = x => x.number || x.crcc8_lch_number || x.crcc8_lch_question?.crcc8_lch_number || "";
+  const getText = x => x.text || x.crcc8_lch_text || x.crcc8_lch_question?.crcc8_lch_text || "";
+  const getGroup = x => String(x.groupLabel || x.group || x.crcc8_lch_questiongroup?.crcc8_lch_title || x.crcc8_lch_questiongroup?.crcc8_lch_name || "Uden gruppe").trim() || "Uden gruppe";
+  const getAT = x => x.answertypeLabel || x.answertype || x.crcc8_lch_answertype || "–";
+  const getPref = x => x.defaultPrefillText || x.crcc8_lch_defaultprefilltext || "";
 
-  const getNumber = (x) => x.number || x.crcc8_lch_number || x.crcc8_lch_question?.crcc8_lch_number || "";
-  const getText = (x) => x.text || x.crcc8_lch_text || x.crcc8_lch_question?.crcc8_lch_text || "";
-  const getGroup = (x) => x.group || x.groupLabel || x.crcc8_lch_group || x.crcc8_lch_questiongroup || "";
-  const getAT = (x) => x.answertypeLabel || x.answertype || x.crcc8_lch_answertype || "";
-  const getPref = (x) => x.defaultPrefillText || x.crcc8_lch_defaultprefilltext || "";
-
-  rows.forEach(item=>{
+  const groups = new Map();
+  rows.forEach(item => {
     const qid = getQid(item);
     if (!qid) return;
-
-    const tr = document.createElement("tr");
-    tr.dataset.qid = String(qid);
-    tr.innerHTML = `
-      <td>${escapeHtml(getNumber(item))}</td>
-      <td>${escapeHtml(getText(item))}</td>
-      <td>${escapeHtml(getGroup(item) || "–")}</td>
-      <td>${escapeHtml(getAT(item) || "–")}</td>
-      <td>
-        <input type="text"
-               data-prefill="1"
-               value="${escapeHtml(getPref(item))}"
-               placeholder="valgfrit"
-               style="width:100%;padding:.5rem" />
-      </td>
-    `;
-    els.qbody.appendChild(tr);
+    const groupName = getGroup(item);
+    if (!groups.has(groupName)) groups.set(groupName, []);
+    groups.get(groupName).push(item);
   });
+
+  els.prefillArea.innerHTML = "";
+  for (const [groupName, items] of groups.entries()) {
+    const tile = document.createElement("section");
+    tile.className = "prefillGroup";
+    tile.innerHTML = `
+      <div class="prefillGroupBar">${escapeHtml(groupName)}</div>
+      <div class="prefillGroupBody">
+        <table class="prefillTable">
+          <thead><tr><th style="width:90px;">Nr</th><th>Spørgsmål</th><th style="width:140px;">Svar-type</th><th style="width:320px;">Prefill (valgfri)</th></tr></thead>
+          <tbody>${items.map(item => `
+            <tr data-qid="${escapeHtml(getQid(item))}">
+              <td>${escapeHtml(getNumber(item))}</td>
+              <td>${escapeHtml(getText(item))}</td>
+              <td>${escapeHtml(getAT(item))}</td>
+              <td><input type="text" data-prefill="1" value="${escapeHtml(getPref(item))}" placeholder="valgfrit" style="width:100%;padding:.5rem" /></td>
+            </tr>`).join("")}</tbody>
+        </table>
+      </div>`;
+    els.prefillArea.appendChild(tile);
+  }
 
   els.prefillArea.classList.remove("hidden");
   setListStatus("");
@@ -255,8 +303,10 @@ async function createFromTemplate(){
     const templateId = els.templateSelect.value;
     if (!templateId) return setStatus("Intet skema valgt.");
 
-    const customerName = (els.customerName.value || "").trim();
-    if (!customerName) return setStatus("Vælg en kunde.");
+    const customerNumber = els.customerName.dataset.kundenr || "";
+    const selectedCustomerName = els.customerName.dataset.kundenavn || "";
+    if (!customerNumber || !selectedCustomerName) return setStatus("Vælg en kunde fra listen.");
+    const customerName = `${selectedCustomerName} (${customerNumber})`;
 
     const expiresRaw = els.expiresAt.value || "";
     const expiresAt = expiresRaw ? new Date(expiresRaw).toISOString() : null;
@@ -270,6 +320,7 @@ async function createFromTemplate(){
     const payload = {
       templateId,
       customerName,
+      customerNumber,
       expiresAt,
       note,
       prefillItems
@@ -306,9 +357,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     note: $("note"),
     btnCreate: $("btnCreate"),
     status: $("status"),
+    unicontaDebtorCard: $("unicontaDebtorCard"),
+    unicontaDebtorStatus: $("unicontaDebtorStatus"),
+    unicontaDebtorData: $("unicontaDebtorData"),
     listStatus: $("listStatus"),
     prefillArea: $("prefillArea"),
-    qbody: $("qbody"),
     result: $("result"),
     codeOut: $("codeOut"),
     linkOut: $("linkOut"),
@@ -351,8 +404,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
+  clearUnicontaDebtor();
   await loadTemplates();
 });
-
-
-
