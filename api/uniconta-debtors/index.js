@@ -9,7 +9,14 @@ module.exports = async function (context, req) {
     const requestedTop = Number.parseInt(req.query.top || "5000", 10);
     const maxRows = Math.min(Math.max(Number.isFinite(requestedTop) ? requestedTop : 5000, 1), 5000);
     const rows = [];
-    let nextUrl = `DebtorClient?$orderby=Name&$top=${Math.min(maxRows, 1000)}`;
+    const filter =
+  `startswith(Account,'8000') and not contains(tolower(Name),'(udg)')`;
+
+let nextUrl =
+  `DebtorClient` +
+  `?$filter=${encodeURIComponent(filter)}` +
+  `&$orderby=Name asc` +
+  `&$top=${Math.min(maxRows, 1000)}`;
 
     while (nextUrl && rows.length < maxRows) {
       const response = await unicontaFetch(nextUrl);
