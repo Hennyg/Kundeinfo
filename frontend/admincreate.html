@@ -4,153 +4,551 @@
   <meta charset="utf-8" />
   <title>Admin – Opret kundesurvey</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
   <link href="./assets/style.css" rel="stylesheet" />
+
   <style>
-    .container { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
-    .grid2 { display:grid; grid-template-columns: 1fr; gap:16px; align-items:start; }
-    .card { border:1px solid #ddd; border-radius:12px; padding:16px; background:#fff; margin:16px 0; max-width: 1200px; }
-    .row { display:grid; grid-template-columns: 1fr 2fr; gap:10px; margin-bottom:10px; }
-    .muted { color:#666; }
-    input, select { width:100%; padding:.55rem; }
-    .btnrow { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-    table { width:100%; border-collapse: collapse; }
-    th, td { border-bottom:1px solid #eee; padding:8px; text-align:left; vertical-align:top; }
-    th { background:#fafafa; white-space:nowrap; }
-    .hidden { display:none; }
-    .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#f3f3f3; font-size:12px; }
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1200px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+
+    .grid2 {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 1200px;
+      margin: 16px 0;
+      padding: 16px;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      background: #fff;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 170px minmax(0, 760px);
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .row label {
+      min-width: 0;
+    }
+
+    .row > input,
+    .row > select,
+    .row > .autocomplete {
+      width: 100%;
+      max-width: 760px;
+      min-width: 0;
+    }
+
+    input,
+    select {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      padding: .55rem;
+    }
+
+    .muted {
+      color: #666;
+    }
+
+    .btnrow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #f3f3f3;
+      font-size: 12px;
+    }
 
     /* Kunde-autocomplete */
-    .autocomplete { position:relative; }
-    .autocomplete-list {
-      position:absolute; z-index:20; left:0; right:0; top:calc(100% + 4px);
-      background:#fff; border:1px solid #ddd; border-radius:8px;
-      max-height:260px; overflow-y:auto; box-shadow:0 6px 18px rgba(0,0,0,.08);
+
+    .autocomplete {
+      position: relative;
+      min-width: 0;
     }
-    .autocomplete-list .item { padding:8px 10px; cursor:pointer; }
-    .autocomplete-list .item:hover, .autocomplete-list .item.active { background:#f3f6f7; }
-    .autocomplete-list .item .navn { font-weight:600; }
-    .autocomplete-list .item .meta { color:#666; font-size:12px; }
-    .autocomplete-list .empty { padding:8px 10px; color:#666; font-size:13px; }
+
+    .autocomplete input {
+      width: 100%;
+    }
+
+    .autocomplete-list {
+      position: absolute;
+      z-index: 20;
+      top: calc(100% + 4px);
+      right: 0;
+      left: 0;
+      max-height: 260px;
+      overflow-y: auto;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, .08);
+    }
+
+    .autocomplete-list .item {
+      padding: 8px 10px;
+      cursor: pointer;
+    }
+
+    .autocomplete-list .item:hover,
+    .autocomplete-list .item.active {
+      background: #f3f6f7;
+    }
+
+    .autocomplete-list .item .navn {
+      font-weight: 600;
+    }
+
+    .autocomplete-list .item .meta {
+      color: #666;
+      font-size: 12px;
+    }
+
+    .autocomplete-list .empty {
+      padding: 8px 10px;
+      color: #666;
+      font-size: 13px;
+    }
 
     /* Uniconta Debitor data */
-    .debtorGrid { display:grid; grid-template-columns:180px minmax(0,1fr); gap:9px 16px; }
-    .debtorLabel { color:#666; font-weight:600; }
-    .debtorValue { min-width:0; overflow-wrap:anywhere; }
 
-    /* En tile pr. Prefill-gruppe */
-    .prefillGroups { display:grid; gap:16px; }
-    .prefillGroup { overflow:hidden; border:1px solid #ddd; border-radius:12px; background:#fff; }
-    .prefillGroupBar { padding:9px 14px; border-bottom:1px solid #d7d7d7; background:#ededed; color:#333; font-size:15px; font-weight:700; }
-    .prefillGroupBody { overflow-x:auto; }
-    .prefillTable { width:100%; min-width:860px; border-collapse:collapse; }
-    .prefillTable th, .prefillTable td { border-bottom:1px solid #eee; padding:8px; text-align:left; vertical-align:top; }
-    .prefillTable th { background:#fafafa; white-space:nowrap; }
-    .prefillTable tbody tr:last-child td { border-bottom:0; }
-    @media (max-width:700px) { .debtorGrid { grid-template-columns:1fr; } }
+    .debtorGrid {
+      display: grid;
+      grid-template-columns: 180px minmax(0, 1fr);
+      gap: 9px 16px;
+    }
+
+    .debtorLabel {
+      color: #666;
+      font-weight: 600;
+    }
+
+    .debtorValue {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    /* Prefill */
+
+    .prefillGroups {
+      display: grid;
+      gap: 16px;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .prefillGroup {
+      width: 100%;
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      background: #fff;
+    }
+
+    .prefillGroupBar {
+      padding: 9px 14px;
+      border-bottom: 1px solid #d7d7d7;
+      background: #ededed;
+      color: #333;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .prefillGroupBody {
+      width: 100%;
+      min-width: 0;
+      overflow-x: hidden;
+    }
+
+    .prefillTable {
+      width: 100%;
+      min-width: 0;
+      table-layout: fixed;
+      border-collapse: collapse;
+    }
+
+    .prefillTable th,
+    .prefillTable td {
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+
+    .prefillTable th {
+      background: #fafafa;
+      white-space: nowrap;
+    }
+
+    .prefillTable tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    /* Nr */
+    .prefillTable th:nth-child(1),
+    .prefillTable td:nth-child(1) {
+      width: 70px;
+    }
+
+    /* Spørgsmål */
+    .prefillTable th:nth-child(2),
+    .prefillTable td:nth-child(2) {
+      width: 36%;
+    }
+
+    /* Svar-type */
+    .prefillTable th:nth-child(3),
+    .prefillTable td:nth-child(3) {
+      width: 130px;
+    }
+
+    /* Prefill-felt */
+    .prefillTable th:nth-child(4),
+    .prefillTable td:nth-child(4) {
+      width: auto;
+    }
+
+    .prefillTable input[data-prefill] {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
+
+    #linkOut {
+      max-width: 760px;
+    }
+
+    @media (max-width: 800px) {
+      .row {
+        grid-template-columns: 140px minmax(0, 1fr);
+      }
+
+      .prefillTable th:nth-child(2),
+      .prefillTable td:nth-child(2) {
+        width: 32%;
+      }
+
+      .prefillTable th:nth-child(3),
+      .prefillTable td:nth-child(3) {
+        width: 105px;
+      }
+    }
+
+    @media (max-width: 700px) {
+      .row,
+      .debtorGrid {
+        grid-template-columns: 1fr;
+      }
+
+      .row {
+        gap: 4px;
+      }
+
+      .row > input,
+      .row > select,
+      .row > .autocomplete {
+        max-width: none;
+      }
+
+      .prefillGroupBody {
+        overflow-x: auto;
+      }
+
+      .prefillTable {
+        min-width: 720px;
+      }
+    }
   </style>
 </head>
 
 <body>
-  <!-- Navbar -->
   <div class="navbar">
     <div class="navbar-inner">
-      <div class="brand">Admin – Opret kundesurvey</div>
+      <div class="brand">
+        Admin – Opret kundesurvey
+      </div>
+
       <nav class="nav">
         <a href="./index.html">Hjem</a>
+
         <span class="sep">•</span>
+
         <a href="./admin.html">Admin</a>
+
         <span class="sep">•</span>
-        <a href="./adminoversigt.html">Kundesurveys</a>
+
+        <a href="./adminoversigt.html">
+          Kundesurveys
+        </a>
+
         <span class="sep">•</span>
-        <a href="./unicontadebitor.html">Uniconta debitorer</a>
+
+        <a href="./unicontadebitor.html">
+          Uniconta debitorer
+        </a>
       </nav>
     </div>
   </div>
+
   <div class="nav-accent"></div>
 
   <div class="container">
-    <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">
+    <header
+      style="
+        display:flex;
+        justify-content:space-between;
+        align-items:flex-start;
+        gap:16px;
+      "
+    >
       <div>
-        <h1 style="margin:0;">Opret kundesurvey</h1>
-        <div class="muted" style="margin-top:6px;">
-          Vælg kunden fra listen, udfyld evt. prefill, og opret en ny kundesurvey med kode + link.
+        <h1 style="margin:0;">
+          Opret kundesurvey
+        </h1>
+
+        <div
+          class="muted"
+          style="margin-top:6px;"
+        >
+          Vælg kunden fra listen, udfyld evt. prefill,
+          og opret en ny kundesurvey med kode + link.
         </div>
       </div>
-      <div class="muted" id="userInfo"></div>
+
+      <div
+        class="muted"
+        id="userInfo"
+      ></div>
     </header>
 
     <div class="grid2">
-      <!-- Venstre: indstillinger -->
       <section class="card">
-        <h2 style="margin-top:0;">Indstillinger</h2>
+        <h2 style="margin-top:0;">
+          Indstillinger
+        </h2>
 
-        <!-- Skema (auto-valgt, ingen manuel valg-mulighed når der kun findes ét aktivt skema) -->
-        <div class="row" id="templateRow" style="display:none;">
-          <label for="templateSelect">Skema</label>
+        <div
+          class="row"
+          id="templateRow"
+          style="display:none;"
+        >
+          <label for="templateSelect">
+            Skema
+          </label>
+
           <select id="templateSelect"></select>
         </div>
-        <div class="row" id="templateInfoRow">
-          <label>Skema</label>
-          <div class="muted" id="templateInfo" style="padding:.55rem 0;">Indlæser…</div>
+
+        <div
+          class="row"
+          id="templateInfoRow"
+        >
+          <label>
+            Skema
+          </label>
+
+          <div
+            class="muted"
+            id="templateInfo"
+            style="padding:.55rem 0;"
+          >
+            Indlæser…
+          </div>
         </div>
 
         <div class="row">
-          <label for="customerName">Kunde</label>
+          <label for="customerName">
+            Kunde
+          </label>
+
           <div class="autocomplete">
-            <input id="customerName" type="text" placeholder="Skriv navn eller kundenr…" autocomplete="off" />
-            <div id="customerSuggest" class="autocomplete-list hidden"></div>
+            <input
+              id="customerName"
+              type="text"
+              placeholder="Skriv navn eller kundenr…"
+              autocomplete="off"
+            />
+
+            <div
+              id="customerSuggest"
+              class="autocomplete-list hidden"
+            ></div>
           </div>
         </div>
 
         <div class="row">
-          <label for="expiresAt">Udløber</label>
-          <input id="expiresAt" type="date" />
+          <label for="expiresAt">
+            Udløber
+          </label>
+
+          <input
+            id="expiresAt"
+            type="date"
+          />
         </div>
 
         <div class="row">
-          <label for="note">Intern note (valgfri)</label>
-          <input id="note" type="text" placeholder="fx Februar kampagne – Nord" />
+          <label for="note">
+            Intern note (valgfri)
+          </label>
+
+          <input
+            id="note"
+            type="text"
+            placeholder="fx Februar kampagne – Nord"
+          />
         </div>
 
-        <div class="btnrow" style="margin-top:12px;">
-          <button id="btnCreate">Opret kundesurvey</button>
-          <span id="status" class="muted"></span>
+        <div
+          class="btnrow"
+          style="margin-top:12px;"
+        >
+          <button id="btnCreate">
+            Opret kundesurvey
+          </button>
+
+          <span
+            id="status"
+            class="muted"
+          ></span>
         </div>
 
-        <div id="result" class="hidden" style="margin-top:14px;">
+        <div
+          id="result"
+          class="hidden"
+          style="margin-top:14px;"
+        >
           <div style="margin-bottom:8px;">
-            <span class="pill">Kode</span> <strong id="codeOut"></strong>
+            <span class="pill">
+              Kode
+            </span>
+
+            <strong id="codeOut"></strong>
           </div>
-          <div class="muted">Kundelink:</div>
-          <input id="linkOut" type="text" readonly style="margin-top:6px;" />
-          <div class="btnrow" style="margin-top:10px;">
-            <button id="btnCopy">Kopiér link</button>
-            <a id="btnOpen" class="tag" href="#" target="_blank" rel="noopener">Åbn kunde</a>
-            <a id="btnPrefill" class="tag" href="#">Prefill</a>
+
+          <div class="muted">
+            Kundelink:
+          </div>
+
+          <input
+            id="linkOut"
+            type="text"
+            readonly
+            style="margin-top:6px;"
+          />
+
+          <div
+            class="btnrow"
+            style="margin-top:10px;"
+          >
+            <button id="btnCopy">
+              Kopiér link
+            </button>
+
+            <a
+              id="btnOpen"
+              class="tag"
+              href="#"
+              target="_blank"
+              rel="noopener"
+            >
+              Åbn kunde
+            </a>
+
+            <a
+              id="btnPrefill"
+              class="tag"
+              href="#"
+            >
+              Prefill
+            </a>
           </div>
         </div>
       </section>
 
-      <section id="unicontaDebtorCard" class="card hidden">
-        <h2 style="margin-top:0;">Uniconta Debitor data</h2>
-        <div id="unicontaDebtorStatus" class="muted">Henter debitoroplysninger…</div>
-        <div id="unicontaDebtorData" class="debtorGrid hidden"></div>
+      <section
+        id="unicontaDebtorCard"
+        class="card hidden"
+      >
+        <h2 style="margin-top:0;">
+          Uniconta Debitor data
+        </h2>
+
+        <div
+          id="unicontaDebtorStatus"
+          class="muted"
+        >
+          Henter debitoroplysninger…
+        </div>
+
+        <div
+          id="unicontaDebtorData"
+          class="debtorGrid hidden"
+        ></div>
       </section>
 
       <section>
-        <h2>Prefill</h2>
-        <div class="muted" id="listStatus">Indlæser…</div>
-        <div id="prefillArea" class="prefillGroups hidden"></div>
+        <h2>
+          Prefill
+        </h2>
+
+        <div
+          class="muted"
+          id="listStatus"
+        >
+          Indlæser…
+        </div>
+
+        <div
+          id="prefillArea"
+          class="prefillGroups hidden"
+        ></div>
       </section>
     </div>
   </div>
 
-  <!-- Auth guard -->
   <script type="module">
     import { requireAuth } from "./assets/auth-guard.js";
-    requireAuth({ autoRedirect: true });
+
+    requireAuth({
+      autoRedirect: true
+    });
   </script>
 
-  <script type="module" src="./assets/admincreate.js"></script>
+  <script
+    type="module"
+    src="./assets/admincreate.js"
+  ></script>
 </body>
 </html>
