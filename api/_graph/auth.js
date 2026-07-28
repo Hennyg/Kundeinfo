@@ -25,9 +25,9 @@ async function getAccessToken(
     return cached.token;
   }
 
-  const tenantId = requiredEnv("DV_TENANT_ID");
-  const clientId = requiredEnv("AZURE_CLIENT_ID");
-  const clientSecret = requiredEnv("AZURE_CLIENT_SECRET");
+const tenantId = requiredEnv("DV_TENANT_ID");
+const clientId = requiredEnv("KUNDE_CLIENT_ID");
+const clientSecret = requiredEnv("KUNDE_CLIENT_SECRET");
 
   const tokenUrl =
     `https://login.microsoftonline.com/` +
