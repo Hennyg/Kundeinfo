@@ -139,23 +139,34 @@
       font-size: 13px;
     }
 
-    /* Uniconta Debitor data */
+.debtorColumns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
 
-    .debtorGrid {
-      display: grid;
-      grid-template-columns: 180px minmax(0, 1fr);
-      gap: 9px 16px;
-    }
+@media (max-width: 720px) {
+  .debtorColumns {
+    grid-template-columns: 1fr;
+  }
+}
 
-    .debtorLabel {
-      color: #666;
-      font-weight: 600;
-    }
+.debtorGrid {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 9px 12px;
+  align-content: start;
+}
 
-    .debtorValue {
-      min-width: 0;
-      overflow-wrap: anywhere;
-    }
+.debtorLabel {
+  color: #666;
+  font-weight: 600;
+}
+
+.debtorValue {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 
 
 
