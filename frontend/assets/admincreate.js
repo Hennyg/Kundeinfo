@@ -458,7 +458,6 @@ function contactCardHtml(contact) {
         ${contactDetailRow("E-mail", contact.email)}
         ${contactDetailRow("Mobil", contact.mobilePhone)}
         ${contactDetailRow("Telefon", contact.businessPhone)}
-        ${contactDetailRow("Jobtitel", contact.jobTitle)}
         ${contactDetailRow("Primæradresse", contact.primaerAdresse)}
         ${contactDetailRow("2. adresse", contact.adresse2)}
         ${contactDetailRow("3. adresse", contact.adresse3)}
