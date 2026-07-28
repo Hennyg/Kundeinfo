@@ -45,6 +45,12 @@ function isOwner(user) {
   return /\(ejer\)\s*$/i.test(text(user.surname));
 }
 
+function formatPrimaryAddress(user) {
+  const street = text(user.streetAddress);
+  const postalCity = [text(user.postalCode), text(user.city)].filter(Boolean).join(" ");
+  return [street, postalCity].filter(Boolean).join(", ");
+}
+
 function mapUser(user) {
   const givenName = text(user.givenName);
   const surname = cleanOwnerMarker(user.surname);
@@ -64,7 +70,10 @@ function mapUser(user) {
     jobTitle: text(user.jobTitle),
     customerNumber: text(user.companyName),
     department: text(user.department),
-    userType: text(user.userType)
+    userType: text(user.userType),
+    primaerAdresse: formatPrimaryAddress(user),
+    adresse2: text(user.officeLocation),
+    adresse3: text(user.country)
   };
 }
 
@@ -85,21 +94,26 @@ module.exports = async function (context, req) {
     }
 
     const acceptedNumbers = customerNumberVariants(customerNumber);
-    const select = [
-      "id",
-      "displayName",
-      "givenName",
-      "surname",
-      "mail",
-      "otherMails",
-      "userPrincipalName",
-      "userType",
-      "companyName",
-      "department",
-      "jobTitle",
-      "mobilePhone",
-      "businessPhones"
-    ].join(",");
+const select = [
+  "id",
+  "displayName",
+  "givenName",
+  "surname",
+  "mail",
+  "otherMails",
+  "userPrincipalName",
+  "userType",
+  "companyName",
+  "department",
+  "jobTitle",
+  "mobilePhone",
+  "businessPhones",
+  "streetAddress",
+  "postalCode",
+  "city",
+  "officeLocation",
+  "country"
+].join(",");
 
     let path = `/users?$top=999&$select=${encodeURIComponent(select)}`;
     const matched = [];
