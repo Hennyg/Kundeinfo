@@ -500,14 +500,15 @@ function extractParenRole(text) {
   return m ? m[1].trim() : "";
 }
 
-function extractPersonName(displayName, companyName) {
+function extractPersonName(displayName, givenName) {
   let s = String(displayName || "");
 
   // Fjern eventuel parentes med rolle-markering, fx "(ejer)" / "(medhælper)"
   s = s.replace(/\([^)]*\)/g, " ");
 
-  // Fjern kundenavnet, hvor det end optræder i teksten
-  const company = String(companyName || "").trim();
+  // "First name" (givenName) i Entra ID indeholder fejlagtigt firmanavnet,
+  // ikke personens fornavn – fjern den værdi fra teksten, uanset placering
+  const company = String(givenName || "").trim();
   if (company) {
     const escaped = company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     s = s.replace(new RegExp(escaped, "i"), " ");
@@ -530,8 +531,7 @@ function onContactFillClick(e) {
   const contact = kind === "owner" ? currentOwners[index] : currentEmployees[index];
   if (!contact) return;
 
-  const companyName = els.customerName.dataset.kundenavn || "";
-  const firstName = extractPersonName(contact.displayName, companyName);
+  const firstName = extractPersonName(contact.displayName, contact.givenName);
   const email = emailOrEmpty(contact.email);
 
   if (kind === "owner") {
