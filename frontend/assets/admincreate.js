@@ -71,6 +71,8 @@ let acTimer = null;
 let acItems = [];
 let acActiveIndex = -1;
 let currentDebtor = null;
+let currentOwners = [];
+let currentEmployees = [];
 
 function hideSuggestions() {
   els.customerSuggest.classList.add("hidden");
@@ -429,7 +431,7 @@ function contactDetailRow(label, value) {
   `;
 }
 
-function contactCardHtml(contact) {
+function contactCardHtml(contact, kind, index) {
   return `
     <article class="contactItem">
       <div class="contactName">${escapeHtml(contact.displayName || "(uden navn)")}</div>
@@ -441,11 +443,94 @@ function contactCardHtml(contact) {
         ${contactDetailRow("2. adresse", contact.adresse2)}
         ${contactDetailRow("3. adresse", contact.adresse3)}
       </div>
+      <div class="contactActions" style="display:flex;justify-content:flex-end;margin-top:10px;">
+        <button
+          type="button"
+          class="btn contactFillButton"
+          data-contact-kind="${escapeHtml(kind)}"
+          data-contact-index="${index}"
+        >Udfyld</button>
+      </div>
     </article>
   `;
 }
 
+function ensureRepeatBlocks(groupId, repeatIndex) {
+  const tile = els.prefillArea.querySelector(
+    `.prefillGroup[data-group-id="${CSS.escape(groupId)}"]`
+  );
+  if (!tile) return;
+
+  const list = tile.querySelector(".prefillRepeatList");
+  if (!list) return;
+
+  let count = list.querySelectorAll(".prefillRepeatBlock").length;
+
+  while (count <= repeatIndex) {
+    const addBtn = tile.querySelector("[data-add-repeat]");
+    if (!addBtn) break;
+    addBtn.click();
+    count = list.querySelectorAll(".prefillRepeatBlock").length;
+  }
+}
+
+function fillPrefillForContact(numberMap, repeatIndex) {
+  const numbers = Object.keys(numberMap);
+  if (!numbers.length) return;
+
+  const anyRow = els.prefillArea.querySelector(
+    `tr[data-number="${CSS.escape(numbers[0])}"]`
+  );
+  const groupId = anyRow?.dataset.groupId;
+
+  if (groupId && repeatIndex > 0) {
+    ensureRepeatBlocks(groupId, repeatIndex);
+  }
+
+  for (const [number, value] of Object.entries(numberMap)) {
+    const input = els.prefillArea.querySelector(
+      `tr[data-number="${CSS.escape(number)}"][data-repeat-index="${repeatIndex}"] input[data-prefill]`
+    );
+    if (input) input.value = value || "";
+  }
+}
+
+function emailOrEmpty(email) {
+  const v = String(email || "").trim();
+  return v.toLowerCase() === "ukendt" ? "" : v;
+}
+
+function onContactFillClick(e) {
+  const btn = e.target.closest(".contactFillButton");
+  if (!btn) return;
+
+  const kind = btn.dataset.contactKind;
+  const index = Number.parseInt(btn.dataset.contactIndex, 10);
+  const contact = kind === "owner" ? currentOwners[index] : currentEmployees[index];
+  if (!contact) return;
+
+  const email = emailOrEmpty(contact.email);
+
+  if (kind === "owner") {
+    fillPrefillForContact({
+      "011": contact.displayName || "",
+      "012": contact.businessPhone || contact.mobilePhone || "",
+      "013": email
+    }, index);
+  } else {
+    fillPrefillForContact({
+      "015": contact.displayName || "",
+      "016": contact.mobilePhone || contact.businessPhone || "",
+      "017": contact.jobTitle || "",
+      "018": email
+    }, index);
+  }
+}
+
 function clearEntraCustomerContacts() {
+  currentOwners = [];
+  currentEmployees = [];
+
   for (const key of ["Owners", "Employees"]) {
     const card = els[`entra${key}Card`];
     const status = els[`entra${key}Status`];
@@ -471,7 +556,9 @@ function renderEntraContactGroup(type, contacts, emptyText) {
     return;
   }
 
-  list.innerHTML = contacts.map(contactCardHtml).join("");
+  list.innerHTML = contacts
+    .map((c, i) => contactCardHtml(c, type === "Owners" ? "owner" : "employee", i))
+    .join("");
   status.classList.add("hidden");
   list.classList.remove("hidden");
 }
@@ -503,15 +590,18 @@ async function loadEntraCustomerContacts(kundenr) {
       { cache: "no-store" }
     );
 
+    currentOwners = Array.isArray(data?.owners) ? data.owners : [];
+    currentEmployees = Array.isArray(data?.employees) ? data.employees : [];
+
     renderEntraContactGroup(
       "Owners",
-      Array.isArray(data?.owners) ? data.owners : [],
+      currentOwners,
       "Ingen ejere fundet i Entra ID."
     );
 
     renderEntraContactGroup(
       "Employees",
-      Array.isArray(data?.employees) ? data.employees : [],
+      currentEmployees,
       "Ingen medarbejdere fundet i Entra ID."
     );
   } catch (e) {
@@ -1042,6 +1132,16 @@ document.addEventListener(
     els.btnFillFromUniconta?.addEventListener(
       "click",
       fillPrefillFromUniconta
+    );
+
+    els.entraOwnersList?.addEventListener(
+      "click",
+      onContactFillClick
+    );
+
+    els.entraEmployeesList?.addEventListener(
+      "click",
+      onContactFillClick
     );
 
     if (
