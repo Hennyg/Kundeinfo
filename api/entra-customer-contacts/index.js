@@ -26,11 +26,13 @@ function customerNumberVariants(value) {
 }
 
 function firstEmail(user) {
-  return (
+  const email =
     text(user.mail) ||
     text(Array.isArray(user.otherMails) ? user.otherMails[0] : "") ||
-    text(user.userPrincipalName)
-  );
+    text(user.userPrincipalName);
+
+  if (email.toLowerCase().includes("@nix.dk")) return "Ukendt";
+  return email;
 }
 
 function firstBusinessPhone(user) {
