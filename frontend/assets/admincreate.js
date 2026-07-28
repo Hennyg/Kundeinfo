@@ -495,6 +495,11 @@ function fillPrefillForContact(numberMap, repeatIndex) {
   }
 }
 
+function extractParenRole(text) {
+  const m = String(text || "").match(/\(([^)]+)\)/);
+  return m ? m[1].trim() : "";
+}
+
 function emailOrEmpty(email) {
   const v = String(email || "").trim();
   return v.toLowerCase() === "ukendt" ? "" : v;
@@ -509,19 +514,25 @@ function onContactFillClick(e) {
   const contact = kind === "owner" ? currentOwners[index] : currentEmployees[index];
   if (!contact) return;
 
+  const firstName = contact.givenName || "";
   const email = emailOrEmpty(contact.email);
 
   if (kind === "owner") {
+    const phone = contact.businessPhone || contact.mobilePhone || "";
+
     fillPrefillForContact({
-      "011": contact.displayName || "",
-      "012": contact.businessPhone || contact.mobilePhone || "",
+      "011": firstName,
+      "012": phone,
       "013": email
     }, index);
   } else {
+    const phone = contact.mobilePhone || contact.businessPhone || "";
+    const title = extractParenRole(contact.displayName);
+
     fillPrefillForContact({
-      "015": contact.displayName || "",
-      "016": contact.mobilePhone || contact.businessPhone || "",
-      "017": contact.jobTitle || "",
+      "015": firstName,
+      "016": phone,
+      "017": title,
       "018": email
     }, index);
   }
