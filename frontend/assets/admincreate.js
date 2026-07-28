@@ -143,6 +143,7 @@ function selectCustomer(index) {
   hideSuggestions();
 
   loadUnicontaDebtor(k.kundenr);
+  loadEntraCustomerContacts(k.kundenr);
 }
 
 async function searchCustomers(q) {
@@ -185,6 +186,7 @@ function onCustomerInput() {
   delete els.customerName.dataset.kundenavn;
 
   clearUnicontaDebtor();
+  clearEntraCustomerContacts();
 
   const q =
     els.customerName.value.trim();
@@ -433,6 +435,112 @@ async function loadUnicontaDebtor(kundenr) {
       `for ${account}: ${e.message}`;
   }
 }
+
+
+
+/* ---------- Entra ID: Ejere og medarbejdere ---------- */
+
+function contactDetailRow(label, value) {
+  const shown = String(value || "").trim();
+  if (!shown) return "";
+
+  return `
+    <div class="contactLabel">${escapeHtml(label)}</div>
+    <div class="contactValue">${escapeHtml(shown)}</div>
+  `;
+}
+
+function contactCardHtml(contact) {
+  return `
+    <article class="contactItem">
+      <div class="contactName">${escapeHtml(contact.displayName || "(uden navn)")}</div>
+      <div class="contactDetails">
+        ${contactDetailRow("E-mail", contact.email)}
+        ${contactDetailRow("Mobil", contact.mobilePhone)}
+        ${contactDetailRow("Telefon", contact.businessPhone)}
+        ${contactDetailRow("Jobtitel", contact.jobTitle)}
+      </div>
+    </article>
+  `;
+}
+
+function clearEntraCustomerContacts() {
+  for (const key of ["Owners", "Employees"]) {
+    const card = els[`entra${key}Card`];
+    const status = els[`entra${key}Status`];
+    const list = els[`entra${key}List`];
+
+    card?.classList.add("hidden");
+    status?.classList.remove("hidden");
+    if (status) status.textContent = "";
+    list?.classList.add("hidden");
+    if (list) list.innerHTML = "";
+  }
+}
+
+function renderEntraContactGroup(type, contacts, emptyText) {
+  const status = els[`entra${type}Status`];
+  const list = els[`entra${type}List`];
+
+  if (!contacts.length) {
+    status.textContent = emptyText;
+    status.classList.remove("hidden");
+    list.classList.add("hidden");
+    list.innerHTML = "";
+    return;
+  }
+
+  list.innerHTML = contacts.map(contactCardHtml).join("");
+  status.classList.add("hidden");
+  list.classList.remove("hidden");
+}
+
+async function loadEntraCustomerContacts(kundenr) {
+  const customerNumber = String(kundenr || "").trim();
+
+  els.entraOwnersCard.classList.remove("hidden");
+  els.entraEmployeesCard.classList.remove("hidden");
+  els.entraOwnersStatus.classList.remove("hidden");
+  els.entraEmployeesStatus.classList.remove("hidden");
+  els.entraOwnersList.classList.add("hidden");
+  els.entraEmployeesList.classList.add("hidden");
+  els.entraOwnersList.innerHTML = "";
+  els.entraEmployeesList.innerHTML = "";
+
+  if (!customerNumber) {
+    els.entraOwnersStatus.textContent = "Kunden har ikke et gyldigt kundenummer.";
+    els.entraEmployeesStatus.textContent = "Kunden har ikke et gyldigt kundenummer.";
+    return;
+  }
+
+  els.entraOwnersStatus.textContent = `Henter ejere for ${customerNumber} fra Entra ID…`;
+  els.entraEmployeesStatus.textContent = `Henter medarbejdere for ${customerNumber} fra Entra ID…`;
+
+  try {
+    const data = await fetchJson(
+      `/api/entra-customer-contacts?kundenr=${encodeURIComponent(customerNumber)}`,
+      { cache: "no-store" }
+    );
+
+    renderEntraContactGroup(
+      "Owners",
+      Array.isArray(data?.owners) ? data.owners : [],
+      "Ingen ejere fundet i Entra ID."
+    );
+
+    renderEntraContactGroup(
+      "Employees",
+      Array.isArray(data?.employees) ? data.employees : [],
+      "Ingen medarbejdere fundet i Entra ID."
+    );
+  } catch (e) {
+    console.error("entra-customer-contacts fejl:", e);
+    const message = `Kunne ikke hente kontakter fra Entra ID: ${e.message}`;
+    els.entraOwnersStatus.textContent = message;
+    els.entraEmployeesStatus.textContent = message;
+  }
+}
+
 
 /* ---------- Skema/template ---------- */
 
@@ -839,6 +947,24 @@ document.addEventListener(
       unicontaDebtorData:
         $("unicontaDebtorData"),
 
+      entraOwnersCard:
+        $("entraOwnersCard"),
+
+      entraOwnersStatus:
+        $("entraOwnersStatus"),
+
+      entraOwnersList:
+        $("entraOwnersList"),
+
+      entraEmployeesCard:
+        $("entraEmployeesCard"),
+
+      entraEmployeesStatus:
+        $("entraEmployeesStatus"),
+
+      entraEmployeesList:
+        $("entraEmployeesList"),
+
       listStatus:
         $("listStatus"),
 
@@ -967,6 +1093,7 @@ document.addEventListener(
     }
 
     clearUnicontaDebtor();
+    clearEntraCustomerContacts();
 
     await loadTemplates();
   }

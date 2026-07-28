@@ -157,6 +157,43 @@
       overflow-wrap: anywhere;
     }
 
+
+
+    /* Entra ID – Ejere og medarbejdere */
+    .contactList {
+      display: grid;
+      gap: 10px;
+    }
+
+    .contactItem {
+      padding: 12px 14px;
+      border: 1px solid #e2e2e2;
+      border-radius: 10px;
+      background: #fafafa;
+    }
+
+    .contactName {
+      margin-bottom: 6px;
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .contactDetails {
+      display: grid;
+      grid-template-columns: 120px minmax(0, 1fr);
+      gap: 5px 12px;
+    }
+
+    .contactLabel {
+      color: #666;
+      font-weight: 600;
+    }
+
+    .contactValue {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
     /* Prefill */
 
     .prefillGroups {
@@ -321,7 +358,8 @@
 
     @media (max-width: 700px) {
       .row,
-      .debtorGrid {
+      .debtorGrid,
+      .contactDetails {
         grid-template-columns: 1fr;
       }
 
@@ -570,6 +608,20 @@
           id="unicontaDebtorData"
           class="debtorGrid hidden"
         ></div>
+      </section>
+
+
+
+      <section id="entraOwnersCard" class="card hidden">
+        <h2 style="margin-top:0;">Ejere</h2>
+        <div id="entraOwnersStatus" class="muted">Henter ejere fra Entra ID…</div>
+        <div id="entraOwnersList" class="contactList hidden"></div>
+      </section>
+
+      <section id="entraEmployeesCard" class="card hidden">
+        <h2 style="margin-top:0;">Medarbejdere</h2>
+        <div id="entraEmployeesStatus" class="muted">Henter medarbejdere fra Entra ID…</div>
+        <div id="entraEmployeesList" class="contactList hidden"></div>
       </section>
 
       <section>
