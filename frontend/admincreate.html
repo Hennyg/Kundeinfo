@@ -168,6 +168,22 @@
   overflow-wrap: anywhere;
 }
 
+.kundeAdresseList {
+  display: grid;
+  gap: 8px;
+}
+
+.kundeAdresseItem {
+  padding: 8px 10px;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.kundeAdresseLine {
+  font-weight: 600;
+}
+
 
 
     /* Entra ID – Ejere og medarbejdere */
@@ -623,6 +639,29 @@
   <div class="debtorActions" style="display:flex;justify-content:flex-end;margin-top:12px;">
     <button type="button" id="btnFillFromUniconta" class="btn">Udfyld</button>
   </div>
+</section>
+
+
+
+<section
+  id="kundelisteCard"
+  class="card hidden"
+>
+  <h2 style="margin-top:0;">
+    Kundeliste
+  </h2>
+
+  <div
+    id="kundelisteStatus"
+    class="muted"
+  >
+    Henter kundedata…
+  </div>
+
+  <div
+    id="kundelisteData"
+    class="hidden"
+  ></div>
 </section>
 
 
