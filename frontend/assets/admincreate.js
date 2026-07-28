@@ -146,6 +146,7 @@ function selectCustomer(index) {
   hideSuggestions();
 
   loadUnicontaDebtor(k.kundenr);
+  loadKundeliste(k.kundenr);
   loadEntraCustomerContacts(k.kundenr);
 }
 
@@ -189,6 +190,7 @@ function onCustomerInput() {
   delete els.customerName.dataset.kundenavn;
 
   clearUnicontaDebtor();
+  clearKundeliste();
   clearEntraCustomerContacts();
 
   const q =
@@ -414,6 +416,77 @@ async function loadUnicontaDebtor(kundenr) {
     els.unicontaDebtorStatus.textContent =
       `Kunne ikke finde Uniconta Debitor data ` +
       `for ${account}: ${e.message}`;
+  }
+}
+
+
+
+/* ---------- Kundeliste: navn, kundenr og adresser ---------- */
+
+function kundeAdresseRowHtml(a) {
+  const cityLine = [a.postnr, a.by].filter(Boolean).join(" ");
+  const metaParts = [cityLine, a.omraade].filter(Boolean);
+  const inaktivTag = a.aktiv === false ? ` <span class="muted">(inaktiv)</span>` : "";
+
+  return `
+    <div class="kundeAdresseItem">
+      <div class="kundeAdresseLine">${escapeHtml(a.adresse || "—")}${inaktivTag}</div>
+      ${metaParts.length ? `<div class="muted">${escapeHtml(metaParts.join(" · "))}</div>` : ""}
+    </div>
+  `;
+}
+
+function clearKundeliste() {
+  els.kundelisteCard.classList.add("hidden");
+  els.kundelisteStatus.classList.remove("hidden");
+  els.kundelisteStatus.textContent = "";
+  els.kundelisteData.classList.add("hidden");
+  els.kundelisteData.innerHTML = "";
+}
+
+async function loadKundeliste(kundenr) {
+  const nr = String(kundenr || "").trim();
+
+  els.kundelisteCard.classList.remove("hidden");
+  els.kundelisteStatus.classList.remove("hidden");
+  els.kundelisteStatus.textContent = nr
+    ? `Henter kundedata for ${nr}…`
+    : "Kunden har ikke et gyldigt kundenummer.";
+  els.kundelisteData.classList.add("hidden");
+  els.kundelisteData.innerHTML = "";
+
+  if (!nr) return;
+
+  try {
+    const data = await fetchJson(
+      `/api/kunde-adresser?kundenr=${encodeURIComponent(nr)}`,
+      { cache: "no-store" }
+    );
+
+    const kunde = data?.kunde;
+    if (!kunde) {
+      throw new Error("Ingen kundedata returneret.");
+    }
+
+    const adresser = Array.isArray(data?.adresser) ? data.adresser : [];
+
+    const adresserHtml = adresser.length
+      ? `<div class="kundeAdresseList">${adresser.map(kundeAdresseRowHtml).join("")}</div>`
+      : `<div class="muted">Ingen adresser fundet.</div>`;
+
+    els.kundelisteData.innerHTML = `
+      <div class="debtorGrid" style="margin-bottom:14px;">
+        ${debtorRow("Navn", kunde.navn)}
+        ${debtorRow("Kundenummer", kunde.kundenr)}
+      </div>
+      ${adresserHtml}
+    `;
+
+    els.kundelisteStatus.classList.add("hidden");
+    els.kundelisteData.classList.remove("hidden");
+  } catch (e) {
+    els.kundelisteStatus.textContent =
+      `Kunne ikke hente kundedata for ${nr}: ${e.message}`;
   }
 }
 
@@ -1050,6 +1123,15 @@ document.addEventListener(
       btnFillFromUniconta:
         $("btnFillFromUniconta"),
 
+      kundelisteCard:
+        $("kundelisteCard"),
+
+      kundelisteStatus:
+        $("kundelisteStatus"),
+
+      kundelisteData:
+        $("kundelisteData"),
+
       entraOwnersCard:
         $("entraOwnersCard"),
 
@@ -1211,6 +1293,7 @@ document.addEventListener(
     }
 
     clearUnicontaDebtor();
+    clearKundeliste();
     clearEntraCustomerContacts();
 
     await loadTemplates();
