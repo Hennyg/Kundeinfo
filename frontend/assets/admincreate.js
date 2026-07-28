@@ -500,6 +500,22 @@ function extractParenRole(text) {
   return m ? m[1].trim() : "";
 }
 
+function extractPersonName(displayName, companyName) {
+  let s = String(displayName || "");
+
+  // Fjern eventuel parentes med rolle-markering, fx "(ejer)" / "(medhælper)"
+  s = s.replace(/\([^)]*\)/g, " ");
+
+  // Fjern kundenavnet, hvor det end optræder i teksten
+  const company = String(companyName || "").trim();
+  if (company) {
+    const escaped = company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    s = s.replace(new RegExp(escaped, "i"), " ");
+  }
+
+  return s.replace(/\s+/g, " ").trim();
+}
+
 function emailOrEmpty(email) {
   const v = String(email || "").trim();
   return v.toLowerCase() === "ukendt" ? "" : v;
@@ -514,7 +530,8 @@ function onContactFillClick(e) {
   const contact = kind === "owner" ? currentOwners[index] : currentEmployees[index];
   if (!contact) return;
 
-  const firstName = contact.givenName || "";
+  const companyName = els.customerName.dataset.kundenavn || "";
+  const firstName = extractPersonName(contact.displayName, companyName);
   const email = emailOrEmpty(contact.email);
 
   if (kind === "owner") {
