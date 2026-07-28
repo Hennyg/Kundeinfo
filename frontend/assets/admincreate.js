@@ -459,6 +459,9 @@ function contactCardHtml(contact) {
         ${contactDetailRow("Mobil", contact.mobilePhone)}
         ${contactDetailRow("Telefon", contact.businessPhone)}
         ${contactDetailRow("Jobtitel", contact.jobTitle)}
+        ${contactDetailRow("Primæradresse", contact.primaerAdresse)}
+        ${contactDetailRow("2. adresse", contact.adresse2)}
+        ${contactDetailRow("3. adresse", contact.adresse3)}
       </div>
     </article>
   `;
