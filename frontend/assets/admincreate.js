@@ -378,82 +378,28 @@ async function loadUnicontaDebtor(kundenr) {
       );
     }
 
-    els.unicontaDebtorData.innerHTML = [
-      debtorRow(
-        "Debitornr.",
-        d.account
-      ),
-
-      debtorRow(
-        "Navn",
-        d.name
-      ),
-
-      debtorRow(
-        "Adresse",
-        [
-          d.address1,
-          d.address2
-        ]
-          .filter(Boolean)
-          .join(", ")
-      ),
-
-      debtorRow(
-        "Postnr. og by",
-        [
-          d.zipCode,
-          d.city
-        ]
-          .filter(Boolean)
-          .join(" ")
-      ),
-
-      debtorRow(
-        "Land",
-        d.country
-      ),
-
-      debtorRow(
-        "Telefon",
-        d.phone
-      ),
-
-      debtorRow(
-        "Mobil",
-        d.mobile
-      ),
-
-      debtorRow(
-        "E-mail",
-        d.email
-      ),
-
-      debtorRow(
-        "Kontaktperson",
-        d.contactPerson
-      ),
-
-      debtorRow(
-        "CVR-nr.",
-        d.vatNumber
-      ),
-
-      debtorRow(
-        "Valuta",
-        d.currency
-      ),
-
-      debtorRow(
-        "Betaling",
-        d.payment
-      ),
-
-      debtorRow(
-        "Spærret",
-        d.blocked
-      )
-    ].join("");
+    els.unicontaDebtorData.innerHTML = `
+      <div class="debtorColumns">
+        <div class="debtorGrid">
+          ${debtorRow("Debitornr.", d.account)}
+          ${debtorRow("Navn", d.name)}
+          ${debtorRow("Adresse", [d.address1, d.address2].filter(Boolean).join(", "))}
+          ${debtorRow("Postnr. og by", [d.zipCode, d.city].filter(Boolean).join(" "))}
+        </div>
+        <div class="debtorGrid">
+          ${debtorRow("Land", d.country)}
+          ${debtorRow("Telefon", d.phone)}
+          ${debtorRow("Mobil", d.mobile)}
+          ${debtorRow("E-mail", d.email)}
+        </div>
+        <div class="debtorGrid">
+          ${debtorRow("Kontaktperson", d.contactPerson)}
+          ${debtorRow("CVR-nr.", d.vatNumber)}
+          ${debtorRow("Valuta", d.currency)}
+          ${debtorRow("Spærret", d.blocked)}
+        </div>
+      </div>
+    `;
 
     els.unicontaDebtorStatus.classList.add(
       "hidden"
@@ -983,6 +929,9 @@ document.addEventListener(
       unicontaDebtorData:
         $("unicontaDebtorData"),
 
+      btnFillFromUniconta:
+        $("btnFillFromUniconta"),
+
       entraOwnersCard:
         $("entraOwnersCard"),
 
@@ -1088,6 +1037,11 @@ document.addEventListener(
     els.btnCreateBottom?.addEventListener(
       "click",
       createFromTemplate
+    );
+
+    els.btnFillFromUniconta?.addEventListener(
+      "click",
+      fillPrefillFromUniconta
     );
 
     if (
