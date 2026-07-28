@@ -70,6 +70,7 @@ function getPrefillItems() {
 let acTimer = null;
 let acItems = [];
 let acActiveIndex = -1;
+let currentDebtor = null;
 
 function hideSuggestions() {
   els.customerSuggest.classList.add("hidden");
@@ -252,6 +253,22 @@ function onCustomerKeydown(e) {
   });
 }
 
+function setPrefillByNumber(number, value) {
+  if (!number) return;
+
+  const input = els.prefillArea.querySelector(
+    `tr[data-number="${CSS.escape(number)}"][data-repeat-index="0"] input[data-prefill]`
+  );
+
+  if (input) input.value = value || "";
+}
+
+function fillPrefillFields(map) {
+  for (const [number, value] of Object.entries(map)) {
+    setPrefillByNumber(number, value);
+  }
+}
+
 /* ---------- Uniconta Debitor data ---------- */
 
 function customerNumberToUnicontaAccount(
@@ -284,7 +301,22 @@ function debtorRow(label, value) {
   );
 }
 
+function fillPrefillFromUniconta() {
+  if (!currentDebtor) return;
+
+  const d = currentDebtor;
+
+  fillPrefillFields({
+    "001": d.vatNumber || "",
+    "002": d.name || "",
+    "003": [d.address1, d.address2].filter(Boolean).join(", "),
+    "004": [d.zipCode, d.city].filter(Boolean).join(" "),
+    "005": d.email || ""
+  });
+}
+
 function clearUnicontaDebtor() {
+  currentDebtor = null;
   els.unicontaDebtorCard.classList.add(
     "hidden"
   );
@@ -338,6 +370,7 @@ async function loadUnicontaDebtor(kundenr) {
     );
 
     const d = data?.debtor;
+    currentDebtor = d;
 
     if (!d) {
       throw new Error(
@@ -686,13 +719,14 @@ async function loadTemplateItems(templateId) {
     groups.get(groupId).items.push(item);
   }
 
-  function rowsHtml(group, repeatIndex) {
-    return group.items.map(item => `
-      <tr
-        data-qid="${escapeHtml(item.questionId)}"
-        data-group-id="${escapeHtml(group.id)}"
-        data-repeat-index="${repeatIndex}"
-      >
+function rowsHtml(group, repeatIndex) {
+  return group.items.map(item => `
+    <tr
+      data-qid="${escapeHtml(item.questionId)}"
+      data-group-id="${escapeHtml(group.id)}"
+      data-repeat-index="${repeatIndex}"
+      data-number="${escapeHtml(item.number || "")}"
+    >
         <td>${escapeHtml(item.number || "")}</td>
         <td>${escapeHtml(item.text || "")}</td>
         <td>${escapeHtml(item.answertypeLabel || "–")}</td>
