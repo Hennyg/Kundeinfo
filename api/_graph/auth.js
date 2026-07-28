@@ -25,14 +25,9 @@ async function getAccessToken(
     return cached.token;
   }
 
-  // Brug præcis de eksisterende navne fra SWA Configuration.
   const tenantId = requiredEnv("DV_TENANT_ID");
   const clientId = requiredEnv("AZURE_CLIENT_ID");
-
-  // I denne SWA indeholder variablen selve secret-værdien.
-  const clientSecret = requiredEnv(
-    "AZURE_CLIENT_SECRET_APP_SETTING_NAME"
-  );
+  const clientSecret = requiredEnv("AZURE_CLIENT_SECRET");
 
   const tokenUrl =
     `https://login.microsoftonline.com/` +
@@ -60,9 +55,7 @@ async function getAccessToken(
   try {
     data = text ? JSON.parse(text) : {};
   } catch {
-    data = {
-      raw: text
-    };
+    data = { raw: text };
   }
 
   if (!response.ok || !data.access_token) {
@@ -72,20 +65,17 @@ async function getAccessToken(
     );
   }
 
-  const expiresIn = Number(data.expires_in || 300);
-
   tokenCache.set(scope, {
     token: data.access_token,
-    expiresAt: now + expiresIn
+    expiresAt:
+      now + Number(data.expires_in || 300)
   });
 
   return data.access_token;
 }
 
 async function getAppToken() {
-  return getAccessToken(
-    "https://graph.microsoft.com/.default"
-  );
+  return getAccessToken();
 }
 
 module.exports = {
