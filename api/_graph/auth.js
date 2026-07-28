@@ -6,9 +6,23 @@ function firstEnv(...names) {
   return "";
 }
 
+function getAzureClientSecret() {
+  // I Azure Static Web Apps indeholder denne variabel navnet på den
+  // Application Setting, hvor selve client secret-værdien ligger.
+  const secretSettingName = String(
+    process.env.AZURE_CLIENT_SECRET_APP_SETTING_NAME || ""
+  ).trim();
+
+  if (!secretSettingName) return "";
+
+  return String(process.env[secretSettingName] || "").trim();
+}
+
 const tokenCache = new Map();
 
-async function getAccessToken(scope = "https://graph.microsoft.com/.default") {
+async function getAccessToken(
+  scope = "https://graph.microsoft.com/.default"
+) {
   const now = Math.floor(Date.now() / 1000);
   const cached = tokenCache.get(scope);
 
@@ -16,15 +30,40 @@ async function getAccessToken(scope = "https://graph.microsoft.com/.default") {
     return cached.token;
   }
 
-  // Understøtter både Kontakter-appens navne og Kundeinfo-appens eksisterende DV-navne.
-  const tenantId = firstEnv("GRAPH_TENANT_ID", "TENANT_ID", "DV_TENANT_ID");
-  const clientId = firstEnv("GRAPH_CLIENT_ID", "CLIENT_ID", "DV_CLIENT_ID");
-  const clientSecret = firstEnv("GRAPH_CLIENT_SECRET", "CLIENT_SECRET", "DV_CLIENT_SECRET");
+  // Brug den appregistrering, som SWA-login allerede er sat op med.
+  const tenantId = firstEnv(
+    "AZURE_TENANT_ID",
+    "DV_TENANT_ID",
+    "TENANT_ID"
+  );
 
-  if (!tenantId || !clientId || !clientSecret) {
+  const clientId = firstEnv(
+    "AZURE_CLIENT_ID"
+  );
+
+  const clientSecret = getAzureClientSecret();
+
+  if (!tenantId) {
     throw new Error(
-      "Mangler Graph-login. Angiv GRAPH_TENANT_ID/GRAPH_CLIENT_ID/GRAPH_CLIENT_SECRET " +
-      "eller TENANT_ID/CLIENT_ID/CLIENT_SECRET."
+      "Mangler tenant-id. Angiv AZURE_TENANT_ID eller DV_TENANT_ID."
+    );
+  }
+
+  if (!clientId) {
+    throw new Error(
+      "Mangler AZURE_CLIENT_ID."
+    );
+  }
+
+  if (!clientSecret) {
+    const settingName = String(
+      process.env.AZURE_CLIENT_SECRET_APP_SETTING_NAME || ""
+    ).trim();
+
+    throw new Error(
+      settingName
+        ? `AZURE_CLIENT_SECRET_APP_SETTING_NAME peger på '${settingName}', men denne Application Setting findes ikke eller er tom.`
+        : "Mangler AZURE_CLIENT_SECRET_APP_SETTING_NAME."
     );
   }
 
@@ -36,17 +75,24 @@ async function getAccessToken(scope = "https://graph.microsoft.com/.default") {
   });
 
   const response = await fetch(
-    `https://login.microsoftonline.com/${encodeURIComponent(tenantId)}/oauth2/v2.0/token`,
+    `https://login.microsoftonline.com/${encodeURIComponent(
+      tenantId
+    )}/oauth2/v2.0/token`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
       body
     }
   );
 
   const data = await response.json().catch(() => ({}));
+
   if (!response.ok || !data.access_token) {
-    throw new Error(`Graph token-fejl ${response.status}: ${JSON.stringify(data)}`);
+    throw new Error(
+      `Graph token-fejl ${response.status}: ${JSON.stringify(data)}`
+    );
   }
 
   tokenCache.set(scope, {
@@ -57,4 +103,6 @@ async function getAccessToken(scope = "https://graph.microsoft.com/.default") {
   return data.access_token;
 }
 
-module.exports = { getAccessToken };
+module.exports = {
+  getAccessToken
+};
