@@ -20,6 +20,87 @@ function escODataString(s) {
   return String(s ?? "").replace(/'/g, "''");
 }
 
+// --- Kundeliste-adresser (coredata) – bruges kun til at fylde
+//     adresse-dropdown for "Primær arbejdsadresse"-felterne. Fejler stille
+//     (returnerer tom liste), da det ikke må vælte selve spørgeskemaet.
+function extractKundenrFromCustomerName(customerName) {
+  const m = String(customerName || "").match(/\((\d+)\)\s*$/);
+  return m ? m[1] : "";
+}
+
+async function getCoredataToken() {
+  const tenant = process.env.DV_TENANT_ID;
+  const clientId = process.env.DV_CLIENT_ID;
+  const clientSecret = process.env.DV_CLIENT_SECRET;
+  const resource = process.env.COREDATA_URL;
+
+  if (!tenant || !clientId || !clientSecret || !resource) return null;
+
+  const body = new URLSearchParams({
+    grant_type: "client_credentials",
+    client_id: clientId,
+    client_secret: clientSecret,
+    scope: `${resource}/.default`
+  });
+
+  const r = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body
+  });
+
+  if (!r.ok) return null;
+  const j = await r.json();
+  return j.access_token || null;
+}
+
+async function fetchKundeAdresser(kundenr) {
+  try {
+    if (!kundenr) return [];
+
+    const resource = process.env.COREDATA_URL;
+    const table = process.env.COREDATA_KUNDE_TABEL;
+    if (!resource || !table) return [];
+
+    const token = await getCoredataToken();
+    if (!token) return [];
+
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+      "OData-MaxVersion": "4.0",
+      "OData-Version": "4.0"
+    };
+
+    const kundeUrl =
+      `${resource}/api/data/v9.2/${table}?$select=cr1eb_lch_kundeid&` +
+      `$filter=${encodeURIComponent(`cr1eb_lch_kundenr eq '${escODataString(kundenr)}'`)}&$top=1`;
+
+    const kundeRes = await fetch(kundeUrl, { headers });
+    if (!kundeRes.ok) return [];
+    const kundeData = await kundeRes.json();
+    const kunde = (kundeData.value || [])[0];
+    if (!kunde) return [];
+
+    const adresseUrl =
+      `${resource}/api/data/v9.2/cr1eb_lch_kundeadresses?` +
+      `$select=cr1eb_lch_adresse,cr1eb_lch_postnr,cr1eb_lch_by&` +
+      `$filter=${encodeURIComponent(`_cr1eb_lch_kunde_value eq '${kunde.cr1eb_lch_kundeid}'`)}&$top=50`;
+
+    const adresseRes = await fetch(adresseUrl, { headers });
+    if (!adresseRes.ok) return [];
+    const adresseData = await adresseRes.json();
+
+    return (adresseData.value || []).map(a => ({
+      adresse: a.cr1eb_lch_adresse || "",
+      postnr: a.cr1eb_lch_postnr || "",
+      by: a.cr1eb_lch_by || ""
+    }));
+  } catch {
+    return [];
+  }
+}
+
 module.exports = async function (context, req) {
   try {
     const code = String(req?.body?.code || "").trim();
@@ -61,7 +142,7 @@ module.exports = async function (context, req) {
       `&$filter=${encodeURIComponent(`_crcc8_lch_surveyinstance_value eq ${instanceId}`)}` +
       `&$expand=${encodeURIComponent(
         `crcc8_lch_question($select=crcc8_lch_questionid,crcc8_lch_number,crcc8_lch_text,crcc8_lch_explanation,crcc8_lch_answertype,crcc8_lch_isrequired,crcc8_lch_sortorder;` +
-        `$expand=crcc8_lch_questiongroup($select=crcc8_lch_questiongroupid,crcc8_lch_name,crcc8_lch_title,crcc8_lch_sortorder,crcc8_crcc8_repeatable))`
+        `$expand=crcc8_lch_questiongroup($select=crcc8_lch_questiongroupid,crcc8_lch_name,crcc8_lch_title,crcc8_lch_description,crcc8_lch_sortorder,crcc8_crcc8_repeatable))`
       )}`;
 
     const itemsRes = await dvFetch(itemsPath, {
@@ -112,6 +193,7 @@ module.exports = async function (context, req) {
         groupsById.set(groupId, {
           id: groupId,
           title: g ? (g.crcc8_lch_title || g.crcc8_lch_name || "Andet") : "Andet",
+          description: g ? (g.crcc8_lch_description || "") : "",
           sort: g ? (g.crcc8_lch_sortorder ?? 0) : 999999,
           repeatable: g ? !!g.crcc8_crcc8_repeatable : false
         });
@@ -187,12 +269,12 @@ module.exports = async function (context, req) {
 
     const groups = [...groupsById.values()].sort((a, b) => a.sort - b.sort);
 
-    return json(context, 200, { code, customerName, groups, items });
+    const kundenr = extractKundenrFromCustomerName(customerName);
+    const kundeAdresser = await fetchKundeAdresser(kundenr);
+
+    return json(context, 200, { code, customerName, groups, items, kundeAdresser });
   } catch (err) {
     context.log.error(err);
     return json(context, 500, { error: "server_error", message: err.message || String(err) });
   }
 };
-
-
-
