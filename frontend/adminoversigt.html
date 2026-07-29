@@ -16,6 +16,9 @@
     .pill { padding:2px 8px; border-radius:999px; font-size:12px; }
     .pill.active { background:#e6f4ea; color:#137333; }
     .pill.expired { background:#fdecea; color:#b3261e; }
+    .btn.danger { background:#fff; color:#b3261e; border-color:#b3261e; }
+    .btnrow { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    th:first-child, td:first-child { width: 32px; text-align:center; }
   </style>
 </head>
 
@@ -50,11 +53,17 @@
     </header>
 
     <div class="card" style="margin-top:16px;">
+      <div class="btnrow" style="margin-bottom:10px;">
+        <button id="btnDeleteSelected" class="btn danger" type="button" disabled>Slet valgte</button>
+        <span id="selectedCount" class="muted"></span>
+      </div>
+
       <div id="status" class="muted">Indlæser kundesurveys…</div>
 
       <table id="surveyTable" style="display:none">
         <thead>
           <tr>
+            <th><input type="checkbox" id="checkAll" /></th>
             <th>Kundenavn</th>
             <th>Kode</th>
             <th>Status</th>
@@ -77,6 +86,3 @@
   <script type="module" src="./assets/adminoversigt.js"></script>
 </body>
 </html>
-
-
-
