@@ -103,7 +103,6 @@ module.exports = async function (context, req) {
         crcc8_lch_repeatindex: item.repeatIndex,
         crcc8_lch_sortordertal: (item.repeatIndex * 100000) + baseSort,
         "crcc8_lch_surveyinstance@odata.bind": `/crcc8_lch_surveyinstances(${instanceId})`,
-        "crcc8_lch_surveytemplate@odata.bind": `/crcc8_lch_surveytemplates(${templateId})`,
         "crcc8_lch_question@odata.bind": `/crcc8_lch_questions(${item.questionId})`
       };
 
