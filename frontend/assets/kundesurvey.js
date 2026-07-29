@@ -12,7 +12,6 @@ const ui = {
   form: $("surveyForm"),
   status: $("status"),
   btnSubmit: $("btnSubmit"),
-  btnSaveLater: $("btnSaveLater"),
   readonlyBanner: $("readonlyBanner"),
   openAsCustomerLink: $("openAsCustomerLink"),
   kundeAdresseOptions: $("kundeAdresseOptions"),
@@ -290,7 +289,6 @@ async function loadSurvey() {
   if (isReadOnly()) {
     show(ui.readonlyBanner);
     ui.btnSubmit?.classList.add("hidden");
-    ui.btnSaveLater?.classList.add("hidden");
 
     if (ui.openAsCustomerLink) {
       const customerUrl = new URL(location.href);
@@ -369,7 +367,6 @@ async function submitSurvey(code, finalize, opts = {}) {
   if (!silent) {
     ui.status.textContent = finalize ? "Afslutter…" : "Gemmer…";
     ui.btnSubmit.disabled = true;
-    ui.btnSaveLater && (ui.btnSaveLater.disabled = true);
   } else {
     ui.status.textContent = "Gemmer automatisk…";
   }
@@ -391,7 +388,6 @@ async function submitSurvey(code, finalize, opts = {}) {
       ui.status.textContent = "Gemt ✔";
       if (!silent) {
         ui.btnSubmit.disabled = false;
-        ui.btnSaveLater && (ui.btnSaveLater.disabled = false);
       }
     }
 
@@ -402,7 +398,6 @@ async function submitSurvey(code, finalize, opts = {}) {
   } finally {
     if (!finalize && !silent) {
       ui.btnSubmit.disabled = false;
-      ui.btnSaveLater && (ui.btnSaveLater.disabled = false);
     }
   }
 }
@@ -418,8 +413,6 @@ async function init() {
       e.preventDefault();
       submitSurvey(code, true); // afslut
     });
-
-    ui.btnSaveLater?.addEventListener("click", () => submitSurvey(code, false)); // gem senere
 
   } catch (e) {
     console.error(e);
