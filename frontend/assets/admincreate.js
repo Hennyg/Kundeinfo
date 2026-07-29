@@ -1231,8 +1231,12 @@ async function createFromTemplate() {
     });
 
     setStatus(
-      "Oprettet ✔"
+      "Oprettet ✔ – sender dig til listen…"
     );
+
+    setTimeout(() => {
+      location.href = "./adminoversigt.html";
+    }, 900);
   } catch (e) {
     console.error(e);
 
