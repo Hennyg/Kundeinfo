@@ -112,9 +112,13 @@ function renderQuestions() {
   const seenQuestionByGroup = new Map();
   // Gemte/aktuelle værdier: `${questionId}|${ri}` -> value
   const valueMap = new Map();
+  // Prefill-tekst pr. faktisk gentagelse: `${questionId}|${ri}` -> prefillText
+  const prefillMap = new Map();
 
   for (const it of (DATA.items || [])) {
     valueMap.set(`${it.questionId}|${it.repeatIndex}`, it.savedValue || "");
+    prefillMap.set(`${it.questionId}|${it.repeatIndex}`, it.prefillText || "");
+
     if (it.repeatIndex === 0) {
       if (!baseByGroup.has(it.groupId)) {
         baseByGroup.set(it.groupId, []);
@@ -130,7 +134,13 @@ function renderQuestions() {
       baseByGroup.get(it.groupId).push(it);
     }
   }
-  for (const [, arr] of baseByGroup) arr.sort((a, b) => (a.sortKey ?? 0) - (b.sortKey ?? 0));
+  for (const [, arr] of baseByGroup) {
+    arr.sort((a, b) => {
+      const sortDiff = (a.sortKey ?? 0) - (b.sortKey ?? 0);
+      if (sortDiff !== 0) return sortDiff;
+      return String(a.number || "").localeCompare(String(b.number || ""), "da", { numeric: true });
+    });
+  }
 
   for (const g of groups) {
     const baseQs = baseByGroup.get(g.id) || [];
@@ -194,7 +204,7 @@ function renderQuestions() {
           required: bq.required,
           answertype: bq.answertype,
           explanation: bq.explanation,
-          prefillText: ri === 0 ? bq.prefillText : ""
+          prefillText: prefillMap.get(`${bq.questionId}|${ri}`) || ""
         };
 
         const value = valueMap.get(`${it.questionId}|${ri}`) || "";
