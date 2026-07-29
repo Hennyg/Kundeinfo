@@ -18,7 +18,7 @@ function escapeHtml(s) {
 const STATUS_LABELS = {
   776350000: { text: "Afventer", cls: "" },
   776350001: { text: "Gennemført", cls: "active" },
-  776350002: { text: "Andet", cls: "" }
+  776350002: { text: "Startet", cls: "" }
 };
 
 function statusPillHtml(status) {
