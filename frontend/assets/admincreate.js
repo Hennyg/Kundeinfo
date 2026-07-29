@@ -73,6 +73,7 @@ let acActiveIndex = -1;
 let currentDebtor = null;
 let currentOwners = [];
 let currentEmployees = [];
+let editInstanceId = null;
 
 function hideSuggestions() {
   els.customerSuggest.classList.add("hidden");
@@ -1043,7 +1044,98 @@ function rowsHtml(group, repeatIndex) {
 
 /* ---------- Opret survey fra template ---------- */
 
+/* ---------- Redigering af eksisterende kundesurvey ---------- */
+
+function setPrefillValueByQuestionRepeat(questionId, repeatIndex, value) {
+  const tile = els.prefillArea.querySelector(`tr[data-qid="${CSS.escape(questionId)}"]`)?.closest(".prefillGroup");
+  if (tile && repeatIndex > 0) {
+    const list = tile.querySelector(".prefillRepeatList");
+    let count = list ? list.querySelectorAll(".prefillRepeatBlock").length : 0;
+    while (count <= repeatIndex) {
+      const addBtn = tile.querySelector("[data-add-repeat]");
+      if (!addBtn) break;
+      addBtn.click();
+      count = list.querySelectorAll(".prefillRepeatBlock").length;
+    }
+  }
+
+  const input = els.prefillArea.querySelector(
+    `tr[data-qid="${CSS.escape(questionId)}"][data-repeat-index="${repeatIndex}"] input[data-prefill]`
+  );
+  if (input) input.value = value || "";
+}
+
+async function loadInstanceForEdit(instanceId) {
+  editInstanceId = instanceId;
+
+  setStatus("Indlæser eksisterende skema…");
+
+  // I redigeringstilstand er kunden allerede fastlagt, og selve
+  // opslags-tiles (Uniconta/Kundeliste/Entra ID) er ikke relevante –
+  // det handler kun om at rette prefill-teksterne.
+  els.unicontaDebtorCard?.classList.add("hidden");
+  els.kundelisteCard?.classList.add("hidden");
+  els.entraOwnersCard?.classList.add("hidden");
+  els.entraEmployeesCard?.classList.add("hidden");
+
+  try {
+    const data = await fetchJson(
+      `/api/survey-instance-get?id=${encodeURIComponent(instanceId)}`,
+      { cache: "no-store" }
+    );
+
+    els.customerName.value = data.customerName || "";
+    els.customerName.disabled = true;
+    els.customerName.dataset.kundenavn = data.customerName || "";
+
+    for (const it of (data.items || [])) {
+      setPrefillValueByQuestionRepeat(it.questionId, it.repeatIndex, it.prefillText);
+    }
+
+    if (els.btnCreateBottom) {
+      els.btnCreateBottom.textContent = "Gem ændringer";
+    }
+
+    setStatus(`Redigerer eksisterende skema (kode: ${data.code || "—"})`);
+  } catch (e) {
+    console.error("survey-instance-get fejl:", e);
+    setStatus(`Kunne ikke indlæse skema til redigering: ${e.message}`);
+  }
+}
+
+async function saveEditedInstance() {
+  try {
+    setStatus("Gemmer ændringer…");
+
+    const prefillItems = getPrefillItems();
+
+    const payload = {
+      instanceId: editInstanceId,
+      items: prefillItems.map(p => ({
+        questionId: p.questionId,
+        repeatIndex: p.repeatIndex,
+        prefillText: p.prefillText
+      }))
+    };
+
+    await fetchJson("/api/survey-items-update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
+
+    setStatus("Ændringer gemt ✔");
+  } catch (e) {
+    console.error(e);
+    setStatus("Fejl: " + (e.message || e));
+  }
+}
+
 async function createFromTemplate() {
+  if (editInstanceId) {
+    return saveEditedInstance();
+  }
+
   try {
     setStatus("");
 
@@ -1371,5 +1463,10 @@ document.addEventListener(
     clearEntraCustomerContacts();
 
     await loadTemplates();
+
+    const instanceIdFromUrl = qs("instanceId");
+    if (instanceIdFromUrl) {
+      await loadInstanceForEdit(instanceIdFromUrl);
+    }
   }
 );
