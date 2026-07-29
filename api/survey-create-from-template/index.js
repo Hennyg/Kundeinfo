@@ -66,7 +66,7 @@ module.exports = async function (context, req) {
       crcc8_name: `${customerName} (${code})`,
       crcc8_lch_customername: customerName,
       crcc8_lch_code: code,
-      crcc8_status: 100000000,
+      crcc8_status: 776350000,
       crcc8_templateversion: 1
     };
     if (expiresAt) instanceBody.crcc8_expiresat = expiresAt;
