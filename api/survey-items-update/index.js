@@ -17,6 +17,10 @@ function json(context, status, body) {
   };
 }
 
+function normalizeGuid(v) {
+  return String(v || "").trim().toLowerCase().replace(/[{}]/g, "");
+}
+
 module.exports = async function (context, req) {
   try {
     const instanceId = String(req.body?.instanceId || "").trim();
@@ -35,14 +39,14 @@ module.exports = async function (context, req) {
 
     const existingMap = new Map();
     for (const r of (existingData.value || [])) {
-      const key = `${r._crcc8_lch_question_value}|${Number(r.crcc8_lch_repeatindex ?? 0)}`;
+      const key = `${normalizeGuid(r._crcc8_lch_question_value)}|${Number(r.crcc8_lch_repeatindex ?? 0)}`;
       existingMap.set(key, r.crcc8_lch_surveyitemid);
     }
 
     let updated = 0, created = 0;
 
     for (const it of items) {
-      const questionId = String(it?.questionId || "").trim();
+      const questionId = normalizeGuid(it?.questionId);
       const repeatIndex = Number.parseInt(it?.repeatIndex ?? 0, 10) || 0;
       const prefillText = String(it?.prefillText || "").trim() || null;
       if (!questionId) continue;
