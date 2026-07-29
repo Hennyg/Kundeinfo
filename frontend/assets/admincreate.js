@@ -793,7 +793,7 @@ async function runCustomerLookup(kundenr) {
 /* ---------- Skema/template ---------- */
 
 async function loadTemplates() {
-  els.templateInfo.textContent =
+  if (els.templateInfo) els.templateInfo.textContent =
     "Indlæser…";
 
   const data = await fetchJson(
@@ -836,7 +836,7 @@ async function loadTemplates() {
   );
 
   if (!active.length) {
-    els.templateInfo.textContent =
+    if (els.templateInfo) els.templateInfo.textContent =
       "Intet aktivt skema fundet – kontakt IT.";
 
     setStatus(
@@ -867,7 +867,7 @@ async function loadTemplates() {
       "Kundeinfo"
     ).trim();
 
-  els.templateInfo.textContent =
+  if (els.templateInfo) els.templateInfo.textContent =
     name;
 
   els.templateSelect.innerHTML =
