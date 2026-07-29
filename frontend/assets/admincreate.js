@@ -428,10 +428,20 @@ function kundeAdresseRowHtml(a) {
   const metaParts = [cityLine, a.omraade].filter(Boolean);
   const inaktivTag = a.aktiv === false ? ` <span class="muted">(inaktiv)</span>` : "";
 
+  const produkter = Array.isArray(a.produkter) ? a.produkter : [];
+  const produkterHtml = produkter.length
+    ? `<div class="kundeAdresseProdukter">` +
+      produkter
+        .map(p => `<span class="produktPill">${escapeHtml(p.produkt)} × ${p.antal}</span>`)
+        .join("") +
+      `</div>`
+    : `<div class="muted">Ingen aktive produkter registreret.</div>`;
+
   return `
     <div class="kundeAdresseItem">
       <div class="kundeAdresseLine">${escapeHtml(a.adresse || "—")}${inaktivTag}</div>
       ${metaParts.length ? `<div class="muted">${escapeHtml(metaParts.join(" · "))}</div>` : ""}
+      ${produkterHtml}
     </div>
   `;
 }
