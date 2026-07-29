@@ -123,12 +123,13 @@ module.exports = async function (context, req) {
 
     const STATUS_PENDING   = 776350000;
     const STATUS_COMPLETED = 776350001;
+    const STATUS_STARTED   = 776350002;
 
     await dvFetch(`crcc8_lch_surveyinstances(${instanceId})`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        crcc8_status: finalize ? STATUS_COMPLETED : STATUS_PENDING
+        crcc8_status: finalize ? STATUS_COMPLETED : STATUS_STARTED
       })
     });
 
@@ -138,6 +139,3 @@ module.exports = async function (context, req) {
     return json(context, 500, { error: "server_error", message: err.message || String(err) });
   }
 };
-
-
-
