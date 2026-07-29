@@ -40,7 +40,7 @@
 
     .row {
       display: grid;
-      grid-template-columns: 170px minmax(0, 760px);
+      grid-template-columns: 200px minmax(0, 760px);
       gap: 10px;
       align-items: center;
       margin-bottom: 10px;
@@ -469,7 +469,7 @@
     >
       <div>
         <h1 style="margin:0;">
-          Opret kundesurvey
+          Opret kundeinfo skema
         </h1>
 
         <div
@@ -505,23 +505,6 @@
           <select id="templateSelect"></select>
         </div>
 
-        <div
-          class="row"
-          id="templateInfoRow"
-        >
-          <label>
-            Skema
-          </label>
-
-          <div
-            class="muted"
-            id="templateInfo"
-            style="padding:.55rem 0;"
-          >
-            Indlæser…
-          </div>
-        </div>
-
         <div class="row">
           <label for="customerName">
             Kunde
@@ -531,7 +514,7 @@
             <input
               id="customerName"
               type="text"
-              placeholder="Skriv navn eller kundenr…"
+              placeholder="Skriv kundenavn eller kundenummer – slår op i Uniconta, Kundeliste og Entra ID…"
               autocomplete="off"
             />
 
@@ -544,7 +527,7 @@
 
         <div class="row">
           <label for="expiresAt">
-            Udløber
+            SMS sendes
           </label>
 
           <input
@@ -553,26 +536,10 @@
           />
         </div>
 
-        <div class="row">
-          <label for="note">
-            Intern note (valgfri)
-          </label>
-
-          <input
-            id="note"
-            type="text"
-            placeholder="fx Februar kampagne – Nord"
-          />
-        </div>
-
         <div
           class="btnrow"
           style="margin-top:12px;"
         >
-          <button id="btnCreate">
-            Opret kundesurvey
-          </button>
-
           <span
             id="status"
             class="muted"
@@ -711,9 +678,11 @@
           class="prefillGroups hidden"
         ></div>
 
-        <div id="prefillBottomActions" class="prefillBottomActions hidden">
-          <button id="btnCreateBottom" type="button">Gem og opret spørgeskema</button>
+        <datalist id="kundeAdresseOptions"></datalist>
+
+        <div id="prefillBottomActions" class="prefillBottomActions hidden" style="justify-content:flex-end;">
           <span id="statusBottom" class="muted"></span>
+          <button id="btnCreateBottom" type="button" class="btn" style="padding:12px 28px;font-size:16px;">Gem og opret spørgeskema</button>
         </div>
       </section>
     </div>
