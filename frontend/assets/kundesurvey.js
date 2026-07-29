@@ -109,13 +109,24 @@ function renderQuestions() {
 
   // Basale spørgsmål (repeatIndex 0) pr. gruppe – bruges som skabelon for gentagelser
   const baseByGroup = new Map();
+  const seenQuestionByGroup = new Map();
   // Gemte/aktuelle værdier: `${questionId}|${ri}` -> value
   const valueMap = new Map();
 
   for (const it of (DATA.items || [])) {
     valueMap.set(`${it.questionId}|${it.repeatIndex}`, it.savedValue || "");
     if (it.repeatIndex === 0) {
-      if (!baseByGroup.has(it.groupId)) baseByGroup.set(it.groupId, []);
+      if (!baseByGroup.has(it.groupId)) {
+        baseByGroup.set(it.groupId, []);
+        seenQuestionByGroup.set(it.groupId, new Set());
+      }
+
+      // Forsvar mod dubletrækker i Dataverse (samme spørgsmål oprettet to
+      // gange med repeatIndex 0) – behold kun den første forekomst.
+      const seen = seenQuestionByGroup.get(it.groupId);
+      if (seen.has(it.questionId)) continue;
+      seen.add(it.questionId);
+
       baseByGroup.get(it.groupId).push(it);
     }
   }
