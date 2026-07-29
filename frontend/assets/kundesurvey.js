@@ -14,6 +14,7 @@ const ui = {
   btnSubmit: $("btnSubmit"),
   btnSaveLater: $("btnSaveLater"),
   readonlyBanner: $("readonlyBanner"),
+  openAsCustomerLink: $("openAsCustomerLink"),
   kundeAdresseOptions: $("kundeAdresseOptions"),
 };
 
@@ -290,6 +291,13 @@ async function loadSurvey() {
     show(ui.readonlyBanner);
     ui.btnSubmit?.classList.add("hidden");
     ui.btnSaveLater?.classList.add("hidden");
+
+    if (ui.openAsCustomerLink) {
+      const customerUrl = new URL(location.href);
+      customerUrl.searchParams.delete("ro");
+      customerUrl.searchParams.set("code", data?.code || code);
+      ui.openAsCustomerLink.href = customerUrl.toString();
+    }
   }
 
   renderQuestions();
