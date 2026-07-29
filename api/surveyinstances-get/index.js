@@ -1,3 +1,8 @@
+// /api/survey-instance-get/index.js
+//
+// Henter en eksisterende survey-instans + dens surveyitems (prefilltext pr.
+// spørgsmål/repeatIndex), så admincreate.html kan indlæse den til redigering.
+
 const { dvFetch } = require("../_dataverse");
 
 function json(context, status, body) {
@@ -10,32 +15,40 @@ function json(context, status, body) {
 
 module.exports = async function (context, req) {
   try {
-    const top = Math.min(parseInt(req.query?.top || "200", 10) || 200, 2000);
-
-    const path =
-      `crcc8_lch_surveyinstances` +
-      `?$select=` +
-        `crcc8_lch_surveyinstanceid,crcc8_lch_code,crcc8_lch_customername,crcc8_expiresat,crcc8_status,createdon,_crcc8_lch_surveytemplate_value` +
-      `&$orderby=createdon desc` +
-      `&$top=${top}`;
-
-    const res = await dvFetch(path, {
-      headers: {
-        // giver os bl.a. @OData...FormattedValue i svaret
-        "Prefer": 'odata.include-annotations="*"'
-      }
-    });
-
-    if (!res.ok) {
-      return json(context, res.status, { error: "read_failed", detail: await res.text() });
+    const id = String(req.query.id || "").trim();
+    if (!id) {
+      return json(context, 400, { error: "missing_id", message: "Mangler id." });
     }
 
-    const data = await res.json();
-    return json(context, 200, data);
-  } catch (e) {
-    return json(context, 500, { error: "server_error", detail: String(e?.message || e) });
+    const instRes = await dvFetch(
+      `crcc8_lch_surveyinstances(${id})?$select=crcc8_lch_surveyinstanceid,crcc8_lch_customername,crcc8_lch_code,crcc8_status,crcc8_expiresat`
+    );
+    const inst = await instRes.json();
+
+    const itemsRes = await dvFetch(
+      `crcc8_lch_surveyitems` +
+      `?$select=crcc8_lch_surveyitemid,crcc8_lch_prefilltext,crcc8_lch_repeatindex,_crcc8_lch_question_value` +
+      `&$filter=${encodeURIComponent(`_crcc8_lch_surveyinstance_value eq ${id}`)}&$top=5000`
+    );
+    const itemsData = await itemsRes.json();
+
+    const items = (itemsData.value || []).map(r => ({
+      itemId: r.crcc8_lch_surveyitemid,
+      questionId: r._crcc8_lch_question_value ? String(r._crcc8_lch_question_value) : "",
+      repeatIndex: Number(r.crcc8_lch_repeatindex ?? 0),
+      prefillText: r.crcc8_lch_prefilltext || ""
+    }));
+
+    return json(context, 200, {
+      instanceId: id,
+      code: inst.crcc8_lch_code || "",
+      customerName: inst.crcc8_lch_customername || "",
+      status: inst.crcc8_status,
+      expiresAt: inst.crcc8_expiresat || null,
+      items
+    });
+  } catch (err) {
+    context.log.error(err);
+    return json(context, 500, { error: "server_error", message: err.message || String(err) });
   }
 };
-
-
-
