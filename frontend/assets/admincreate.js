@@ -145,9 +145,7 @@ function selectCustomer(index) {
 
   hideSuggestions();
 
-  loadUnicontaDebtor(k.kundenr);
-  loadKundeliste(k.kundenr);
-  loadEntraCustomerContacts(k.kundenr);
+  runCustomerLookup(k.kundenr);
 }
 
 async function searchCustomers(q) {
@@ -159,9 +157,22 @@ async function searchCustomers(q) {
       }
     );
 
-    renderSuggestions(
-      data?.kunder || []
-    );
+    const kunder = data?.kunder || [];
+    renderSuggestions(kunder);
+
+    /*
+      Hvis søgningen ikke gav nogen match, men teksten ligner et rent
+      kundenummer, forsøger vi alligevel at slå det op direkte i
+      Uniconta/Kundeliste/Entra ID – og viser "Kunden findes ikke i
+      systemet", hvis heller ikke de finder noget.
+    */
+    if (!kunder.length && /^\d+$/.test(q)) {
+      els.customerName.dataset.kundenr = q;
+      delete els.customerName.dataset.kundeId;
+      delete els.customerName.dataset.kundenavn;
+
+      runCustomerLookup(q);
+    }
   } catch (e) {
     console.error(
       "kunder-search fejl:",
@@ -362,7 +373,7 @@ async function loadUnicontaDebtor(kundenr) {
   els.unicontaDebtorData.innerHTML = "";
 
   if (!account) {
-    return;
+    return false;
   }
 
   try {
@@ -412,10 +423,14 @@ async function loadUnicontaDebtor(kundenr) {
     els.unicontaDebtorData.classList.remove(
       "hidden"
     );
+
+    return true;
   } catch (e) {
     els.unicontaDebtorStatus.textContent =
       `Kunne ikke finde Uniconta Debitor data ` +
       `for ${account}: ${e.message}`;
+
+    return false;
   }
 }
 
@@ -446,12 +461,27 @@ function kundeAdresseRowHtml(a) {
   `;
 }
 
+function updateKundeAdresseOptions(adresser) {
+  if (!els.kundeAdresseOptions) return;
+
+  const list = Array.isArray(adresser) ? adresser : [];
+
+  els.kundeAdresseOptions.innerHTML = list
+    .map(a => {
+      const cityLine = [a.postnr, a.by].filter(Boolean).join(" ");
+      const full = [a.adresse, cityLine].filter(Boolean).join(", ");
+      return full ? `<option value="${escapeHtml(full)}"></option>` : "";
+    })
+    .join("");
+}
+
 function clearKundeliste() {
   els.kundelisteCard.classList.add("hidden");
   els.kundelisteStatus.classList.remove("hidden");
   els.kundelisteStatus.textContent = "";
   els.kundelisteData.classList.add("hidden");
   els.kundelisteData.innerHTML = "";
+  updateKundeAdresseOptions([]);
 }
 
 async function loadKundeliste(kundenr) {
@@ -464,8 +494,9 @@ async function loadKundeliste(kundenr) {
     : "Kunden har ikke et gyldigt kundenummer.";
   els.kundelisteData.classList.add("hidden");
   els.kundelisteData.innerHTML = "";
+  updateKundeAdresseOptions([]);
 
-  if (!nr) return;
+  if (!nr) return false;
 
   try {
     const data = await fetchJson(
@@ -479,6 +510,7 @@ async function loadKundeliste(kundenr) {
     }
 
     const adresser = Array.isArray(data?.adresser) ? data.adresser : [];
+    updateKundeAdresseOptions(adresser);
 
     const adresserHtml = adresser.length
       ? `<div class="kundeAdresseList">${adresser.map(kundeAdresseRowHtml).join("")}</div>`
@@ -494,9 +526,11 @@ async function loadKundeliste(kundenr) {
 
     els.kundelisteStatus.classList.add("hidden");
     els.kundelisteData.classList.remove("hidden");
+    return true;
   } catch (e) {
     els.kundelisteStatus.textContent =
       `Kunne ikke hente kundedata for ${nr}: ${e.message}`;
+    return false;
   }
 }
 
@@ -689,7 +723,7 @@ async function loadEntraCustomerContacts(kundenr) {
   if (!customerNumber) {
     els.entraOwnersStatus.textContent = "Kunden har ikke et gyldigt kundenummer.";
     els.entraEmployeesStatus.textContent = "Kunden har ikke et gyldigt kundenummer.";
-    return;
+    return false;
   }
 
   els.entraOwnersStatus.textContent = `Henter ejere for ${customerNumber} fra Entra ID…`;
@@ -715,11 +749,33 @@ async function loadEntraCustomerContacts(kundenr) {
       currentEmployees,
       "Ingen medarbejdere fundet i Entra ID."
     );
+
+    return currentOwners.length > 0 || currentEmployees.length > 0;
   } catch (e) {
     console.error("entra-customer-contacts fejl:", e);
     const message = `Kunne ikke hente kontakter fra Entra ID: ${e.message}`;
     els.entraOwnersStatus.textContent = message;
     els.entraEmployeesStatus.textContent = message;
+    return false;
+  }
+}
+
+
+/* ---------- Samlet opslag: Uniconta + Kundeliste + Entra ID ---------- */
+
+async function runCustomerLookup(kundenr) {
+  const [unicontaFound, kundelisteFound, entraFound] = await Promise.all([
+    loadUnicontaDebtor(kundenr),
+    loadKundeliste(kundenr),
+    loadEntraCustomerContacts(kundenr)
+  ]);
+
+  if (!unicontaFound && !kundelisteFound && !entraFound) {
+    const msg = "Kunden findes ikke i systemet";
+    els.unicontaDebtorStatus.textContent = msg;
+    els.kundelisteStatus.textContent = msg;
+    els.entraOwnersStatus.textContent = msg;
+    els.entraEmployeesStatus.textContent = msg;
   }
 }
 
@@ -867,7 +923,13 @@ async function loadTemplateItems(templateId) {
   }
 
 function rowsHtml(group, repeatIndex) {
-  return group.items.map(item => `
+  const ADDRESS_FIELD_NUMBERS = ["014", "019"];
+
+  return group.items.map(item => {
+    const isAddressField = ADDRESS_FIELD_NUMBERS.includes(item.number);
+    const listAttr = isAddressField ? `list="kundeAdresseOptions"` : "";
+
+    return `
     <tr
       data-qid="${escapeHtml(item.questionId)}"
       data-group-id="${escapeHtml(group.id)}"
@@ -882,12 +944,14 @@ function rowsHtml(group, repeatIndex) {
             type="text"
             data-prefill="1"
             value="${repeatIndex === 0 ? escapeHtml(item.defaultPrefillText || "") : ""}"
-            placeholder="valgfrit"
+            placeholder="${isAddressField ? "Vælg eller skriv en adresse" : "valgfrit"}"
+            ${listAttr}
             style="width:100%;padding:.5rem"
           />
         </td>
       </tr>
-    `).join("");
+    `;
+  }).join("");
   }
 
   function repeatBlockHtml(group, repeatIndex) {
@@ -1022,9 +1086,7 @@ async function createFromTemplate() {
         ).toISOString()
         : null;
 
-    const note =
-      els.note.value.trim() ||
-      null;
+    const note = null;
 
     const prefillItems =
       getPrefillItems();
@@ -1103,12 +1165,6 @@ document.addEventListener(
       expiresAt:
         $("expiresAt"),
 
-      note:
-        $("note"),
-
-      btnCreate:
-        $("btnCreate"),
-
       btnCreateBottom:
         $("btnCreateBottom"),
 
@@ -1165,6 +1221,9 @@ document.addEventListener(
 
       prefillArea:
         $("prefillArea"),
+
+      kundeAdresseOptions:
+        $("kundeAdresseOptions"),
 
       result:
         $("result"),
@@ -1238,11 +1297,6 @@ document.addEventListener(
       els.expiresAt.value =
         `${yyyy}-${mm}-${dd}`;
     }
-
-    els.btnCreate.addEventListener(
-      "click",
-      createFromTemplate
-    );
 
     els.btnCreateBottom?.addEventListener(
       "click",
