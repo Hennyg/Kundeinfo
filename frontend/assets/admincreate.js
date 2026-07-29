@@ -424,6 +424,8 @@ async function loadUnicontaDebtor(kundenr) {
       "hidden"
     );
 
+    fillPrefillFromUniconta();
+
     return true;
   } catch (e) {
     els.unicontaDebtorStatus.textContent =
@@ -639,12 +641,7 @@ function emailOrEmpty(email) {
   return v.toLowerCase() === "ukendt" ? "" : v;
 }
 
-function onContactFillClick(e) {
-  const btn = e.target.closest(".contactFillButton");
-  if (!btn) return;
-
-  const kind = btn.dataset.contactKind;
-  const index = Number.parseInt(btn.dataset.contactIndex, 10);
+function fillContactPrefill(kind, index) {
   const contact = kind === "owner" ? currentOwners[index] : currentEmployees[index];
   if (!contact) return;
 
@@ -670,6 +667,16 @@ function onContactFillClick(e) {
       "018": email
     }, index);
   }
+}
+
+function onContactFillClick(e) {
+  const btn = e.target.closest(".contactFillButton");
+  if (!btn) return;
+
+  const kind = btn.dataset.contactKind;
+  const index = Number.parseInt(btn.dataset.contactIndex, 10);
+
+  fillContactPrefill(kind, index);
 }
 
 function clearEntraCustomerContacts() {
@@ -749,6 +756,9 @@ async function loadEntraCustomerContacts(kundenr) {
       currentEmployees,
       "Ingen medarbejdere fundet i Entra ID."
     );
+
+    if (currentOwners.length) fillContactPrefill("owner", 0);
+    if (currentEmployees.length) fillContactPrefill("employee", 0);
 
     return currentOwners.length > 0 || currentEmployees.length > 0;
   } catch (e) {
