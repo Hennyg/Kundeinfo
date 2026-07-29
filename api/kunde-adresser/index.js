@@ -14,6 +14,7 @@
 const fetch = globalThis.fetch;
 
 const ADRESSE_TABLE = "cr1eb_lch_kundeadresses";
+const PRODUKT_TABLE = "cr1eb_lch_kundeprodukts";
 
 function esc(s) { return String(s || "").replace(/'/g, "''"); }
 
@@ -88,6 +89,7 @@ async function dvFetchAll(resource, token, path) {
 function mapAdresse(r) {
   return {
     id: r.cr1eb_lch_kundeadresseid,
+    adressekey: r.cr1eb_lch_adressekey || "",
     adresse: r.cr1eb_lch_adresse || "",
     postnr: r.cr1eb_lch_postnr || "",
     by: r.cr1eb_lch_by || "",
@@ -134,14 +136,45 @@ module.exports = async function (context, req) {
 
     const kundeId = kunde.cr1eb_lch_kundeid;
     const adresseFilter = `_cr1eb_lch_kunde_value eq '${kundeId}'`;
-    const select =
-      "cr1eb_lch_kundeadresseid,cr1eb_lch_adresse,cr1eb_lch_postnr,cr1eb_lch_by,cr1eb_lch_omraade,cr1eb_lch_aktiv";
+    const adresseSelect =
+      "cr1eb_lch_kundeadresseid,cr1eb_lch_adressekey,cr1eb_lch_adresse,cr1eb_lch_postnr,cr1eb_lch_by,cr1eb_lch_omraade,cr1eb_lch_aktiv";
 
     const adresserRaw = await dvFetchAll(
       resource,
       token,
-      `${ADRESSE_TABLE}?$select=${select}&$filter=${encodeURIComponent(adresseFilter)}&$orderby=cr1eb_lch_adresse asc&$top=5000`
+      `${ADRESSE_TABLE}?$select=${adresseSelect}&$filter=${encodeURIComponent(adresseFilter)}&$orderby=cr1eb_lch_adresse asc&$top=5000`
     );
+
+    // Kun aktive produkter tælles med, samme udgangspunkt som kunde.html i
+    // Kundeliste-appen (der som standard kun viser aktive produkter).
+    const produktFilter =
+      `cr1eb_lch_kundenr eq '${esc(kunde.cr1eb_lch_kundenr || kundenr)}' and cr1eb_lch_aktiv eq true`;
+    const produktSelect = "cr1eb_lch_adressekey,cr1eb_lch_produkt";
+
+    const produkterRaw = await dvFetchAll(
+      resource,
+      token,
+      `${PRODUKT_TABLE}?$select=${produktSelect}&$filter=${encodeURIComponent(produktFilter)}&$top=5000`
+    );
+
+    const countsByAddressKey = {};
+    for (const p of produkterRaw) {
+      const key = p.cr1eb_lch_adressekey || "";
+      const produkt = p.cr1eb_lch_produkt || "Ukendt";
+      if (!countsByAddressKey[key]) countsByAddressKey[key] = {};
+      countsByAddressKey[key][produkt] = (countsByAddressKey[key][produkt] || 0) + 1;
+    }
+
+    const adresser = adresserRaw.map(r => {
+      const mapped = mapAdresse(r);
+      const counts = countsByAddressKey[mapped.adressekey] || {};
+
+      mapped.produkter = Object.entries(counts)
+        .map(([produkt, antal]) => ({ produkt, antal }))
+        .sort((a, b) => b.antal - a.antal || a.produkt.localeCompare(b.produkt, "da"));
+
+      return mapped;
+    });
 
     context.res = {
       status: 200,
@@ -152,7 +185,7 @@ module.exports = async function (context, req) {
           kundenr: kunde.cr1eb_lch_kundenr || "",
           navn: kunde.cr1eb_lch_navn || ""
         },
-        adresser: adresserRaw.map(mapAdresse)
+        adresser
       }
     };
   } catch (err) {
