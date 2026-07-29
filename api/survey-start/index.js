@@ -138,7 +138,7 @@ module.exports = async function (context, req) {
     // 2) Hent survey items for denne instans + udvid question + questiongroup
     const itemsPath =
       `crcc8_lch_surveyitems` +
-      `?$select=crcc8_lch_surveyitemid,crcc8_lch_prefilltext,crcc8_lch_sortorder,crcc8_lch_sortordertal,_crcc8_lch_question_value` +
+      `?$select=crcc8_lch_surveyitemid,crcc8_lch_prefilltext,crcc8_lch_sortorder,crcc8_lch_sortordertal,crcc8_lch_repeatindex,_crcc8_lch_question_value` +
       `&$filter=${encodeURIComponent(`_crcc8_lch_surveyinstance_value eq ${instanceId}`)}` +
       `&$expand=${encodeURIComponent(
         `crcc8_lch_question($select=crcc8_lch_questionid,crcc8_lch_number,crcc8_lch_text,crcc8_lch_explanation,crcc8_lch_answertype,crcc8_lch_isrequired,crcc8_lch_sortorder;` +
@@ -178,9 +178,14 @@ module.exports = async function (context, req) {
       answerMap.set(`${qid}|${ri}`, a.crcc8_lch_value ?? "");
     }
 
-    // 4) Byg grupper + basale (repeatIndex 0) spørgsmål ud fra surveyitems
+    // 4) Byg grupper + basale spørgsmåls-skabeloner (fra repeatIndex=0-rækken
+    //    pr. spørgsmål) + et opslag af prefillTexts pr. faktisk oprettet
+    //    gentagelse (repeatIndex > 0 findes når admin har tilføjet flere
+    //    ejere/medarbejdere på forhånd, før kunden selv har svaret noget).
     const groupsById = new Map();
-    const baseQuestions = []; // { question meta, groupId, itemId, prefillText, sortKey }
+    const baseQuestionByQid = new Map(); // questionId -> skabelon (kun fra repeatIndex 0)
+    const prefillByQuestionRepeat = new Map(); // `${qid}|${ri}` -> prefillText
+    const itemRepeatIndexesByGroup = new Map(); // groupId -> Set af faktiske repeatIndex-værdier fra surveyitems
 
     for (const row of itemRows) {
       const q = row.crcc8_lch_question;
@@ -205,27 +210,47 @@ module.exports = async function (context, req) {
         "";
 
       const qid = String(q.crcc8_lch_questionid || "");
+      const ri = Number.isFinite(Number(row.crcc8_lch_repeatindex)) ? Number(row.crcc8_lch_repeatindex) : 0;
 
-      baseQuestions.push({
-        itemId: row.crcc8_lch_surveyitemid,
-        questionId: qid,
-        groupId,
-        number: q.crcc8_lch_number,
-        text: q.crcc8_lch_text,
-        required: !!q.crcc8_lch_isrequired,
-        answertype,
-        explanation: q.crcc8_lch_explanation || "",
-        prefillText: row.crcc8_lch_prefilltext || "",
-        sortKey: Number(row.crcc8_lch_sortordertal ?? row.crcc8_lch_sortorder ?? q.crcc8_lch_sortorder ?? 0)
-      });
+      prefillByQuestionRepeat.set(`${qid}|${ri}`, row.crcc8_lch_prefilltext || "");
+
+      if (!itemRepeatIndexesByGroup.has(groupId)) itemRepeatIndexesByGroup.set(groupId, new Set());
+      itemRepeatIndexesByGroup.get(groupId).add(ri);
+
+      // Skabelonen (tekst, svar-type, mv.) tages fra repeatIndex=0-rækken.
+      // Findes den ikke for et spørgsmål (bør ikke ske, men for en sikkerheds
+      // skyld), bruges den første række vi møder som fallback.
+      if (ri === 0 || !baseQuestionByQid.has(qid)) {
+        baseQuestionByQid.set(qid, {
+          itemId: row.crcc8_lch_surveyitemid,
+          questionId: qid,
+          groupId,
+          number: q.crcc8_lch_number,
+          text: q.crcc8_lch_text,
+          required: !!q.crcc8_lch_isrequired,
+          answertype,
+          explanation: q.crcc8_lch_explanation || "",
+          sortKey: Number(row.crcc8_lch_sortordertal ?? row.crcc8_lch_sortorder ?? q.crcc8_lch_sortorder ?? 0)
+        });
+      }
     }
 
-    // 5) Find hvor mange gentagelser der allerede findes pr. gruppe (ud fra gemte svar)
+    const baseQuestions = [...baseQuestionByQid.values()];
+
+    // 5) Find hvor mange gentagelser der findes pr. gruppe – enten fordi
+    //    admin har oprettet flere surveyitems-rækker (repeatIndex > 0), eller
+    //    fordi kunden selv har tilføjet + besvaret flere gentagelser.
     const maxRepeatByGroup = new Map();
+
+    for (const [groupId, riSet] of itemRepeatIndexesByGroup) {
+      const maxFromItems = Math.max(...riSet);
+      maxRepeatByGroup.set(groupId, Math.max(maxRepeatByGroup.get(groupId) ?? 0, maxFromItems));
+    }
+
     for (const bq of baseQuestions) {
       const g = groupsById.get(bq.groupId);
       if (!g?.repeatable) continue;
-      for (const [key, ] of answerMap) {
+      for (const [key] of answerMap) {
         const [qid, riStr] = key.split("|");
         if (qid !== bq.questionId) continue;
         const ri = Number(riStr);
@@ -242,6 +267,8 @@ module.exports = async function (context, req) {
 
       for (let ri = 0; ri <= maxRi; ri++) {
         const savedValue = answerMap.get(`${bq.questionId}|${ri}`) ?? "";
+        const prefillText = prefillByQuestionRepeat.get(`${bq.questionId}|${ri}`) || "";
+
         items.push({
           itemId: ri === 0 ? bq.itemId : null,
           questionId: bq.questionId,
@@ -252,7 +279,7 @@ module.exports = async function (context, req) {
           required: bq.required,
           answertype: bq.answertype,
           explanation: bq.explanation,
-          prefillText: ri === 0 ? bq.prefillText : "",
+          prefillText,
           savedValue,
           sortKey: bq.sortKey
         });
