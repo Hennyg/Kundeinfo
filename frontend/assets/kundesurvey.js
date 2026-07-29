@@ -13,7 +13,14 @@ const ui = {
   status: $("status"),
   btnSubmit: $("btnSubmit"),
   btnSaveLater: $("btnSaveLater"),
+  readonlyBanner: $("readonlyBanner"),
+  kundeAdresseOptions: $("kundeAdresseOptions"),
 };
+
+function isReadOnly() {
+  const u = new URL(location.href);
+  return ["1", "true"].includes((u.searchParams.get("ro") || "").toLowerCase());
+}
 
 function show(el){ el?.classList.remove("hidden"); }
 function hide(el){ el?.classList.add("hidden"); }
@@ -54,9 +61,12 @@ let DATA = null;                     // { code, customerName, groups, items }
 const repeatCounters = {};           // groupId -> højeste synlige repeatIndex
 const removedRepeats = new Set();    // `${groupId}:${repeatIndex}`
 
+const ADDRESS_FIELD_NUMBERS = ["014", "019"];
+
 function buildInput(it, value) {
   const inputType = resolveInputType(it.answertype);
   const name = `q_${it.questionId}_${it.repeatIndex}`;
+  const isAddressField = ADDRESS_FIELD_NUMBERS.includes(String(it.number || ""));
 
   let el;
   if (inputType === "yesno") {
@@ -77,6 +87,10 @@ function buildInput(it, value) {
     el = document.createElement("input");
     el.type = "text";
     el.value = value ?? "";
+    if (isAddressField) {
+      el.setAttribute("list", "kundeAdresseOptions");
+      el.placeholder = "Vælg eller skriv en adresse";
+    }
   }
 
   el.name = name;
@@ -121,6 +135,13 @@ function renderQuestions() {
     titleRow.appendChild(h2);
     card.appendChild(titleRow);
 
+    if (g.description) {
+      const desc = document.createElement("div");
+      desc.className = "group-desc";
+      desc.textContent = g.description;
+      card.appendChild(desc);
+    }
+
     const maxRi = g.repeatable ? (repeatCounters[g.id] ?? 0) : 0;
 
     for (let ri = 0; ri <= maxRi; ri++) {
@@ -140,7 +161,7 @@ function renderQuestions() {
         tag.textContent = (ri === 0) ? "1." : `${ri + 1}.`;
         head.appendChild(tag);
 
-        if (ri > 0) {
+        if (ri > 0 && !isReadOnly()) {
           const delBtn = document.createElement("button");
           delBtn.type = "button";
           delBtn.className = "btn danger";
@@ -175,11 +196,13 @@ function renderQuestions() {
         label.innerHTML = `
           <div class="qtitle">${escapeHtml(it.text || "")} ${it.required ? '<span class="muted">(påkrævet)</span>' : ''}</div>
           ${it.explanation ? `<div class="qhelp">${escapeHtml(it.explanation)}</div>` : ""}
-          ${it.prefillText ? `<div class="qhelp">Nuværende/forudfyldt: <strong>${escapeHtml(it.prefillText)}</strong></div>` : ""}
+          ${it.prefillText ? `<div class="prefill-box">Nuværende/forudfyldt: <strong>${escapeHtml(it.prefillText)}</strong></div>` : ""}
         `;
         wrap.appendChild(label);
 
         const input = buildInput(it, value);
+        if (isReadOnly()) input.disabled = true;
+        input.addEventListener("blur", () => autosaveOnBlur());
         wrap.appendChild(input);
 
         block.appendChild(wrap);
@@ -188,7 +211,7 @@ function renderQuestions() {
       card.appendChild(block);
     }
 
-    if (g.repeatable) {
+    if (g.repeatable && !isReadOnly()) {
       const addRow = document.createElement("div");
       addRow.className = "btnrow";
       addRow.style.marginTop = "8px";
@@ -240,9 +263,41 @@ async function loadSurvey() {
   ui.title.textContent = data?.customerName ? `Spørgeskema – ${data.customerName}` : "Spørgeskema";
   ui.subtitle.textContent = `Kode: ${data?.code || code}`;
 
+  updateKundeAdresseOptions(data?.kundeAdresser);
+
+  if (isReadOnly()) {
+    show(ui.readonlyBanner);
+    ui.btnSubmit?.classList.add("hidden");
+    ui.btnSaveLater?.classList.add("hidden");
+  }
+
   renderQuestions();
 
   return { code };
+}
+
+function updateKundeAdresseOptions(adresser) {
+  if (!ui.kundeAdresseOptions) return;
+  const list = Array.isArray(adresser) ? adresser : [];
+
+  ui.kundeAdresseOptions.innerHTML = list
+    .map(a => {
+      const cityLine = [a.postnr, a.by].filter(Boolean).join(" ");
+      const full = [a.adresse, cityLine].filter(Boolean).join(", ");
+      return full ? `<option value="${escapeHtml(full)}"></option>` : "";
+    })
+    .join("");
+}
+
+let autosaveTimer = null;
+let autosaveCode = null;
+
+function autosaveOnBlur() {
+  if (isReadOnly() || !autosaveCode) return;
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(() => {
+    submitSurvey(autosaveCode, false, { silent: true });
+  }, 600);
 }
 
 function collectAnswers() {
@@ -279,10 +334,16 @@ function collectRemoved() {
   return removed;
 }
 
-async function submitSurvey(code, finalize) {
-  ui.status.textContent = finalize ? "Afslutter…" : "Gemmer…";
-  ui.btnSubmit.disabled = true;
-  ui.btnSaveLater && (ui.btnSaveLater.disabled = true);
+async function submitSurvey(code, finalize, opts = {}) {
+  const silent = !!opts.silent;
+
+  if (!silent) {
+    ui.status.textContent = finalize ? "Afslutter…" : "Gemmer…";
+    ui.btnSubmit.disabled = true;
+    ui.btnSaveLater && (ui.btnSaveLater.disabled = true);
+  } else {
+    ui.status.textContent = "Gemmer automatisk…";
+  }
 
   try {
     const answers = collectAnswers();
@@ -298,9 +359,11 @@ async function submitSurvey(code, finalize) {
       ui.status.textContent = "Tak! Besvarelsen er sendt ✔";
       ui.form.querySelectorAll("input,textarea,select,button").forEach(x => x.disabled = true);
     } else {
-      ui.status.textContent = "Gemt ✔ Du kan lukke siden og fortsætte senere.";
-      ui.btnSubmit.disabled = false;
-      ui.btnSaveLater && (ui.btnSaveLater.disabled = false);
+      ui.status.textContent = "Gemt ✔";
+      if (!silent) {
+        ui.btnSubmit.disabled = false;
+        ui.btnSaveLater && (ui.btnSaveLater.disabled = false);
+      }
     }
 
     return result;
@@ -308,7 +371,7 @@ async function submitSurvey(code, finalize) {
     console.error(e);
     ui.status.textContent = `Fejl: ${e.message}`;
   } finally {
-    if (!finalize) {
+    if (!finalize && !silent) {
       ui.btnSubmit.disabled = false;
       ui.btnSaveLater && (ui.btnSaveLater.disabled = false);
     }
@@ -320,6 +383,7 @@ async function init() {
     show(ui.loading); hide(ui.error); hide(ui.app);
     const { code } = await loadSurvey();
     hide(ui.loading); show(ui.app);
+    autosaveCode = code;
 
     ui.form.addEventListener("submit", (e) => {
       e.preventDefault();
@@ -336,6 +400,3 @@ async function init() {
 }
 
 document.addEventListener("DOMContentLoaded", init);
-
-
-
