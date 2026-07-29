@@ -126,7 +126,7 @@ module.exports = async function (context, req) {
     const origin = req.headers["x-forwarded-host"]
       ? `https://${req.headers["x-forwarded-host"]}`
       : "";
-    const link = `${origin}/kundeinfo.html?t=${encodeURIComponent(code)}`;
+    const link = `${origin}/kundesurvey.html?code=${encodeURIComponent(code)}`;
 
     return json(context, 200, {
       ok: true,
