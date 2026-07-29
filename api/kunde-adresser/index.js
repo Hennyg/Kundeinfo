@@ -145,11 +145,11 @@ module.exports = async function (context, req) {
       `${ADRESSE_TABLE}?$select=${adresseSelect}&$filter=${encodeURIComponent(adresseFilter)}&$orderby=cr1eb_lch_adresse asc&$top=5000`
     );
 
-    // Kun aktive produkter tælles med, samme udgangspunkt som kunde.html i
-    // Kundeliste-appen (der som standard kun viser aktive produkter).
-    const produktFilter =
-      `cr1eb_lch_kundenr eq '${esc(kunde.cr1eb_lch_kundenr || kundenr)}' and cr1eb_lch_aktiv eq true`;
-    const produktSelect = "cr1eb_lch_adressekey,cr1eb_lch_produkt";
+    // Ingen aktiv-filter i selve OData-kaldet: feltet er ofte null for
+    // eksisterende produkter, og skal – ligesom i kunde.html – tolkes som
+    // aktivt medmindre det eksplicit er sat til false.
+    const produktFilter = `cr1eb_lch_kundenr eq '${esc(kunde.cr1eb_lch_kundenr || kundenr)}'`;
+    const produktSelect = "cr1eb_lch_adressekey,cr1eb_lch_produkt,cr1eb_lch_aktiv";
 
     const produkterRaw = await dvFetchAll(
       resource,
@@ -159,6 +159,9 @@ module.exports = async function (context, req) {
 
     const countsByAddressKey = {};
     for (const p of produkterRaw) {
+      const aktiv = p.cr1eb_lch_aktiv ?? true;
+      if (!aktiv) continue;
+
       const key = p.cr1eb_lch_adressekey || "";
       const produkt = p.cr1eb_lch_produkt || "Ukendt";
       if (!countsByAddressKey[key]) countsByAddressKey[key] = {};
