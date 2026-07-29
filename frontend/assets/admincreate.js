@@ -757,8 +757,8 @@ async function loadEntraCustomerContacts(kundenr) {
       "Ingen medarbejdere fundet i Entra ID."
     );
 
-    if (currentOwners.length) fillContactPrefill("owner", 0);
-    if (currentEmployees.length) fillContactPrefill("employee", 0);
+    for (let i = 0; i < currentOwners.length; i++) fillContactPrefill("owner", i);
+    for (let i = 0; i < currentEmployees.length; i++) fillContactPrefill("employee", i);
 
     return currentOwners.length > 0 || currentEmployees.length > 0;
   } catch (e) {
