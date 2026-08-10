@@ -69,10 +69,17 @@
     <section class="modal-card">
       <div class="modal-head">
         <div><h2 id="detailTitle" style="margin:0;">Debitor</h2><div id="detailAccount" class="muted"></div></div>
-        <button id="closeModalBtn" class="btn" type="button">Luk</button>
+        <div style="display:flex; gap:8px;">
+          <button id="showAllBtn" class="btn" type="button" disabled>Vis alle data</button>
+          <button id="closeModalBtn" class="btn" type="button">Luk</button>
+        </div>
       </div>
       <div id="detailStatus" class="statusbox" style="margin-top:16px;">Henter detaljer…</div>
       <div id="detailGrid" class="detail-grid hidden"></div>
+      <div id="allDataWrap" class="hidden">
+        <hr style="margin:18px 0; border:none; border-top:1px solid #eee;">
+        <div id="allDataGrid" class="detail-grid"></div>
+      </div>
     </section>
   </div>
 
@@ -83,6 +90,3 @@
   <script type="module" src="./assets/unicontadebitor.js"></script>
 </body>
 </html>
-
-
-
