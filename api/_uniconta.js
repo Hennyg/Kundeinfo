@@ -43,35 +43,39 @@ async function unicontaFetch(pathOrUrl, init = {}) {
   return response;
 }
 
-function pick(row, ...names) {
+function pick(row, used, ...names) {
   for (const name of names) {
-    if (row?.[name] !== undefined && row?.[name] !== null) return row[name];
+    if (row?.[name] !== undefined && row?.[name] !== null) {
+      used.add(name.toLowerCase());
+      return row[name];
+    }
   }
   return "";
 }
 
 function normalizeDebtor(row) {
+  const used = new Set();
+  const p = (...names) => pick(row, used, ...names);
+
   return {
-    account: String(pick(row, "Account", "account")),
-    name: String(pick(row, "Name", "name")),
-    address1: String(pick(row, "Address1", "Address", "address1")),
-    address2: String(pick(row, "Address2", "address2")),
-    zipCode: String(pick(row, "ZipCode", "Zip", "zipCode")),
-    city: String(pick(row, "City", "city")),
-    country: String(pick(row, "Country", "CountryName", "country")),
-    phone: String(pick(row, "Phone", "Phone1", "phone")),
-    mobile: String(pick(row, "Mobile", "CellPhone", "mobile")),
-    email: String(pick(row, "ContactEmail", "Email", "email")),
-    contactPerson: String(pick(row, "ContactPerson", "ContactName", "contactPerson")),
-    vatNumber: String(pick(row, "VATNumber", "VatNumber", "CVR", "vatNumber")),
-    currency: String(pick(row, "Currency", "CurrencyCode", "currency")),
-    payment: String(pick(row, "Payment", "PaymentMethod", "payment")),
-    blocked: Boolean(pick(row, "Blocked", "IsBlocked", "blocked")),
-    raw: row
+    account: String(p("Account", "account")),
+    name: String(p("Name", "name")),
+    address1: String(p("Address1", "Address", "address1")),
+    address2: String(p("Address2", "address2")),
+    zipCode: String(p("ZipCode", "Zip", "zipCode")),
+    city: String(p("City", "city")),
+    country: String(p("Country", "CountryName", "country")),
+    phone: String(p("Phone", "Phone1", "phone")),
+    mobile: String(p("Mobile", "CellPhone", "mobile")),
+    email: String(p("ContactEmail", "Email", "email")),
+    contactPerson: String(p("ContactPerson", "ContactName", "contactPerson")),
+    vatNumber: String(p("VATNumber", "VatNumber", "CVR", "vatNumber")),
+    currency: String(p("Currency", "CurrencyCode", "currency")),
+    payment: String(p("Payment", "PaymentMethod", "payment")),
+    blocked: Boolean(p("Blocked", "IsBlocked", "blocked")),
+    raw: row,
+    shownKeys: Array.from(used)
   };
 }
 
 module.exports = { unicontaFetch, normalizeDebtor };
-
-
-
