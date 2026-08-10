@@ -1,5 +1,7 @@
 const $ = id => document.getElementById(id);
 let allDebtors = [];
+let currentRaw = null;
+let currentShownKeys = new Set();
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>'"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[c]);
@@ -41,19 +43,43 @@ async function loadDebtors() {
   } catch (error) { setStatus(error.message, true); }
 }
 function detailRow(label, value) {
-  const shown = value === true ? "Ja" : value === false ? "Nej" : (value || "—");
-  return `<div class="detail-label">${escapeHtml(label)}</div><div>${escapeHtml(shown)}</div>`;
+  const shown = value === true ? "Ja" : value === false ? "Nej" : (value ?? "—");
+  return `<div class="detail-label">${escapeHtml(label)}</div><div>${escapeHtml(shown === "" ? "—" : shown)}</div>`;
+}
+function resetAllDataPanel() {
+  currentRaw = null;
+  currentShownKeys = new Set();
+  $("allDataWrap").classList.add("hidden");
+  $("allDataGrid").innerHTML = "";
+  $("showAllBtn").disabled = true;
+}
+function renderAllData() {
+  if (!currentRaw) return;
+  const rows = Object.keys(currentRaw)
+    .filter(key => !currentShownKeys.has(key.toLowerCase()))
+    .map(key => detailRow(key, currentRaw[key]));
+
+  $("allDataGrid").innerHTML = rows.length
+    ? rows.join("")
+    : '<div class="muted" style="grid-column:1/-1;">Ingen yderligere felter.</div>';
+  $("allDataWrap").classList.remove("hidden");
 }
 async function showDetail(account) {
   $("detailModal").classList.remove("hidden");
   $("detailGrid").classList.add("hidden");
   $("detailStatus").classList.remove("hidden", "error");
   $("detailStatus").textContent = "Henter detaljer…";
+  resetAllDataPanel();
   try {
     const response = await fetch(`/api/uniconta/debtors/${encodeURIComponent(account)}`);
     const data = await response.json();
     if (!response.ok) throw new Error(data.message || "Kunne ikke hente debitoren.");
     const d = data.debtor;
+
+    currentRaw = d.raw || null;
+    currentShownKeys = new Set((d.shownKeys || []).map(k => String(k).toLowerCase()));
+    $("showAllBtn").disabled = !currentRaw;
+
     $("detailTitle").textContent = d.name || "Debitor";
     $("detailAccount").textContent = `Debitornr. ${d.account || "—"}`;
     $("detailGrid").innerHTML = [
@@ -80,8 +106,6 @@ document.addEventListener("click", event => {
 $("searchInput").addEventListener("input", filterRows);
 $("reloadBtn").addEventListener("click", loadDebtors);
 $("closeModalBtn").addEventListener("click", closeModal);
+$("showAllBtn").addEventListener("click", renderAllData);
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 loadDebtors();
-
-
-
