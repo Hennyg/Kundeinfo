@@ -85,7 +85,7 @@ module.exports = async function (context, req) {
         );
       })
       .slice(0, maxRows)
-      .map(({ raw, ...debtor }) => debtor);
+      .map(({ raw, shownKeys, ...debtor }) => debtor);
 
     return json(context, 200, {
       debtors,
