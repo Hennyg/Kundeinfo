@@ -74,6 +74,8 @@ let currentDebtor = null;
 let currentOwners = [];
 let currentEmployees = [];
 let editInstanceId = null;
+let kundeAdresserList = [];      // adresser fra /api/kunde-adresser (Uniconta/Dataverse)
+let contactAddressList = [];     // adresser fra kontaktpersoner (Entra ID, primaerAdresse)
 
 function hideSuggestions() {
   els.customerSuggest.classList.add("hidden");
@@ -465,16 +467,33 @@ function kundeAdresseRowHtml(a) {
 }
 
 function updateKundeAdresseOptions(adresser) {
+  kundeAdresserList = Array.isArray(adresser) ? adresser : [];
+  refreshKundeAdresseOptions();
+}
+
+function refreshKundeAdresseOptions() {
   if (!els.kundeAdresseOptions) return;
 
-  const list = Array.isArray(adresser) ? adresser : [];
-
-  els.kundeAdresseOptions.innerHTML = list
+  const fromKundeliste = kundeAdresserList
     .map(a => {
       const cityLine = [a.postnr, a.by].filter(Boolean).join(" ");
-      const full = [a.adresse, cityLine].filter(Boolean).join(", ");
-      return full ? `<option value="${escapeHtml(full)}"></option>` : "";
+      return [a.adresse, cityLine].filter(Boolean).join(", ");
     })
+    .filter(Boolean);
+
+  const fromContacts = contactAddressList.filter(Boolean);
+
+  // Kundeliste-adresser først, derefter kontakt-adresser der ikke allerede er med
+  const seen = new Set();
+  const combined = [];
+  for (const addr of [...fromKundeliste, ...fromContacts]) {
+    if (seen.has(addr)) continue;
+    seen.add(addr);
+    combined.push(addr);
+  }
+
+  els.kundeAdresseOptions.innerHTML = combined
+    .map(addr => `<option value="${escapeHtml(addr)}"></option>`)
     .join("");
 }
 
@@ -685,6 +704,8 @@ function onContactFillClick(e) {
 function clearEntraCustomerContacts() {
   currentOwners = [];
   currentEmployees = [];
+  contactAddressList = [];
+  refreshKundeAdresseOptions();
 
   for (const key of ["Owners", "Employees"]) {
     const card = els[`entra${key}Card`];
@@ -747,6 +768,11 @@ async function loadEntraCustomerContacts(kundenr) {
 
     currentOwners = Array.isArray(data?.owners) ? data.owners : [];
     currentEmployees = Array.isArray(data?.employees) ? data.employees : [];
+
+    contactAddressList = [...currentOwners, ...currentEmployees]
+      .map(c => c.primaerAdresse)
+      .filter(Boolean);
+    refreshKundeAdresseOptions();
 
     renderEntraContactGroup(
       "Owners",
