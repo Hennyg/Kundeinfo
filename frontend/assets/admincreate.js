@@ -54,7 +54,7 @@ function getPrefillItems() {
     const questionId = tr.dataset.qid || "";
     const groupId = tr.dataset.groupId || "";
     const repeatIndex = Number.parseInt(tr.dataset.repeatIndex || "0", 10) || 0;
-    const prefillText = tr.querySelector("input[data-prefill]")?.value?.trim() || "";
+    const prefillText = tr.querySelector("[data-prefill]")?.value?.trim() || "";
 
     return {
       questionId,
@@ -273,7 +273,7 @@ function setPrefillByNumber(number, value) {
   if (!number) return;
 
   const input = els.prefillArea.querySelector(
-    `tr[data-number="${CSS.escape(number)}"][data-repeat-index="0"] input[data-prefill]`
+    `tr[data-number="${CSS.escape(number)}"][data-repeat-index="0"] [data-prefill]`
   );
 
   if (input) input.value = value || "";
@@ -609,7 +609,7 @@ function fillPrefillForContact(numberMap, repeatIndex) {
 
   for (const [number, value] of Object.entries(numberMap)) {
     const input = els.prefillArea.querySelector(
-      `tr[data-number="${CSS.escape(number)}"][data-repeat-index="${repeatIndex}"] input[data-prefill]`
+      `tr[data-number="${CSS.escape(number)}"][data-repeat-index="${repeatIndex}"] [data-prefill]`
     );
     if (input) input.value = value || "";
   }
@@ -655,7 +655,8 @@ function fillContactPrefill(kind, index) {
     fillPrefillForContact({
       "011": firstName,
       "012": phone,
-      "013": email
+      "013": email,
+      "014": contact.primaerAdresse || ""
     }, index);
   } else {
     const phone = contact.mobilePhone || contact.businessPhone || "";
@@ -665,7 +666,8 @@ function fillContactPrefill(kind, index) {
       "015": firstName,
       "016": phone,
       "017": title,
-      "018": email
+      "018": email,
+      "019": contact.primaerAdresse || ""
     }, index);
   }
 }
@@ -933,12 +935,67 @@ async function loadTemplateItems(templateId) {
     groups.get(groupId).items.push(item);
   }
 
+// simpel mapping baseret på formatted label / eller fallback
+function resolveInputType(answertypeLabel) {
+  const s = String(answertypeLabel || "").toLowerCase();
+
+  if (s.includes("ja") || s.includes("nej") || s.includes("yes") || s.includes("no")) return "yesno";
+  if (s.includes("tal") || s.includes("number") || s.includes("numeric")) return "number";
+  if (s.includes("lang") || s.includes("long")) return "longtext";
+  return "text";
+}
+
 function rowsHtml(group, repeatIndex) {
   const ADDRESS_FIELD_NUMBERS = ["014", "019"];
 
   return group.items.map(item => {
     const isAddressField = ADDRESS_FIELD_NUMBERS.includes(item.number);
     const listAttr = isAddressField ? `list="kundeAdresseOptions"` : "";
+    const inputType = resolveInputType(item.answertypeLabel);
+    const prefillValue = repeatIndex === 0 ? (item.defaultPrefillText || "") : "";
+
+    let fieldHtml;
+    if (inputType === "yesno") {
+      fieldHtml = `
+          <select
+            data-prefill="1"
+            style="width:100%;padding:.5rem"
+          >
+            <option value="">Vælg…</option>
+            <option value="Ja"  ${prefillValue === "Ja"  ? "selected" : ""}>Ja</option>
+            <option value="Nej" ${prefillValue === "Nej" ? "selected" : ""}>Nej</option>
+          </select>
+      `;
+    } else if (inputType === "number") {
+      fieldHtml = `
+          <input
+            type="number"
+            data-prefill="1"
+            value="${escapeHtml(prefillValue)}"
+            placeholder="valgfrit"
+            style="width:100%;padding:.5rem"
+          />
+      `;
+    } else if (inputType === "longtext") {
+      fieldHtml = `
+          <textarea
+            data-prefill="1"
+            placeholder="valgfrit"
+            style="width:100%;padding:.5rem"
+          >${escapeHtml(prefillValue)}</textarea>
+      `;
+    } else {
+      fieldHtml = `
+          <input
+            type="text"
+            data-prefill="1"
+            value="${escapeHtml(prefillValue)}"
+            placeholder="${isAddressField ? "Vælg eller skriv en adresse" : "valgfrit"}"
+            ${listAttr}
+            style="width:100%;padding:.5rem"
+          />
+      `;
+    }
 
     return `
     <tr
@@ -950,28 +1007,17 @@ function rowsHtml(group, repeatIndex) {
         <td>${escapeHtml(item.number || "")}</td>
         <td>${escapeHtml(item.text || "")}</td>
         <td>${escapeHtml(item.answertypeLabel || "–")}</td>
-        <td>
-          <input
-            type="text"
-            data-prefill="1"
-            value="${repeatIndex === 0 ? escapeHtml(item.defaultPrefillText || "") : ""}"
-            placeholder="${isAddressField ? "Vælg eller skriv en adresse" : "valgfrit"}"
-            ${listAttr}
-            style="width:100%;padding:.5rem"
-          />
-        </td>
+        <td>${fieldHtml}</td>
       </tr>
     `;
   }).join("");
   }
 
   function repeatBlockHtml(group, repeatIndex) {
-    const heading = group.repeatable
+    const heading = (group.repeatable && repeatIndex > 0)
       ? `<div class="prefillRepeatHeading">
-           <span>${escapeHtml(group.name)}${repeatIndex > 0 ? ` – ${repeatIndex + 1}` : ""}</span>
-           ${repeatIndex > 0
-             ? `<button type="button" class="prefillRemoveButton" data-remove-repeat="1" title="Fjern denne gentagelse" aria-label="Fjern denne gentagelse">×</button>`
-             : ""}
+           <span>${escapeHtml(group.name)} – ${repeatIndex + 1}</span>
+           <button type="button" class="prefillRemoveButton" data-remove-repeat="1" title="Fjern denne gentagelse" aria-label="Fjern denne gentagelse">×</button>
          </div>`
       : "";
 
@@ -1060,7 +1106,7 @@ function setPrefillValueByQuestionRepeat(questionId, repeatIndex, value) {
   }
 
   const input = els.prefillArea.querySelector(
-    `tr[data-qid="${CSS.escape(questionId)}"][data-repeat-index="${repeatIndex}"] input[data-prefill]`
+    `tr[data-qid="${CSS.escape(questionId)}"][data-repeat-index="${repeatIndex}"] [data-prefill]`
   );
   if (input) input.value = value || "";
 }
