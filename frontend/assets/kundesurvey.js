@@ -61,7 +61,7 @@ let DATA = null;                     // { code, customerName, groups, items }
 const repeatCounters = {};           // groupId -> højeste synlige repeatIndex
 const removedRepeats = new Set();    // `${groupId}:${repeatIndex}`
 
-const ADDRESS_FIELD_NUMBERS = ["014", "019"];
+const ADDRESS_FIELD_NUMBERS = ["0190"];
 
 function buildInput(it, value) {
   const inputType = resolveInputType(it.answertype);
@@ -422,3 +422,6 @@ async function init() {
 }
 
 document.addEventListener("DOMContentLoaded", init);
+
+
+

@@ -325,11 +325,11 @@ function fillPrefillFromUniconta() {
   const d = currentDebtor;
 
   fillPrefillFields({
-    "001": d.vatNumber || "",
-    "002": d.name || "",
-    "003": [d.address1, d.address2].filter(Boolean).join(", "),
-    "004": [d.zipCode, d.city].filter(Boolean).join(" "),
-    "005": d.email || ""
+    "0010": d.vatNumber || "",
+    "0020": d.name || "",
+    "0030": [d.address1, d.address2].filter(Boolean).join(", "),
+    "0040": [d.zipCode, d.city].filter(Boolean).join(" "),
+    "0050": d.email || ""
   });
 }
 
@@ -672,21 +672,20 @@ function fillContactPrefill(kind, index) {
     const phone = contact.businessPhone || contact.mobilePhone || "";
 
     fillPrefillForContact({
-      "011": firstName,
-      "012": phone,
-      "013": email,
-      "014": contact.primaerAdresse || ""
+      "0120": firstName,
+      "0130": phone,
+      "0140": email
     }, index);
   } else {
     const phone = contact.mobilePhone || contact.businessPhone || "";
     const title = extractParenRole(contact.displayName);
 
     fillPrefillForContact({
-      "015": firstName,
-      "016": phone,
-      "017": title,
-      "018": email,
-      "019": contact.primaerAdresse || ""
+      "0150": firstName,
+      "0160": phone,
+      "0170": title,
+      "0180": email,
+      "0190": contact.primaerAdresse || ""
     }, index);
   }
 }
@@ -903,7 +902,7 @@ function resolveInputType(answertypeLabel) {
 }
 
 function rowsHtml(group, repeatIndex) {
-  const ADDRESS_FIELD_NUMBERS = ["014", "019"];
+  const ADDRESS_FIELD_NUMBERS = ["0190"];
 
   return group.items.map(item => {
     const isAddressField = ADDRESS_FIELD_NUMBERS.includes(item.number);

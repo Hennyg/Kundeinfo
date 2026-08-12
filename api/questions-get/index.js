@@ -15,13 +15,18 @@ const SELECT = [
 
 const EXPAND = 'cr175_lch_spoergsmaalsgruppe($select=cr175_lch_titel)';
 
+const HEADERS = {
+  Prefer: 'odata.include-annotations="OData.Community.Display.V1.FormattedValue"'
+};
+
 module.exports = async function (context, req) {
   try {
     const { id, top = 100 } = req.query;
 
     if (id) {
       const r = await dvFetch(
-        `cr175_lch_kundeinfo_spoergsmaals(${id})?$select=${SELECT}&$expand=${EXPAND}`
+        `cr175_lch_kundeinfo_spoergsmaals(${id})?$select=${SELECT}&$expand=${EXPAND}`,
+        { headers: HEADERS }
       );
       const q = await r.json();
       return (context.res = { body: q });
@@ -33,7 +38,7 @@ module.exports = async function (context, req) {
       `&$orderby=cr175_lch_nummer asc` +
       `&$top=${encodeURIComponent(top)}`;
 
-    const r = await dvFetch(url);
+    const r = await dvFetch(url, { headers: HEADERS });
     const data = await r.json();
     context.res = { body: data };
 
