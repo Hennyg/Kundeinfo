@@ -45,7 +45,7 @@ function showResult({ code, link, instanceId }) {
   els.btnOpen.href = link || "#";
 
   els.btnPrefill.href = instanceId
-    ? `./adminprefill.html?id=${encodeURIComponent(instanceId)}`
+    ? `./admincreate.html?instanceId=${encodeURIComponent(instanceId)}`
     : "#";
 }
 
@@ -819,147 +819,78 @@ async function runCustomerLookup(kundenr) {
 }
 
 
-/* ---------- Skema/template ---------- */
+/* ---------- Spørgeskema (grupper + spørgsmål, uden skabelon) ---------- */
 
-async function loadTemplates() {
-  if (els.templateInfo) els.templateInfo.textContent =
-    "Indlæser…";
-
-  const data = await fetchJson(
-    "/api/templates-get?top=500",
-    {
-      cache: "no-store"
-    }
-  );
-
-  const rows =
-    data?.value ||
-    data ||
-    [];
-
-  const getId = template =>
-    template.crcc8_lch_surveytemplateid ||
-    template.crcc8_lch_surveytemplate ||
-    template.lch_surveytemplateid ||
-    template.id ||
-    null;
-
-  const getName = template =>
-    template.crcc8_lch_name ||
-    template.lch_name ||
-    template.name ||
-    template[
-      "crcc8_lch_name@OData.Community.Display.V1.FormattedValue"
-    ] ||
-    "";
-
-  const getActive = template =>
-    template.crcc8_lch_isactive ??
-    template.lch_isactive ??
-    template.isactive ??
-    true;
-
-  const active = rows.filter(template =>
-    getActive(template) !== false &&
-    getId(template)
-  );
-
-  if (!active.length) {
-    if (els.templateInfo) els.templateInfo.textContent =
-      "Intet aktivt skema fundet – kontakt IT.";
-
-    setStatus(
-      "Kan ikke oprette: intet aktivt skema."
-    );
-
-    return;
-  }
-
-  /*
-    Foretræk skema med "kundeinfo" i navnet.
-    Ellers bruges det første aktive skema.
-  */
-  const preferred =
-    active.find(template =>
-      /kundeinfo/i.test(
-        getName(template)
-      )
-    ) ||
-    active[0];
-
-  const id =
-    String(getId(preferred));
-
-  const name =
-    (
-      getName(preferred) ||
-      "Kundeinfo"
-    ).trim();
-
-  if (els.templateInfo) els.templateInfo.textContent =
-    name;
-
-  els.templateSelect.innerHTML =
-    `<option value="${escapeHtml(id)}">` +
-    `${escapeHtml(name)}` +
-    `</option>`;
-
-  els.templateSelect.value =
-    id;
-
-  await loadTemplateItems(id);
-}
-
-/* ---------- Load template items og Prefill ---------- */
-
-async function loadTemplateItems(templateId) {
-  if (!templateId) {
-    els.prefillArea.classList.add("hidden");
-    els.prefillArea.innerHTML = "";
-    els.prefillBottomActions?.classList.add("hidden");
-    setListStatus("Intet skema valgt.");
-    return;
-  }
-
+async function loadQuestionnaire() {
   setListStatus("Indlæser spørgsmål…");
   els.prefillArea.classList.add("hidden");
   els.prefillArea.innerHTML = "";
   els.prefillBottomActions?.classList.add("hidden");
 
-  let data;
+  let groupRows, questionRows;
   try {
-    data = await fetchJson(
-      `/api/templateitems-get?templateId=${encodeURIComponent(templateId)}`,
-      { cache: "no-store" }
-    );
+    const [gData, qData] = await Promise.all([
+      fetchJson("/api/questiongroups-get?top=500", { cache: "no-store" }),
+      fetchJson("/api/questions-get?top=500", { cache: "no-store" })
+    ]);
+    groupRows = (gData?.value || gData || []).filter(g => (g.cr175_lch_aktiv ?? true) !== false);
+    questionRows = qData?.value || qData || [];
   } catch (e) {
-    console.error("templateitems-get fejl:", e);
+    console.error("Kunne ikke hente spørgeskema:", e);
     setListStatus(`Fejl: kunne ikke hente spørgsmål (${e.message})`);
     return;
   }
 
-  const rows = data?.value || data || [];
-  if (!rows.length) {
-    setListStatus("Dette skema har ingen spørgsmål.");
+  if (!questionRows.length) {
+    setListStatus("Der er ingen spørgsmål oprettet endnu.");
     return;
   }
 
-  const groups = new Map();
-  for (const item of rows) {
-    const questionId = item.questionId || null;
+  const groupMetaById = new Map(
+    groupRows.map(g => [g.cr175_lch_kundeinfo_spoergsmaalsgruppeid, g])
+  );
+
+  questionRows.sort((a, b) =>
+    String(a.cr175_lch_nummer || "").localeCompare(String(b.cr175_lch_nummer || ""))
+  );
+
+  let groups = new Map();
+  for (const q of questionRows) {
+    const questionId = q.cr175_lch_kundeinfo_spoergsmaalid;
     if (!questionId) continue;
 
-    const groupId = item.groupId || "_uden_gruppe_";
+    const groupId = q._cr175_lch_spoergsmaalsgruppe_value || "_uden_gruppe_";
+    const groupMeta = groupMetaById.get(groupId);
+
+    // Spring spørgsmål over hvis deres gruppe findes, men er inaktiv
+    if (q._cr175_lch_spoergsmaalsgruppe_value && !groupMeta) continue;
+
     if (!groups.has(groupId)) {
       groups.set(groupId, {
         id: groupId,
-        name: item.groupLabel || "Uden gruppe",
-        repeatable: item.repeatable === true,
+        name: groupMeta?.cr175_lch_titel || "Uden gruppe",
+        repeatable: !!groupMeta?.cr175_lch_kangentages,
+        sort: groupMeta?.cr175_lch_sorteringsnummer ?? 999999,
         items: []
       });
     }
-    groups.get(groupId).items.push(item);
+
+    groups.get(groupId).items.push({
+      questionId,
+      groupId,
+      number: q.cr175_lch_nummer || "",
+      text: q.cr175_lch_spoergsmaalstekst || "",
+      answertypeLabel:
+        q["cr175_lch_svartype@OData.Community.Display.V1.FormattedValue"] || "",
+      defaultPrefillText: ""
+    });
   }
+
+  // Sortér grupperne efter deres sorteringsnummer
+  const sortedEntries = [...groups.entries()].sort(
+    (a, b) => (a[1].sort ?? 0) - (b[1].sort ?? 0)
+  );
+  groups = new Map(sortedEntries);
 
 // simpel mapping baseret på formatted label / eller fallback
 function resolveInputType(answertypeLabel) {
@@ -1203,7 +1134,7 @@ async function saveEditedInstance() {
   }
 }
 
-async function createFromTemplate() {
+async function createOrSaveInstance() {
   if (editInstanceId) {
     return saveEditedInstance();
   }
@@ -1214,17 +1145,6 @@ async function createFromTemplate() {
     els.result.classList.add(
       "hidden"
     );
-
-    const templateId =
-      els.templateSelect.value;
-
-    if (!templateId) {
-      setStatus(
-        "Intet skema valgt."
-      );
-
-      return;
-    }
 
     const customerNumber =
       els.customerName.dataset.kundenr ||
@@ -1270,7 +1190,6 @@ async function createFromTemplate() {
     );
 
     const payload = {
-      templateId,
       customerName,
       customerNumber,
       expiresAt,
@@ -1279,7 +1198,7 @@ async function createFromTemplate() {
     };
 
     const res = await fetchJson(
-      "/api/survey-create-from-template",
+      "/api/survey-create",
       {
         method: "POST",
 
@@ -1298,7 +1217,6 @@ async function createFromTemplate() {
 
       instanceId:
         res.instanceId ||
-        res.crcc8_lch_surveyinstanceid ||
         res.id
     });
 
@@ -1325,15 +1243,6 @@ document.addEventListener(
   "DOMContentLoaded",
   async () => {
     els = {
-      templateRow:
-        $("templateRow"),
-
-      templateSelect:
-        $("templateSelect"),
-
-      templateInfo:
-        $("templateInfo"),
-
       customerName:
         $("customerName"),
 
@@ -1478,7 +1387,7 @@ document.addEventListener(
 
     els.btnCreateBottom?.addEventListener(
       "click",
-      createFromTemplate
+      createOrSaveInstance
     );
 
     els.btnFillFromUniconta?.addEventListener(
@@ -1538,7 +1447,7 @@ document.addEventListener(
     clearKundeliste();
     clearEntraCustomerContacts();
 
-    await loadTemplates();
+    await loadQuestionnaire();
 
     const instanceIdFromUrl = qs("instanceId");
     if (instanceIdFromUrl) {
@@ -1546,3 +1455,6 @@ document.addEventListener(
     }
   }
 );
+
+
+

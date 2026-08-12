@@ -1,9 +1,12 @@
 // /api/survey-submit/index.js
 //
-// NB: forudsætter at crcc8_lch_answers har et heltalsfelt "crcc8_lch_repeatindex"
-// (se survey-start/index.js for baggrund).
+// Gemmer/opdaterer kundens svar direkte på cr175_lch_kundeinfo_spoergeskemasvars
+// (samme tabel som holder admins prefill). Match sker på
+// (kundeundersoegelse, spoergsmaal, gentagelsesindeks) – findes rækken ikke
+// (kunden har selv tilføjet en gentagelse), oprettes den.
 
 const { dvFetch } = require("../_dataverse");
+const { getStatusValues } = require("../_kundeundersoegelseStatus");
 
 function json(context, status, body) {
   context.res = {
@@ -27,11 +30,11 @@ module.exports = async function (context, req) {
       return json(context, 400, { error: "missing_answers", message: "Ingen svar modtaget." });
     }
 
-    // 1) Find surveyinstance via code
+    // 1) Find kundeundersøgelse via kode
     const instPath =
-      `crcc8_lch_surveyinstances` +
-      `?$select=crcc8_lch_surveyinstanceid,crcc8_lch_code` +
-      `&$filter=${encodeURIComponent(`crcc8_lch_code eq '${escODataString(code)}'`)}` +
+      `cr175_lch_kundeinfo_kundeundersoegelses` +
+      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kode` +
+      `&$filter=${encodeURIComponent(`cr175_lch_kode eq '${escODataString(code)}'`)}` +
       `&$top=1`;
 
     const instRes = await dvFetch(instPath);
@@ -39,11 +42,12 @@ module.exports = async function (context, req) {
     const inst = (instData?.value || [])[0];
     if (!inst) return json(context, 404, { error: "invalid_code", message: "Ugyldig kode." });
 
-    const instanceId = inst.crcc8_lch_surveyinstanceid; // GUID
+    const instanceId = inst.cr175_lch_kundeinfo_kundeundersoegelseid;
 
     let created = 0, updated = 0, deleted = 0, skipped = 0;
+    let newRowCounter = 0;
 
-    // 2) Gem/opdatér svar – match på (instance, question, repeatIndex)
+    // 2) Gem/opdatér svar – match på (kundeundersoegelse, spoergsmaal, gentagelsesindeks)
     for (const a of answers) {
       const questionId = String(a.questionId || "").trim();
       const repeatIndex = Number.isFinite(Number(a.repeatIndex)) ? Number(a.repeatIndex) : 0;
@@ -52,10 +56,10 @@ module.exports = async function (context, req) {
       if (!questionId) { skipped++; continue; }
 
       const findPath =
-        `crcc8_lch_answers` +
-        `?$select=crcc8_lch_answerid` +
+        `cr175_lch_kundeinfo_spoergeskemasvars` +
+        `?$select=cr175_lch_kundeinfo_spoergeskemasvarid` +
         `&$filter=${encodeURIComponent(
-          `_crcc8_lch_surveyinstance_value eq ${instanceId} and _crcc8_lch_question_value eq ${questionId} and crcc8_lch_repeatindex eq ${repeatIndex}`
+          `_cr175_lch_kundeundersoegelse_value eq ${instanceId} and _cr175_lch_spoergsmaal_value eq ${questionId} and cr175_lch_gentagelsesindeks eq ${repeatIndex}`
         )}` +
         `&$top=1`;
 
@@ -63,32 +67,33 @@ module.exports = async function (context, req) {
       try {
         const fr = await dvFetch(findPath);
         const fd = await fr.json();
-        existingId = (fd?.value || [])[0]?.crcc8_lch_answerid || null;
+        existingId = (fd?.value || [])[0]?.cr175_lch_kundeinfo_spoergeskemasvarid || null;
       } catch (e) {
         return json(context, 500, { error: "answer_find_failed", message: e.message || String(e) });
       }
 
-      const payload = {
-        crcc8_lch_name: `Answer ${code} (${repeatIndex})`,
-        crcc8_lch_value: value,
-        crcc8_lch_repeatindex: repeatIndex,
-        crcc8_lch_updatedat: new Date().toISOString(),
-        "crcc8_lch_surveyinstance@odata.bind": `/crcc8_lch_surveyinstances(${instanceId})`,
-        "crcc8_lch_question@odata.bind": `/crcc8_lch_questions(${questionId})`
-      };
-
       if (existingId) {
-        await dvFetch(`crcc8_lch_answers(${existingId})`, {
+        await dvFetch(`cr175_lch_kundeinfo_spoergeskemasvars(${existingId})`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
+          body: JSON.stringify({
+            cr175_lch_svarvaerdi: value,
+            cr175_lch_gentagelsesindeks: repeatIndex
+          })
         });
         updated++;
       } else {
-        await dvFetch(`crcc8_lch_answers`, {
+        newRowCounter++;
+        await dvFetch(`cr175_lch_kundeinfo_spoergeskemasvars`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
+          body: JSON.stringify({
+            cr175_lch_unik: `SVAR-${code}-NY-${newRowCounter}`,
+            cr175_lch_svarvaerdi: value,
+            cr175_lch_gentagelsesindeks: repeatIndex,
+            "cr175_lch_kundeundersoegelse@odata.bind": `/cr175_lch_kundeinfo_kundeundersoegelses(${instanceId})`,
+            "cr175_lch_spoergsmaal@odata.bind": `/cr175_lch_kundeinfo_spoergsmaals(${questionId})`
+          })
         });
         created++;
       }
@@ -101,37 +106,35 @@ module.exports = async function (context, req) {
       if (!questionId) continue;
 
       const findPath =
-        `crcc8_lch_answers` +
-        `?$select=crcc8_lch_answerid` +
+        `cr175_lch_kundeinfo_spoergeskemasvars` +
+        `?$select=cr175_lch_kundeinfo_spoergeskemasvarid` +
         `&$filter=${encodeURIComponent(
-          `_crcc8_lch_surveyinstance_value eq ${instanceId} and _crcc8_lch_question_value eq ${questionId} and crcc8_lch_repeatindex eq ${repeatIndex}`
+          `_cr175_lch_kundeundersoegelse_value eq ${instanceId} and _cr175_lch_spoergsmaal_value eq ${questionId} and cr175_lch_gentagelsesindeks eq ${repeatIndex}`
         )}` +
         `&$top=1`;
 
       const fr = await dvFetch(findPath);
       const fd = await fr.json();
-      const existingId = (fd?.value || [])[0]?.crcc8_lch_answerid || null;
+      const existingId = (fd?.value || [])[0]?.cr175_lch_kundeinfo_spoergeskemasvarid || null;
 
       if (existingId) {
-        await dvFetch(`crcc8_lch_answers(${existingId})`, { method: "DELETE" });
+        await dvFetch(`cr175_lch_kundeinfo_spoergeskemasvars(${existingId})`, { method: "DELETE" });
         deleted++;
       }
     }
 
-    // --- Markér survey som gennemført ---
+    // --- Markér survey som gennemført/startet ---
     const finalize = !!req?.body?.finalize;
+    const status = await getStatusValues().catch(() => ({ AFSLUTTET: null, STARTET: null }));
 
-    const STATUS_PENDING   = 776350000;
-    const STATUS_COMPLETED = 776350001;
-    const STATUS_STARTED   = 776350002;
-
-    await dvFetch(`crcc8_lch_surveyinstances(${instanceId})`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        crcc8_status: finalize ? STATUS_COMPLETED : STATUS_STARTED
-      })
-    });
+    const nextStatus = finalize ? status.AFSLUTTET : status.STARTET;
+    if (nextStatus != null) {
+      await dvFetch(`cr175_lch_kundeinfo_kundeundersoegelses(${instanceId})`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cr175_lch_status: nextStatus })
+      });
+    }
 
     return json(context, 200, { ok: true, created, updated, deleted, skipped, finalize });
   } catch (err) {

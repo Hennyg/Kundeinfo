@@ -1,7 +1,7 @@
 // /api/survey-delete/index.js
 //
-// Sletter en eller flere kundesurvey-instanser, inklusiv deres tilknyttede
-// crcc8_lch_surveyitems og crcc8_lch_answers-rækker (så der ikke efterlades
+// Sletter en eller flere kundeundersøgelser inklusiv deres tilknyttede
+// cr175_lch_kundeinfo_spoergeskemasvars-rækker (så der ikke efterlades
 // forældreløse rækker i Dataverse).
 
 const { dvFetch } = require("../_dataverse");
@@ -27,25 +27,16 @@ async function deleteById(table, id) {
 }
 
 async function deleteInstance(instanceId) {
-  const itemIds = await fetchIds(
-    "crcc8_lch_surveyitems",
-    "crcc8_lch_surveyitemid",
-    `_crcc8_lch_surveyinstance_value eq ${instanceId}`
+  const rowIds = await fetchIds(
+    "cr175_lch_kundeinfo_spoergeskemasvars",
+    "cr175_lch_kundeinfo_spoergeskemasvarid",
+    `_cr175_lch_kundeundersoegelse_value eq ${instanceId}`
   );
-  for (const id of itemIds) {
-    await deleteById("crcc8_lch_surveyitems", id);
+  for (const id of rowIds) {
+    await deleteById("cr175_lch_kundeinfo_spoergeskemasvars", id);
   }
 
-  const answerIds = await fetchIds(
-    "crcc8_lch_answers",
-    "crcc8_lch_answerid",
-    `_crcc8_lch_surveyinstance_value eq ${instanceId}`
-  );
-  for (const id of answerIds) {
-    await deleteById("crcc8_lch_answers", id);
-  }
-
-  await deleteById("crcc8_lch_surveyinstances", instanceId);
+  await deleteById("cr175_lch_kundeinfo_kundeundersoegelses", instanceId);
 }
 
 module.exports = async function (context, req) {

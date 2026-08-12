@@ -13,10 +13,9 @@ module.exports = async function (context, req) {
   try {
     const top = Math.min(Math.max(parseInt(req.query.top || "50", 10), 1), 500);
 
-    // VIGTIGT: ingen $skip i Dataverse/CRM her
     const url =
-      `crcc8_lch_surveyinstances` +
-      `?$select=crcc8_lch_surveyinstanceid,crcc8_lch_customername,crcc8_lch_code,crcc8_expiresat,crcc8_templateversion,crcc8_status,createdon` +
+      `cr175_lch_kundeinfo_kundeundersoegelses` +
+      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kundenavn,cr175_lch_kode,cr175_lch_udloebstidspunkt,cr175_lch_status,createdon` +
       `&$orderby=createdon desc` +
       `&$top=${top}`;
 
@@ -30,14 +29,13 @@ module.exports = async function (context, req) {
       }
     });
 
-    const text = await r.text(); // læs altid body som tekst først (nem fejlfinding)
+    const text = await r.text();
 
     if (!r.ok) {
       context.log("survey-list DV error:", r.status, text);
       return json(context, r.status, { error: "dv_list_failed", status: r.status, detail: text });
     }
 
-    // parse JSON først efter ok
     let data;
     try {
       data = JSON.parse(text);
@@ -52,6 +50,3 @@ module.exports = async function (context, req) {
     return json(context, 500, { error: "server_error", detail: err.message, stack: String(err.stack || "") });
   }
 };
-
-
-

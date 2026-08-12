@@ -15,16 +15,14 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 
-const STATUS_LABELS = {
-  776350000: { text: "Afventer", cls: "" },
-  776350001: { text: "Gennemført", cls: "active" },
-  776350002: { text: "Startet", cls: "" }
-};
+function statusPillHtml(row) {
+  const label =
+    row["cr175_lch_status@OData.Community.Display.V1.FormattedValue"] ||
+    (row.cr175_lch_status != null ? String(row.cr175_lch_status) : "—");
 
-function statusPillHtml(status) {
-  const n = Number(status);
-  const info = STATUS_LABELS[n] || { text: n ? String(n) : "—", cls: "" };
-  return `<span class="pill ${info.cls}">${escapeHtml(info.text)}</span>`;
+  // "afsluttet/gennemført" grønnes, resten neutral
+  const cls = /afslut|gennemf/i.test(label) ? "active" : "";
+  return `<span class="pill ${cls}">${escapeHtml(label)}</span>`;
 }
 
 function fmtDateTime(value) {
@@ -48,10 +46,10 @@ function isExpired(expiresAt) {
 }
 
 function rowHtml(row) {
-  const id = row.crcc8_lch_surveyinstanceid;
-  const code = row.crcc8_lch_code || "";
-  const customerName = row.crcc8_lch_customername || "(uden navn)";
-  const expiresAt = row.crcc8_expiresat || "";
+  const id = row.cr175_lch_kundeinfo_kundeundersoegelseid;
+  const code = row.cr175_lch_kode || "";
+  const customerName = row.cr175_lch_kundenavn || "(uden navn)";
+  const expiresAt = row.cr175_lch_udloebstidspunkt || "";
   const expiredTag = expiresAt && isExpired(expiresAt)
     ? ` <span class="pill expired">Udløbet</span>`
     : "";
@@ -64,9 +62,8 @@ function rowHtml(row) {
       <td><input type="checkbox" class="rowCheck" data-id="${escapeHtml(id || "")}" /></td>
       <td>${escapeHtml(customerName)}</td>
       <td>${escapeHtml(code)}</td>
-      <td>${statusPillHtml(row.crcc8_status)}</td>
+      <td>${statusPillHtml(row)}</td>
       <td>${fmtDateTime(expiresAt)}${expiredTag}</td>
-      <td>${escapeHtml(row.crcc8_templateversion ?? "—")}</td>
       <td>${fmtDateTime(row.createdon)}</td>
       <td>
         <a class="tag" href="${seSkemaLink}" target="_blank" rel="noopener">Se skema</a>
@@ -182,3 +179,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("btnDeleteSelected")?.addEventListener("click", deleteSelected);
 });
+
+
+

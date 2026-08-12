@@ -1,12 +1,10 @@
 // /api/survey-start/index.js
 //
-// NB: forudsætter at crcc8_lch_answers har et heltalsfelt "crcc8_lch_repeatindex"
-// (samme navn/mønster som på crcc8_lch_surveyitems), så flere besvarelser af
-// samme spørgsmål (fra en "gentagelig" gruppe) kan gemmes side om side.
-// Hvis feltet ikke findes på crcc8_lch_answers endnu, skal det tilføjes i
-// Dataverse før gentagelige grupper virker korrekt.
+// Henter en kundeundersøgelse (via kode) + dens spørgeskemasvar-rækker, og
+// bygger den flade items/groups-struktur som kundesurvey.js forventer.
 
 const { dvFetch } = require("../_dataverse");
+const { getStatusValues } = require("../_kundeundersoegelseStatus");
 
 function json(context, status, body) {
   context.res = {
@@ -18,14 +16,6 @@ function json(context, status, body) {
 
 function escODataString(s) {
   return String(s ?? "").replace(/'/g, "''");
-}
-
-// --- Kundeliste-adresser (coredata) – bruges kun til at fylde
-//     adresse-dropdown for "Primær arbejdsadresse"-felterne. Fejler stille
-//     (returnerer tom liste), da det ikke må vælte selve spørgeskemaet.
-function extractKundenrFromCustomerName(customerName) {
-  const m = String(customerName || "").match(/\((\d+)\)\s*$/);
-  return m ? m[1] : "";
 }
 
 async function getCoredataToken() {
@@ -106,11 +96,11 @@ module.exports = async function (context, req) {
     const code = String(req?.body?.code || "").trim();
     if (!code) return json(context, 400, { error: "missing_code", message: "Mangler code i body." });
 
-    // 1) Find surveyinstance på code
+    // 1) Find kundeundersøgelse på kode
     const instPath =
-      `crcc8_lch_surveyinstances` +
-      `?$select=crcc8_lch_surveyinstanceid,crcc8_lch_code,crcc8_lch_customername,crcc8_expiresat,crcc8_status` +
-      `&$filter=${encodeURIComponent(`crcc8_lch_code eq '${escODataString(code)}'`)}` +
+      `cr175_lch_kundeinfo_kundeundersoegelses` +
+      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kode,cr175_lch_kundenavn,cr175_lch_kundenummer,cr175_lch_udloebstidspunkt,cr175_lch_status` +
+      `&$filter=${encodeURIComponent(`cr175_lch_kode eq '${escODataString(code)}'`)}` +
       `&$top=1`;
 
     const instRes = await dvFetch(instPath, {
@@ -124,141 +114,105 @@ module.exports = async function (context, req) {
     }
 
     // --- Check om survey allerede er gennemført ---
-    const STATUS_COMPLETED = 776350001;
-    if (Number(inst.crcc8_status) === STATUS_COMPLETED) {
+    const status = await getStatusValues().catch(() => ({ AFSLUTTET: null }));
+    if (status.AFSLUTTET != null && Number(inst.cr175_lch_status) === status.AFSLUTTET) {
       return json(context, 409, {
         error: "already_completed",
         message: "Surveyen er allerede gennemført."
       });
     }
 
-    const instanceId = inst.crcc8_lch_surveyinstanceid;
-    const customerName = inst.crcc8_lch_customername || "";
+    const instanceId = inst.cr175_lch_kundeinfo_kundeundersoegelseid;
+    const customerName = inst.cr175_lch_kundenavn || "";
+    const kundenr = inst.cr175_lch_kundenummer || "";
 
-    // 2) Hent survey items for denne instans + udvid question + questiongroup
-    const itemsPath =
-      `crcc8_lch_surveyitems` +
-      `?$select=crcc8_lch_surveyitemid,crcc8_lch_prefilltext,crcc8_lch_sortorder,crcc8_lch_sortordertal,crcc8_lch_repeatindex,_crcc8_lch_question_value` +
-      `&$filter=${encodeURIComponent(`_crcc8_lch_surveyinstance_value eq ${instanceId}`)}` +
+    // 2) Hent spørgeskemasvar for denne kundeundersøgelse + udvid spørgsmål + gruppe
+    const rowsPath =
+      `cr175_lch_kundeinfo_spoergeskemasvars` +
+      `?$select=cr175_lch_kundeinfo_spoergeskemasvarid,cr175_lch_prefillvaerdi,cr175_lch_svarvaerdi,cr175_lch_gentagelsesindeks,_cr175_lch_spoergsmaal_value` +
+      `&$filter=${encodeURIComponent(`_cr175_lch_kundeundersoegelse_value eq ${instanceId}`)}` +
       `&$expand=${encodeURIComponent(
-        `crcc8_lch_question($select=crcc8_lch_questionid,crcc8_lch_number,crcc8_lch_text,crcc8_lch_explanation,crcc8_lch_answertype,crcc8_lch_isrequired,crcc8_lch_sortorder;` +
-        `$expand=crcc8_lch_questiongroup($select=crcc8_lch_questiongroupid,crcc8_lch_name,crcc8_lch_title,crcc8_lch_description,crcc8_lch_sortorder,crcc8_crcc8_repeatable))`
+        `cr175_lch_spoergsmaal($select=cr175_lch_kundeinfo_spoergsmaalid,cr175_lch_nummer,cr175_lch_spoergsmaalstekst,cr175_lch_forklaring,cr175_lch_svartype,cr175_lch_paakraevet,cr175_lch_sorteringsnummer;` +
+        `$expand=cr175_lch_spoergsmaalsgruppe($select=cr175_lch_kundeinfo_spoergsmaalsgruppeid,cr175_lch_titel,cr175_lch_description,cr175_lch_sorteringsnummer,cr175_lch_kangentages))`
       )}`;
 
-    const itemsRes = await dvFetch(itemsPath, {
+    const rowsRes = await dvFetch(rowsPath, {
       headers: { Prefer: 'odata.include-annotations="OData.Community.Display.V1.FormattedValue"' }
     });
-    const itemsData = await itemsRes.json();
-    const itemRows = itemsData?.value || [];
+    const rowsData = await rowsRes.json();
+    const rows = rowsData?.value || [];
 
-    if (!itemRows.length) {
+    if (!rows.length) {
       return json(context, 404, {
         error: "no_items",
-        message: "Ingen survey items fundet for denne kode (eller ingen spørgsmål koblet på)."
+        message: "Ingen spørgsmål fundet for denne kode."
       });
     }
 
-    // 3) Hent tidligere svar (inkl. repeatindex) for denne surveyinstance
-    const ansPath =
-      `crcc8_lch_answers` +
-      `?$select=crcc8_lch_value,crcc8_lch_repeatindex,_crcc8_lch_question_value` +
-      `&$filter=${encodeURIComponent(`_crcc8_lch_surveyinstance_value eq ${instanceId}`)}` +
-      `&$top=5000`;
-
-    const ansRes = await dvFetch(ansPath);
-    const ansData = await ansRes.json();
-    const ansRows = ansData?.value || [];
-
-    // Map: `${questionId}|${repeatIndex}` -> value
-    const answerMap = new Map();
-    for (const a of ansRows) {
-      const qid = a?._crcc8_lch_question_value ? String(a._crcc8_lch_question_value) : null;
-      if (!qid) continue;
-      const ri = Number.isFinite(Number(a.crcc8_lch_repeatindex)) ? Number(a.crcc8_lch_repeatindex) : 0;
-      answerMap.set(`${qid}|${ri}`, a.crcc8_lch_value ?? "");
-    }
-
-    // 4) Byg grupper + basale spørgsmåls-skabeloner (fra repeatIndex=0-rækken
-    //    pr. spørgsmål) + et opslag af prefillTexts pr. faktisk oprettet
-    //    gentagelse (repeatIndex > 0 findes når admin har tilføjet flere
-    //    ejere/medarbejdere på forhånd, før kunden selv har svaret noget).
+    // 3) Byg grupper + basale spørgsmåls-skabeloner (fra repeatIndex=0-rækken
+    //    pr. spørgsmål) + prefill/svar-opslag pr. faktisk gentagelse
     const groupsById = new Map();
-    const baseQuestionByQid = new Map(); // questionId -> skabelon (kun fra repeatIndex 0)
-    const prefillByQuestionRepeat = new Map(); // `${qid}|${ri}` -> prefillText
-    const itemRepeatIndexesByGroup = new Map(); // groupId -> Set af faktiske repeatIndex-værdier fra surveyitems
+    const baseQuestionByQid = new Map();
+    const prefillByQuestionRepeat = new Map();
+    const answerByQuestionRepeat = new Map();
+    const repeatIndexesByGroup = new Map();
 
-    for (const row of itemRows) {
-      const q = row.crcc8_lch_question;
+    for (const row of rows) {
+      const q = row.cr175_lch_spoergsmaal;
       if (!q) continue;
 
-      const g = q.crcc8_lch_questiongroup || null;
-      const groupId = g ? String(g.crcc8_lch_questiongroupid) : "_ingen_gruppe_";
+      const g = q.cr175_lch_spoergsmaalsgruppe || null;
+      const groupId = g ? String(g.cr175_lch_kundeinfo_spoergsmaalsgruppeid) : "_ingen_gruppe_";
 
       if (!groupsById.has(groupId)) {
         groupsById.set(groupId, {
           id: groupId,
-          title: g ? (g.crcc8_lch_title || g.crcc8_lch_name || "Andet") : "Andet",
-          description: g ? (g.crcc8_lch_description || "") : "",
-          sort: g ? (g.crcc8_lch_sortorder ?? 0) : 999999,
-          repeatable: g ? !!g.crcc8_crcc8_repeatable : false
+          title: g ? (g.cr175_lch_titel || "Andet") : "Andet",
+          description: g ? (g.cr175_lch_description || "") : "",
+          sort: g ? (g.cr175_lch_sorteringsnummer ?? 0) : 999999,
+          repeatable: g ? !!g.cr175_lch_kangentages : false
         });
       }
 
       const answertype =
-        q["crcc8_lch_answertype@OData.Community.Display.V1.FormattedValue"] ??
-        q.crcc8_lch_answertype ??
+        q["cr175_lch_svartype@OData.Community.Display.V1.FormattedValue"] ??
+        q.cr175_lch_svartype ??
         "";
 
-      const qid = String(q.crcc8_lch_questionid || "");
-      const ri = Number.isFinite(Number(row.crcc8_lch_repeatindex)) ? Number(row.crcc8_lch_repeatindex) : 0;
+      const qid = String(q.cr175_lch_kundeinfo_spoergsmaalid || "");
+      const ri = Number.isFinite(Number(row.cr175_lch_gentagelsesindeks)) ? Number(row.cr175_lch_gentagelsesindeks) : 0;
 
-      prefillByQuestionRepeat.set(`${qid}|${ri}`, row.crcc8_lch_prefilltext || "");
+      prefillByQuestionRepeat.set(`${qid}|${ri}`, row.cr175_lch_prefillvaerdi || "");
+      answerByQuestionRepeat.set(`${qid}|${ri}`, row.cr175_lch_svarvaerdi || "");
 
-      if (!itemRepeatIndexesByGroup.has(groupId)) itemRepeatIndexesByGroup.set(groupId, new Set());
-      itemRepeatIndexesByGroup.get(groupId).add(ri);
+      if (!repeatIndexesByGroup.has(groupId)) repeatIndexesByGroup.set(groupId, new Set());
+      repeatIndexesByGroup.get(groupId).add(ri);
 
-      // Skabelonen (tekst, svar-type, mv.) tages fra repeatIndex=0-rækken.
-      // Findes den ikke for et spørgsmål (bør ikke ske, men for en sikkerheds
-      // skyld), bruges den første række vi møder som fallback.
       if (ri === 0 || !baseQuestionByQid.has(qid)) {
         baseQuestionByQid.set(qid, {
-          itemId: row.crcc8_lch_surveyitemid,
+          itemId: row.cr175_lch_kundeinfo_spoergeskemasvarid,
           questionId: qid,
           groupId,
-          number: q.crcc8_lch_number,
-          text: q.crcc8_lch_text,
-          required: !!q.crcc8_lch_isrequired,
+          number: q.cr175_lch_nummer,
+          text: q.cr175_lch_spoergsmaalstekst,
+          required: !!q.cr175_lch_paakraevet,
           answertype,
-          explanation: q.crcc8_lch_explanation || "",
-          sortKey: Number(row.crcc8_lch_sortordertal ?? row.crcc8_lch_sortorder ?? q.crcc8_lch_sortorder ?? 0)
+          explanation: q.cr175_lch_forklaring || "",
+          sortKey: Number(q.cr175_lch_sorteringsnummer ?? 0)
         });
       }
     }
 
     const baseQuestions = [...baseQuestionByQid.values()];
 
-    // 5) Find hvor mange gentagelser der findes pr. gruppe – enten fordi
-    //    admin har oprettet flere surveyitems-rækker (repeatIndex > 0), eller
-    //    fordi kunden selv har tilføjet + besvaret flere gentagelser.
+    // 4) Find max repeatIndex pr. gruppe (både fra admin-oprettede rækker og
+    //    fra kundens egne besvarede gentagelser)
     const maxRepeatByGroup = new Map();
-
-    for (const [groupId, riSet] of itemRepeatIndexesByGroup) {
-      const maxFromItems = Math.max(...riSet);
-      maxRepeatByGroup.set(groupId, Math.max(maxRepeatByGroup.get(groupId) ?? 0, maxFromItems));
+    for (const [groupId, riSet] of repeatIndexesByGroup) {
+      maxRepeatByGroup.set(groupId, Math.max(...riSet));
     }
 
-    for (const bq of baseQuestions) {
-      const g = groupsById.get(bq.groupId);
-      if (!g?.repeatable) continue;
-      for (const [key] of answerMap) {
-        const [qid, riStr] = key.split("|");
-        if (qid !== bq.questionId) continue;
-        const ri = Number(riStr);
-        if (ri > (maxRepeatByGroup.get(bq.groupId) ?? 0)) maxRepeatByGroup.set(bq.groupId, ri);
-      }
-    }
-
-    // 6) Byg den flade items-liste (inkl. gentagelser) som frontend renderer
+    // 5) Byg den flade items-liste (inkl. gentagelser) som frontend renderer
     const items = [];
 
     for (const bq of baseQuestions) {
@@ -266,7 +220,7 @@ module.exports = async function (context, req) {
       const maxRi = g?.repeatable ? (maxRepeatByGroup.get(bq.groupId) ?? 0) : 0;
 
       for (let ri = 0; ri <= maxRi; ri++) {
-        const savedValue = answerMap.get(`${bq.questionId}|${ri}`) ?? "";
+        const savedValue = answerByQuestionRepeat.get(`${bq.questionId}|${ri}`) ?? "";
         const prefillText = prefillByQuestionRepeat.get(`${bq.questionId}|${ri}`) || "";
 
         items.push({
@@ -296,7 +250,6 @@ module.exports = async function (context, req) {
 
     const groups = [...groupsById.values()].sort((a, b) => a.sort - b.sort);
 
-    const kundenr = extractKundenrFromCustomerName(customerName);
     const kundeAdresser = await fetchKundeAdresser(kundenr);
 
     return json(context, 200, { code, customerName, groups, items, kundeAdresser });

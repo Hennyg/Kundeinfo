@@ -5,12 +5,9 @@
       "type": "httpTrigger",
       "direction": "in",
       "name": "req",
-      "methods": ["post"],
-      "route": "survey-items-update"
+      "methods": ["get"],
+      "route": "survey-instance-get"
     },
     { "type": "http", "direction": "out", "name": "res" }
   ]
 }
-
-
-

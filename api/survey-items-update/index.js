@@ -1,11 +1,11 @@
 // /api/survey-items-update/index.js
 //
-// Opdaterer prefill-teksten på en eksisterende survey-instans' surveyitems.
-// Findes rækken allerede (samme spørgsmål + repeatIndex) -> PATCH.
-// Findes den ikke (ny gentagelse tilføjet i admin) -> POST ny række.
+// Opdaterer prefill-værdien på en eksisterende kundeundersøgelses
+// spørgeskemasvar-rækker. Findes rækken allerede (samme spørgsmål + repeatIndex)
+// -> PATCH. Findes den ikke (ny gentagelse tilføjet i admin) -> POST ny række.
 //
-// Rører IKKE kundens egne indtastede svar (crcc8_lch_answers) – kun de
-// forudfyldte prefillTexts på selve surveyitems.
+// Rører IKKE kundens eget indtastede svar (cr175_lch_svarvaerdi) – kun
+// cr175_lch_prefillvaerdi.
 
 const { dvFetch } = require("../_dataverse");
 
@@ -31,19 +31,19 @@ module.exports = async function (context, req) {
     }
 
     const existingRes = await dvFetch(
-      `crcc8_lch_surveyitems` +
-      `?$select=crcc8_lch_surveyitemid,crcc8_lch_repeatindex,_crcc8_lch_question_value` +
-      `&$filter=${encodeURIComponent(`_crcc8_lch_surveyinstance_value eq ${instanceId}`)}&$top=5000`
+      `cr175_lch_kundeinfo_spoergeskemasvars` +
+      `?$select=cr175_lch_kundeinfo_spoergeskemasvarid,cr175_lch_gentagelsesindeks,_cr175_lch_spoergsmaal_value` +
+      `&$filter=${encodeURIComponent(`_cr175_lch_kundeundersoegelse_value eq ${instanceId}`)}&$top=5000`
     );
     const existingData = await existingRes.json();
 
     const existingMap = new Map();
     for (const r of (existingData.value || [])) {
-      const key = `${normalizeGuid(r._crcc8_lch_question_value)}|${Number(r.crcc8_lch_repeatindex ?? 0)}`;
-      existingMap.set(key, r.crcc8_lch_surveyitemid);
+      const key = `${normalizeGuid(r._cr175_lch_spoergsmaal_value)}|${Number(r.cr175_lch_gentagelsesindeks ?? 0)}`;
+      existingMap.set(key, r.cr175_lch_kundeinfo_spoergeskemasvarid);
     }
 
-    let updated = 0, created = 0;
+    let updated = 0, created = 0, codeSuffix = existingData.value?.length || 0;
 
     for (const it of items) {
       const questionId = normalizeGuid(it?.questionId);
@@ -55,31 +55,25 @@ module.exports = async function (context, req) {
       const existingId = existingMap.get(key);
 
       if (existingId) {
-        const res = await dvFetch(`crcc8_lch_surveyitems(${existingId})`, {
+        await dvFetch(`cr175_lch_kundeinfo_spoergeskemasvars(${existingId})`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json; charset=utf-8" },
-          body: JSON.stringify({ crcc8_lch_prefilltext: prefillText })
+          body: JSON.stringify({ cr175_lch_prefillvaerdi: prefillText })
         });
-        if (!res.ok) {
-          return json(context, res.status, { error: "update_failed", detail: await res.text(), questionId, repeatIndex });
-        }
         updated++;
       } else {
-        const res = await dvFetch(`crcc8_lch_surveyitems`, {
+        codeSuffix++;
+        await dvFetch(`cr175_lch_kundeinfo_spoergeskemasvars`, {
           method: "POST",
           headers: { "Content-Type": "application/json; charset=utf-8" },
           body: JSON.stringify({
-            crcc8_lch_name: "",
-            crcc8_lch_prefilltext: prefillText,
-            crcc8_lch_repeatindex: repeatIndex,
-            crcc8_lch_sortordertal: repeatIndex * 100000,
-            "crcc8_lch_surveyinstance@odata.bind": `/crcc8_lch_surveyinstances(${instanceId})`,
-            "crcc8_lch_question@odata.bind": `/crcc8_lch_questions(${questionId})`
+            cr175_lch_unik: `SVAR-${instanceId.slice(0, 8)}-${codeSuffix}`,
+            cr175_lch_prefillvaerdi: prefillText,
+            cr175_lch_gentagelsesindeks: repeatIndex,
+            "cr175_lch_kundeundersoegelse@odata.bind": `/cr175_lch_kundeinfo_kundeundersoegelses(${instanceId})`,
+            "cr175_lch_spoergsmaal@odata.bind": `/cr175_lch_kundeinfo_spoergsmaals(${questionId})`
           })
         });
-        if (!res.ok) {
-          return json(context, res.status, { error: "create_failed", detail: await res.text(), questionId, repeatIndex });
-        }
         created++;
       }
     }
