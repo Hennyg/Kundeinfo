@@ -24,14 +24,11 @@ function getEls() {
     btnReset: document.getElementById("btnReset"),
 
     gid: document.getElementById("gid"),
-    gsurveytype: document.getElementById("gsurveytype"),
-    gname: document.getElementById("gname"),
     gtitle: document.getElementById("gtitle"),
     gdesc: document.getElementById("gdesc"),
     gsort: document.getElementById("gsort"),
     gactive: document.getElementById("gactive"),
     grepeatable: document.getElementById("grepeatable"),
-    gcolor: document.getElementById("gcolor"),
   };
 }
 
@@ -58,62 +55,24 @@ function showAuthedUI(me) {
   }
 }
 
-async function loadSurveyTypes() {
-  els.gsurveytype.innerHTML = `<option value="">Indlæser…</option>`;
-  const r = await fetch('/api/surveytypes-get', { cache: "no-store" });
-  if (!r.ok) {
-    const t = await r.text().catch(() => "");
-    throw new Error(`surveytypes-get fejlede (${r.status}): ${t}`);
-  }
-  const data = await r.json();
-  const rows = data?.value || data || [];
-  els.gsurveytype.innerHTML =
-    `<option value="">Vælg surveytype…</option>` +
-    rows.map(x => {
-      const id = x.crcc8_lch_surveytypeid;
-      const name = x.crcc8_lch_type;
-      return `<option value="${id}">${escapeHtml(name)}</option>`;
-    }).join("");
-}
-
-async function loadGroupColors() {
-  // Din lch_color er et choice (valg). Hvis du vil styre det fra metadata senere, kan vi lave endpoint.
-  // For nu: tom + “Ingen”
-  if (!els.gcolor) return;
-  els.gcolor.innerHTML = `
-    <option value="">Ingen</option>
-  `;
-}
-
 function readForm() {
   return {
     id: (els.gid.value || "").trim() || null,
-    surveytypeid: (els.gsurveytype.value || "").trim() || null,
-    name: (els.gname.value || "").trim(),
     title: (els.gtitle.value || "").trim(),
     description: (els.gdesc.value || "").trim() || null,
     sortorder: els.gsort.value === "" ? null : parseInt(els.gsort.value, 10),
     isactive: !!els.gactive.checked,
     repeatable: !!els.grepeatable.checked,
-    color: (els.gcolor.value || "").trim() || null
   };
 }
 
 function fillForm(g) {
-  els.gid.value = g.crcc8_lch_questiongroupid || "";
-  els.gname.value = g.crcc8_lch_name || "";
-  els.gtitle.value = g.crcc8_lch_title || "";
-  els.gdesc.value = g.crcc8_lch_description || "";
-  els.gsort.value = (g.crcc8_lch_sortorder ?? "") === null ? "" : (g.crcc8_lch_sortorder ?? "");
-  els.gactive.checked = (g.crcc8_lch_isactive ?? true) === true;
-  els.grepeatable.checked = (g.crcc8_crcc8_repeatable ?? false) === true;
-
-  // surveytype lookup value kommer som _crcc8_lch_surveytype_value
-  const st = g._crcc8_lch_surveytype_value || "";
-  els.gsurveytype.value = st;
-
-  // color (choice) – hvis du bruger den
-  els.gcolor.value = g.crcc8_lch_color ?? "";
+  els.gid.value = g.cr175_lch_kundeinfo_spoergsmaalsgruppeid || "";
+  els.gtitle.value = g.cr175_lch_titel || "";
+  els.gdesc.value = g.cr175_lch_description || "";
+  els.gsort.value = (g.cr175_lch_sorteringsnummer ?? "") === null ? "" : (g.cr175_lch_sorteringsnummer ?? "");
+  els.gactive.checked = (g.cr175_lch_aktiv ?? true) === true;
+  els.grepeatable.checked = (g.cr175_lch_kangentages ?? false) === true;
 }
 
 function resetForm() {
@@ -135,27 +94,19 @@ async function listGroups() {
   const data = await r.json();
   const rows = data?.value || data || [];
 
-  rows.sort((a,b) => (a.crcc8_lch_sortorder ?? 0) - (b.crcc8_lch_sortorder ?? 0));
+  rows.sort((a, b) => (a.cr175_lch_sorteringsnummer ?? 0) - (b.cr175_lch_sorteringsnummer ?? 0));
 
   rows.forEach(g => {
     const tr = document.createElement("tr");
 
-    const surveyTypeLabel =
-      g.crcc8_lch_surveytype?.crcc8_lch_type
-      ?? g['crcc8_lch_surveytype@OData.Community.Display.V1.FormattedValue']
-      ?? g['_crcc8_lch_surveytype_value@OData.Community.Display.V1.FormattedValue']
-      ?? '';
-
     tr.innerHTML = `
-      <td>${escapeHtml(surveyTypeLabel)}</td>
-      <td>${escapeHtml(g.crcc8_lch_sortorder ?? '')}</td>
-      <td>${escapeHtml(g.crcc8_lch_title ?? '')}</td>
-      <td>${escapeHtml(g.crcc8_lch_name ?? '')}</td>
-      <td>${(g.crcc8_lch_isactive ?? true) ? 'Ja' : 'Nej'}</td>
-      <td>${g.crcc8_crcc8_repeatable ? 'Ja' : 'Nej'}</td>
+      <td>${escapeHtml(g.cr175_lch_sorteringsnummer ?? '')}</td>
+      <td>${escapeHtml(g.cr175_lch_titel ?? '')}</td>
+      <td>${(g.cr175_lch_aktiv ?? true) ? 'Ja' : 'Nej'}</td>
+      <td>${g.cr175_lch_kangentages ? 'Ja' : 'Nej'}</td>
       <td class="actions">
-        <button data-act="edit" data-id="${g.crcc8_lch_questiongroupid}">Redigér</button>
-        <button data-act="del"  data-id="${g.crcc8_lch_questiongroupid}">Slet</button>
+        <button data-act="edit" data-id="${g.cr175_lch_kundeinfo_spoergsmaalsgruppeid}">Redigér</button>
+        <button data-act="del"  data-id="${g.cr175_lch_kundeinfo_spoergsmaalsgruppeid}">Slet</button>
       </td>
     `;
     els.tableBody.appendChild(tr);
@@ -168,8 +119,6 @@ async function upsertGroup(payload) {
   const isNew = !payload.id;
   els.status.textContent = isNew ? "Opretter…" : "Opdaterer…";
 
-  if (!payload.surveytypeid) throw new Error("Vælg surveytype");
-  if (!payload.name) throw new Error("Navn mangler");
   if (!payload.title) throw new Error("Titel mangler");
 
   const url = isNew
@@ -236,6 +185,7 @@ function wireEvents() {
         const g = await r.json();
         fillForm(g);
         els.status.textContent = "Indlæst – du redigerer nu";
+        window.scrollTo({ top: 0, behavior: "smooth" });
       } else if (act === "del") {
         await deleteGroup(id);
       }
@@ -254,15 +204,7 @@ async function init() {
   if (!me) return;
 
   wireEvents();
-  await loadGroupColors();
-
-  // kræver at du får /api/surveytypes-get deployed (se endpoints nedenfor)
-  await loadSurveyTypes();
-
   await listGroups();
 }
 
 document.addEventListener("DOMContentLoaded", init);
-
-
-

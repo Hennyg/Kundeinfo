@@ -1,3 +1,4 @@
+// /api/questiongroups-delete/index.js
 const { dvFetch } = require('../_dataverse');
 
 module.exports = async function (context, req) {
@@ -5,7 +6,7 @@ module.exports = async function (context, req) {
     const { id } = req.query;
     if (!id) return (context.res = { status: 400, body: 'Missing id' });
 
-    await dvFetch(`crcc8_lch_questiongroups(${id})`, {
+    await dvFetch(`cr175_lch_kundeinfo_spoergsmaalsgruppes(${id})`, {
       method: 'DELETE',
       headers: { 'If-Match': '*' }
     });
@@ -16,6 +17,3 @@ module.exports = async function (context, req) {
     context.res = { status: 500, body: err.message };
   }
 };
-
-
-

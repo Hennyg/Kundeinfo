@@ -9,35 +9,29 @@ module.exports = async function (context, req) {
     const p = req.body || {};
 
     const body = {
-      crcc8_lch_number: p.number,
-      crcc8_lch_text: p.text,
-      crcc8_lch_explanation: p.explanation ?? null,
-      crcc8_lch_answertype: p.answertype,
-      crcc8_lch_isrequired: !!p.isrequired,
-      crcc8_lch_sortorder: p.sortorder ?? null,
-      crcc8_lch_conditionalvalue: (p.conditionalvalue ?? null)
+      cr175_lch_nummer: p.number,
+      cr175_lch_spoergsmaalstekst: p.text,
+      cr175_lch_forklaring: p.explanation ?? null,
+      cr175_lch_svartype: p.answertype,
+      cr175_lch_paakraevet: !!p.isrequired,
+      cr175_lch_sorteringsnummer: p.sortorder ?? null
     };
 
-    // Legacy choice-group (valgfri)
-    if (p.group != null) {
-      body.crcc8_lch_group = p.group;
-    }
-
-if (p.questiongroupid) {
-  body['crcc8_lch_questiongroup@odata.bind'] = `/crcc8_lch_questiongroups(${p.questiongroupid})`;
-} else {
-  body.crcc8_lch_questiongroup = null;
-}
-
-    // conditionalon lookup bind/null
-    if (p.conditionalon) {
-      body['crcc8_lch_conditionalon@odata.bind'] =
-        `/crcc8_lch_questions(${p.conditionalon})`;
+    if (p.questiongroupid) {
+      body['cr175_lch_spoergsmaalsgruppe@odata.bind'] =
+        `/cr175_lch_kundeinfo_spoergsmaalsgruppes(${p.questiongroupid})`;
     } else {
-      body.crcc8_lch_conditionalon = null;
+      body.cr175_lch_spoergsmaalsgruppe = null;
     }
 
-    await dvFetch(`crcc8_lch_questions(${id})`, {
+    if (p.conditionalon) {
+      body['cr175_lch_betingetaf@odata.bind'] =
+        `/cr175_lch_kundeinfo_spoergsmaals(${p.conditionalon})`;
+    } else {
+      body.cr175_lch_betingetaf = null;
+    }
+
+    await dvFetch(`cr175_lch_kundeinfo_spoergsmaals(${id})`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'If-Match': '*' },
       body: JSON.stringify(body)
@@ -49,6 +43,3 @@ if (p.questiongroupid) {
     context.res = { status: 500, body: err.message };
   }
 };
-
-
-

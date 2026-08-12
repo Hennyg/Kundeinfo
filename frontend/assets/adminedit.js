@@ -1,5 +1,5 @@
 // /frontend/assets/adminedit.js
-// surveytype + questiongroup (lookup) + conditional dropdown + sortorder
+// spørgsmålsgruppe (lookup) + betinget-af dropdown + sortering
 
 let els = null;
 
@@ -29,17 +29,13 @@ function getEls() {
     qtext: document.getElementById('qtext'),
     qexplanation: document.getElementById('qexplanation'),
 
-    // NEW
-    qsurveytype: document.getElementById('qsurveytype'),
     qgroup: document.getElementById('qgroup'),
 
-    // sortorder (spørgsmålsrækkefølge indenfor gruppe)
     qsortorder: document.getElementById('qsortorder'),
 
     qanswertype: document.getElementById('qanswertype'),
     qrequired: document.getElementById('qrequired'),
     qconditionalon: document.getElementById('qconditionalon'),
-    qconditionalvalue: document.getElementById('qconditionalvalue')
   };
 }
 
@@ -68,7 +64,7 @@ function setAuthUI(isAuthed, userLabel) {
    Label maps (answer-type + group name)
 ----------------------- */
 let answerTypeLabelByValue = new Map();  // number -> label
-let groupNameById = new Map();           // guid -> short name
+let groupNameById = new Map();           // guid -> titel
 
 async function loadAnswerTypeLabelMap() {
   answerTypeLabelByValue = new Map();
@@ -76,16 +72,13 @@ async function loadAnswerTypeLabelMap() {
     const r = await fetch('/api/questions-metadata', { cache: "no-store" });
     if (!r.ok) throw new Error(`metadata fejl (${r.status})`);
     const meta = await r.json();
-    (meta.answertype || []).forEach(o => {
+    (meta.svartype || []).forEach(o => {
       const v = Number(o.value);
       if (!Number.isNaN(v)) answerTypeLabelByValue.set(v, String(o.label || ""));
     });
   } catch {
     // fallback hvis metadata fejler
-    answerTypeLabelByValue.set(100000000, "Ja/Nej");
-    answerTypeLabelByValue.set(100000001, "Tal");
-    answerTypeLabelByValue.set(100000002, "Tekst");
-    answerTypeLabelByValue.set(100000003, "Valgliste");
+    answerTypeLabelByValue.set(0, "Tekst");
   }
 }
 
@@ -97,9 +90,9 @@ async function loadGroupNameMap() {
     const data = await r.json();
     const rows = data?.value || data || [];
     rows.forEach(g => {
-      const id = g.crcc8_lch_questiongroupid || g.id;
-      const name = g.crcc8_lch_name || g.name || "";     // <-- SHORT NAME
-      if (id) groupNameById.set(String(id), String(name));
+      const id = g.cr175_lch_kundeinfo_spoergsmaalsgruppeid;
+      const title = g.cr175_lch_titel || "";
+      if (id) groupNameById.set(String(id), String(title));
     });
   } catch {
     // ok hvis den fejler – vi har stadig expand i questions-get
@@ -107,44 +100,27 @@ async function loadGroupNameMap() {
 }
 
 function getGroupLabel(q) {
-  // 1) expand objekt -> brug NAME (kort)
-  const expandedName =
-    q.crcc8_lch_questiongroup?.crcc8_lch_name ??
-    q.crcc8_lch_questiongroup?.name ??
-    null;
+  const expandedTitle = q.cr175_lch_spoergsmaalsgruppe?.cr175_lch_titel ?? null;
+  if (expandedTitle) return String(expandedTitle);
 
-  if (expandedName) return String(expandedName);
-
-  // 2) formatted value (hvis du en dag får annotations med)
   const formatted =
-    q['_crcc8_lch_questiongroup_value@OData.Community.Display.V1.FormattedValue'] ??
-    q['crcc8_lch_questiongroup@OData.Community.Display.V1.FormattedValue'] ??
-    null;
-
+    q['_cr175_lch_spoergsmaalsgruppe_value@OData.Community.Display.V1.FormattedValue'] ?? null;
   if (formatted) return String(formatted);
 
-  // 3) fallback: map via groupId
-  const gid =
-    q._crcc8_lch_questiongroup_value ??
-    q.crcc8_lch_questiongroupid ??
-    null;
-
+  const gid = q._cr175_lch_spoergsmaalsgruppe_value ?? null;
   if (gid && groupNameById.has(String(gid))) return groupNameById.get(String(gid));
 
   return "";
 }
 
 function getAnswerTypeLabel(q) {
-  // 1) formatted value (hvis annotations er med)
-  const formatted = q['crcc8_lch_answertype@OData.Community.Display.V1.FormattedValue'];
+  const formatted = q['cr175_lch_svartype@OData.Community.Display.V1.FormattedValue'];
   if (formatted) return String(formatted);
 
-  // 2) map tal -> label
-  const raw = q.crcc8_lch_answertype;
+  const raw = q.cr175_lch_svartype;
   const v = raw == null ? null : Number(raw);
   if (v != null && answerTypeLabelByValue.has(v)) return answerTypeLabelByValue.get(v);
 
-  // 3) fallback
   return (raw ?? "").toString();
 }
 
@@ -152,73 +128,31 @@ function getAnswerTypeLabel(q) {
    Load answer-type options (dropdown)
 ----------------------- */
 async function loadAnswerTypeOptions() {
-  // genbrug samme endpoint, men dropdown skal vise labels
   try {
     const r = await fetch('/api/questions-metadata', { cache: "no-store" });
     if (!r.ok) throw new Error(`metadata fejl (${r.status})`);
     const meta = await r.json();
 
     if (!els.qanswertype) return;
-    els.qanswertype.innerHTML = (meta.answertype || [])
+    els.qanswertype.innerHTML = (meta.svartype || [])
       .map(o => `<option value="${o.value}">${escapeHtml(o.label)}</option>`)
       .join('');
   } catch (e) {
-    console.warn("Fald tilbage til hardcoded answertype:", e);
-    if (!els.qanswertype) return;
-    els.qanswertype.innerHTML = `
-      <option value="100000000">Ja/Nej</option>
-      <option value="100000001">Tal</option>
-      <option value="100000002">Tekst</option>
-      <option value="100000003">Valgliste</option>
-    `;
+    console.warn("Kunne ikke hente svar-typer fra metadata:", e);
   }
 }
 
 /* -----------------------
-   Surveytypes + Groups (lookup)
+   Groups (lookup)
 ----------------------- */
-let surveyTypesCache = [];   // [{id,type}]
-let groupsCache = [];        // [{id,title,name,sortorder,isactive,surveyTypeId}]
+let groupsCache = [];
 
-async function loadSurveyTypes() {
-  if (!els.qsurveytype) return;
-
-  els.qsurveytype.innerHTML = `<option value="">Indlæser…</option>`;
-  const r = await fetch('/api/surveytypes-get', { cache: "no-store" });
-
-  if (!r.ok) {
-    const text = await r.text().catch(() => "");
-    console.error("surveytypes-get fejlede:", r.status, text);
-    els.qsurveytype.innerHTML = `<option value="">Fejl ved hentning</option>`;
-    return;
-  }
-
-  const data = await r.json();
-  const rows = data?.value || data || [];
-  surveyTypesCache = rows.map(x => ({
-    id: x.crcc8_lch_surveytypeid || x.id,
-    type: x.crcc8_lch_type || x.type || x.name
-  }));
-
-  els.qsurveytype.innerHTML =
-    `<option value="">Vælg surveytype…</option>` +
-    surveyTypesCache.map(st =>
-      `<option value="${st.id}">${escapeHtml(st.type)}</option>`
-    ).join('');
-}
-
-async function loadGroupsForSurveyType(surveyTypeId) {
+async function loadGroups() {
   if (!els.qgroup) return;
-
-  if (!surveyTypeId) {
-    els.qgroup.innerHTML = `<option value="">Vælg surveytype først…</option>`;
-    groupsCache = [];
-    return;
-  }
 
   els.qgroup.innerHTML = `<option value="">Indlæser…</option>`;
 
-  const r = await fetch(`/api/questiongroups-get?surveyTypeId=${encodeURIComponent(surveyTypeId)}`, { cache: "no-store" });
+  const r = await fetch('/api/questiongroups-get?top=500', { cache: "no-store" });
 
   if (!r.ok) {
     const text = await r.text().catch(() => "");
@@ -232,50 +166,48 @@ async function loadGroupsForSurveyType(surveyTypeId) {
   const rows = data?.value || data || [];
 
   groupsCache = rows.map(g => ({
-    id: g.crcc8_lch_questiongroupid || g.id,
-    title: g.crcc8_lch_title || g.title || "",
-    name: g.crcc8_lch_name || g.name || "",     // <-- kort navn
-    sortorder: g.crcc8_lch_sortorder ?? g.sortorder ?? 0,
-    isactive: g.crcc8_lch_isactive ?? g.isactive ?? true,
-    surveyTypeId: surveyTypeId
+    id: g.cr175_lch_kundeinfo_spoergsmaalsgruppeid,
+    title: g.cr175_lch_titel || "",
+    sortorder: g.cr175_lch_sorteringsnummer ?? 0,
+    isactive: g.cr175_lch_aktiv ?? true,
   }));
 
-  groupsCache.sort((a,b) => (a.sortorder ?? 0) - (b.sortorder ?? 0));
+  groupsCache.sort((a, b) => (a.sortorder ?? 0) - (b.sortorder ?? 0));
 
-  // dropdown: vis name (kort)
   els.qgroup.innerHTML =
     `<option value="">Vælg gruppe…</option>` +
     groupsCache
       .filter(g => g.isactive !== false)
-      .map(g => `<option value="${g.id}">${escapeHtml(g.name || g.title)}</option>`)
+      .map(g => `<option value="${g.id}">${escapeHtml(g.title)}</option>`)
       .join('');
 }
 
 /* -----------------------
-   Conditional questions dropdown (surveytype-filter)
+   Conditional questions dropdown
 ----------------------- */
-async function loadConditionalQuestionsForSurveyType(surveyTypeId) {
+async function loadConditionalQuestions(excludeId) {
   if (!els.qconditionalon) return;
 
   els.qconditionalon.innerHTML = `<option value="">(Ingen)</option>`;
-  if (!surveyTypeId) return;
 
-  const r = await fetch(`/api/questions-get?top=500&surveyTypeId=${encodeURIComponent(surveyTypeId)}`, { cache: "no-store" });
+  const r = await fetch(`/api/questions-get?top=500`, { cache: "no-store" });
   if (!r.ok) {
-    console.warn("Kunne ikke hente conditional questions:", r.status);
+    console.warn("Kunne ikke hente betinget-af spørgsmål:", r.status);
     return;
   }
 
   const data = await r.json();
-  const rows = (data?.value || data || []);
-  rows.sort((a,b) => String(a.crcc8_lch_number||'').localeCompare(String(b.crcc8_lch_number||'')));
+  const rows = (data?.value || data || [])
+    .filter(q => q.cr175_lch_kundeinfo_spoergsmaalid !== excludeId);
+
+  rows.sort((a, b) => String(a.cr175_lch_nummer || '').localeCompare(String(b.cr175_lch_nummer || '')));
 
   els.qconditionalon.innerHTML =
     `<option value="">(Ingen)</option>` +
     rows.map(q => {
-      const id = q.crcc8_lch_questionid;
-      const num = q.crcc8_lch_number || '';
-      const txt = q.crcc8_lch_text || '';
+      const id = q.cr175_lch_kundeinfo_spoergsmaalid;
+      const num = q.cr175_lch_nummer || '';
+      const txt = q.cr175_lch_spoergsmaalstekst || '';
       return `<option value="${id}">${escapeHtml(num)} — ${escapeHtml(txt)}</option>`;
     }).join('');
 }
@@ -303,22 +235,22 @@ async function listQuestions() {
 
     els.tableBody.innerHTML = '';
     rows.forEach(q => {
-      const groupLabel = getGroupLabel(q);          // <-- NAME
-      const answertypeLabel = getAnswerTypeLabel(q); // <-- LABEL
-      const sort = q.crcc8_lch_sortorder ?? "";
-      const required = q.crcc8_lch_isrequired ? 'Ja' : 'Nej';
+      const groupLabel = getGroupLabel(q);
+      const answertypeLabel = getAnswerTypeLabel(q);
+      const sort = q.cr175_lch_sorteringsnummer ?? "";
+      const required = q.cr175_lch_paakraevet ? 'Ja' : 'Nej';
 
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${escapeHtml(q.crcc8_lch_number ?? '')}</td>
-        <td>${escapeHtml(q.crcc8_lch_text ?? '')}</td>
+        <td>${escapeHtml(q.cr175_lch_nummer ?? '')}</td>
+        <td>${escapeHtml(q.cr175_lch_spoergsmaalstekst ?? '')}</td>
         <td>${escapeHtml(groupLabel)}</td>
         <td>${escapeHtml(answertypeLabel)}</td>
         <td>${escapeHtml(sort)}</td>
         <td>${escapeHtml(required)}</td>
         <td class="actions">
-          <button data-act="edit" data-id="${q.crcc8_lch_questionid}">Redigér</button>
-          <button data-act="del" data-id="${q.crcc8_lch_questionid}">Slet</button>
+          <button data-act="edit" data-id="${q.cr175_lch_kundeinfo_spoergsmaalid}">Redigér</button>
+          <button data-act="del" data-id="${q.cr175_lch_kundeinfo_spoergsmaalid}">Slet</button>
         </td>
       `;
       els.tableBody.appendChild(tr);
@@ -335,7 +267,6 @@ async function listQuestions() {
    Form read/fill
 ----------------------- */
 function readForm() {
-  const surveyTypeId = (els.qsurveytype?.value || "").trim() || null;
   const groupId = (els.qgroup?.value || "").trim() || null;
 
   return {
@@ -344,7 +275,6 @@ function readForm() {
     text: (els.qtext?.value || "").trim(),
     explanation: (els.qexplanation?.value || "").trim() || null,
 
-    surveytypeid: surveyTypeId,
     questiongroupid: groupId,
 
     sortorder: (els.qsortorder?.value === "" ? null : parseInt(els.qsortorder.value, 10)),
@@ -353,49 +283,33 @@ function readForm() {
     isrequired: !!els.qrequired?.checked,
 
     conditionalon: (els.qconditionalon?.value || "").trim() || null,
-    conditionalvalue: (els.qconditionalvalue?.value || "").trim() || null
   };
 }
 
 function fillForm(q) {
   if (!q) return;
 
-  els.qid.value = q.crcc8_lch_questionid || '';
-  els.qnumber.value = q.crcc8_lch_number || '';
-  els.qtext.value = q.crcc8_lch_text || '';
-  els.qexplanation.value = q.crcc8_lch_explanation || '';
-  if (q.crcc8_lch_answertype != null) els.qanswertype.value = q.crcc8_lch_answertype;
-  els.qrequired.checked = !!q.crcc8_lch_isrequired;
-  els.qconditionalvalue.value = q.crcc8_lch_conditionalvalue || '';
-  if (els.qsortorder) els.qsortorder.value = (q.crcc8_lch_sortorder ?? "") === null ? "" : (q.crcc8_lch_sortorder ?? "");
+  const qid = q.cr175_lch_kundeinfo_spoergsmaalid || '';
+
+  els.qid.value = qid;
+  els.qnumber.value = q.cr175_lch_nummer || '';
+  els.qtext.value = q.cr175_lch_spoergsmaalstekst || '';
+  els.qexplanation.value = q.cr175_lch_forklaring || '';
+  if (q.cr175_lch_svartype != null) els.qanswertype.value = q.cr175_lch_svartype;
+  els.qrequired.checked = !!q.cr175_lch_paakraevet;
+  if (els.qsortorder) els.qsortorder.value = (q.cr175_lch_sorteringsnummer ?? "") === null ? "" : (q.cr175_lch_sorteringsnummer ?? "");
 
   const groupId =
-    q._crcc8_lch_questiongroup_value
-    ?? q.crcc8_lch_questiongroupid
-    ?? q.crcc8_lch_questiongroup?.crcc8_lch_questiongroupid
-    ?? q.crcc8_lch_questiongroup?.id
+    q._cr175_lch_spoergsmaalsgruppe_value
+    ?? q.cr175_lch_spoergsmaalsgruppe?.cr175_lch_kundeinfo_spoergsmaalsgruppeid
     ?? null;
 
-  const surveyTypeId =
-    q._crcc8_lch_surveytype_value
-    ?? q.crcc8_lch_surveytypeid
-    ?? q.crcc8_lch_questiongroup?._crcc8_lch_surveytype_value
-    ?? null;
-
-  // conditional lookup id
   const condId =
-    q._crcc8_lch_conditionalon_value
-    ?? q.crcc8_lch_conditionalon?._crcc8_lch_questionid_value
-    ?? q.crcc8_lch_conditionalon?.crcc8_lch_questionid
+    q._cr175_lch_betingetaf_value
     ?? null;
 
-  // Sæt surveytype først, load grupper + conditional, sæt values bagefter
   (async () => {
-    if (els.qsurveytype) {
-      els.qsurveytype.value = surveyTypeId || "";
-      await loadGroupsForSurveyType(els.qsurveytype.value);
-      await loadConditionalQuestionsForSurveyType(els.qsurveytype.value);
-    }
+    await loadConditionalQuestions(qid);
     if (els.qgroup) els.qgroup.value = groupId || "";
     if (els.qconditionalon) els.qconditionalon.value = condId || "";
   })();
@@ -406,13 +320,7 @@ function resetForm() {
   if (els.qid) els.qid.value = '';
   if (els.status) els.status.textContent = '';
   if (els.qsortorder) els.qsortorder.value = "";
-
-  if (els.qsurveytype?.value) {
-    loadGroupsForSurveyType(els.qsurveytype.value);
-    loadConditionalQuestionsForSurveyType(els.qsurveytype.value);
-  } else if (els.qgroup) {
-    els.qgroup.innerHTML = `<option value="">Vælg surveytype først…</option>`;
-  }
+  loadConditionalQuestions(null);
 }
 
 /* -----------------------
@@ -422,7 +330,6 @@ async function upsertQuestion(payload) {
   const isNew = !payload.id;
   if (els.status) els.status.textContent = isNew ? 'Opretter…' : 'Opdaterer…';
 
-  if (!payload.surveytypeid) throw new Error("Vælg en surveytype");
   if (!payload.questiongroupid) throw new Error("Vælg en gruppe");
 
   const url = isNew ? '/api/questions-post' : `/api/questions-patch?id=${encodeURIComponent(payload.id)}`;
@@ -459,13 +366,6 @@ async function deleteQuestion(id) {
    Events
 ----------------------- */
 function wireEvents() {
-  if (els.qsurveytype) {
-    els.qsurveytype.addEventListener("change", async () => {
-      await loadGroupsForSurveyType(els.qsurveytype.value);
-      await loadConditionalQuestionsForSurveyType(els.qsurveytype.value);
-    });
-  }
-
   if (els.form) {
     els.form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -496,6 +396,9 @@ function wireEvents() {
           const q = await r.json();
           fillForm(q);
           if (els.status) els.status.textContent = 'Indlæste eksisterende post – du redigerer nu';
+
+          // Hop til toppen af siden, så formularen er synlig uden at skulle rulle op
+          window.scrollTo({ top: 0, behavior: "smooth" });
         } else if (act === 'del') {
           await deleteQuestion(id);
         }
@@ -524,26 +427,15 @@ async function init() {
 
   wireEvents();
 
-  // labels først => så kan listen vise tekst (ikke tal)
   await Promise.all([
     loadAnswerTypeLabelMap(),
     loadGroupNameMap()
   ]);
 
   await loadAnswerTypeOptions();
-  await loadSurveyTypes();
-
-  // auto-vælg hvis kun én surveytype
-  if (els.qsurveytype && els.qsurveytype.options.length === 2) {
-    els.qsurveytype.selectedIndex = 1;
-  }
-
-  await loadGroupsForSurveyType(els.qsurveytype?.value || "");
-  await loadConditionalQuestionsForSurveyType(els.qsurveytype?.value || "");
+  await loadGroups();
+  await loadConditionalQuestions(null);
   await listQuestions();
 }
 
 document.addEventListener("DOMContentLoaded", init);
-
-
-

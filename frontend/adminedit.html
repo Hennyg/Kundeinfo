@@ -84,11 +84,6 @@
           </div>
 
           <div class="row">
-            <label for="qsurveytype">Surveytype</label>
-            <select id="qsurveytype" name="qsurveytype"></select>
-          </div>
-
-          <div class="row">
             <label for="qexplanation">Forklaring (valgfri)</label>
             <input id="qexplanation" name="qexplanation" />
           </div>
@@ -116,16 +111,17 @@
 
           <details style="margin:10px 0;">
             <summary>Betingelser (valgfrit)</summary>
-<div class="row">
-  <label for="qconditionalon">Betinget af (spørgsmål)</label>
-  <select id="qconditionalon" name="qconditionalon">
-    <option value="">(Ingen)</option>
-  </select>
-</div>
-            
             <div class="row">
-              <label for="qconditionalvalue">Betingelsesværdi</label>
-              <input id="qconditionalvalue" name="qconditionalvalue" placeholder="fx 'Ja' eller '1' afhængig af svartype" />
+              <label for="qconditionalon">Betinget af (spørgsmål)</label>
+              <select id="qconditionalon" name="qconditionalon">
+                <option value="">(Ingen)</option>
+              </select>
+            </div>
+            <div class="row">
+              <label></label>
+              <div class="muted" style="margin-top:-6px;">
+                Spørgsmålet vises kun i kundens skema, hvis det valgte spørgsmål har et svar.
+              </div>
             </div>
           </details>
 
@@ -178,6 +174,9 @@
   <script src="./assets/adminedit.js" type="module"></script>
 </body>
 </html>
+
+
+
 
 
 

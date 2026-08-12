@@ -70,18 +70,8 @@
           <input type="hidden" id="gid" />
 
           <div class="row">
-            <label for="gsurveytype">Skematype</label>
-            <select id="gsurveytype" required></select>
-          </div>
-
-          <div class="row">
-            <label for="gname">Navn (intern)</label>
-            <input id="gname" placeholder="fx billing" required />
-          </div>
-
-          <div class="row">
-            <label for="gtitle">Titel (visning)</label>
-            <input id="gtitle" placeholder="fx Fakturering" required />
+            <label for="gtitle">Titel</label>
+            <input id="gtitle" placeholder="fx Kontakt info ejer" required />
           </div>
 
           <div class="row">
@@ -111,11 +101,6 @@
             </div>
           </div>
 
-          <div class="row">
-            <label for="gcolor">Farve (valgfri)</label>
-            <select id="gcolor"></select>
-          </div>
-
           <div>
             <button type="submit" id="btnSave">Gem</button>
             <button type="button" id="btnReset">Nulstil</button>
@@ -132,10 +117,8 @@
         <table id="gtable">
           <thead>
             <tr>
-              <th>Skematype</th>
               <th>Sortering</th>
               <th>Titel</th>
-              <th>Navn</th>
               <th>Aktiv</th>
               <th>Gentages</th>
               <th style="width:180px;">Handling</th>
@@ -155,6 +138,9 @@
   <script src="./assets/adminquestiongroup.js" type="module"></script>
 </body>
 </html>
+
+
+
 
 
 

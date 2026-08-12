@@ -1,8 +1,10 @@
 // /api/questions-metadata/index.js
 const { dvFetch } = require('../_dataverse');
 
-async function getPicklist(logicalAttributeName) {
-  const path = `EntityDefinitions(LogicalName='crcc8_lch_question')/Attributes(LogicalName='${logicalAttributeName}')/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$select=LogicalName&$expand=OptionSet($select=Options)`;
+async function getPicklist(entityLogicalName, attributeLogicalName) {
+  const path =
+    `EntityDefinitions(LogicalName='${entityLogicalName}')/Attributes(LogicalName='${attributeLogicalName}')/` +
+    `Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$select=LogicalName&$expand=OptionSet($select=Options)`;
   const r = await dvFetch(path);
   const meta = await r.json();
   const options = meta?.OptionSet?.Options || [];
@@ -11,14 +13,10 @@ async function getPicklist(logicalAttributeName) {
 
 module.exports = async function (context, req) {
   try {
-    const group = await getPicklist('crcc8_lch_group');
-    const answertype = await getPicklist('crcc8_lch_answertype');
-    context.res = { body: { group, answertype } };
+    const svartype = await getPicklist('cr175_lch_kundeinfo_spoergsmaal', 'cr175_lch_svartype');
+    context.res = { body: { svartype } };
   } catch (err) {
     context.log.error(err);
     context.res = { status: 500, body: err.message };
   }
 };
-
-
-
