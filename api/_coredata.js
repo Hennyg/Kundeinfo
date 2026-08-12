@@ -4,10 +4,10 @@
 // tabellerne bor), som er et ANDET Dataverse-miljø end Kundeinfos eget
 // (crcc8_lch_*, styret af _dataverse.js/DV_RESOURCE_URL).
 //
-// Genbruger samme Entra-app-registrering som resten af Kundeinfo
-// (DV_TENANT_ID / DV_CLIENT_ID / DV_CLIENT_SECRET), med DV_HerrupPortal_URL
-// som "resource" (HerrupPortalens Dataverse-URL). Falder tilbage til
-// DV_URL / COREDATA_URL, hvis DV_HerrupPortal_URL ikke er sat.
+// Bruger sin EGEN app-registrering til HerrupPortal (HerrupPortal_ClientID /
+// HerrupPortal_ClientSecret), da Kundeinfos egen app-registrering (DV_CLIENT_ID)
+// ikke er medlem af HerrupPortal-miljøet. Deler stadig samme tenant
+// (DV_TENANT_ID), med DV_HerrupPortal_URL som "resource".
 
 const API_VER = "v9.2";
 
@@ -17,12 +17,12 @@ function getResource() {
 
 async function getCoredataToken() {
   const tenant = process.env.DV_TENANT_ID;
-  const clientId = process.env.DV_CLIENT_ID;
-  const clientSecret = process.env.DV_CLIENT_SECRET;
+  const clientId = process.env.HerrupPortal_ClientID;
+  const clientSecret = process.env.HerrupPortal_ClientSecret;
   const resource = getResource();
 
   if (!tenant || !clientId || !clientSecret || !resource) {
-    throw new Error("Mangler DV_TENANT_ID, DV_CLIENT_ID, DV_CLIENT_SECRET eller DV_HerrupPortal_URL app setting");
+    throw new Error("Mangler DV_TENANT_ID, HerrupPortal_ClientID, HerrupPortal_ClientSecret eller DV_HerrupPortal_URL app setting");
   }
 
   const body = new URLSearchParams({
