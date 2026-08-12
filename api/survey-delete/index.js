@@ -4,7 +4,7 @@
 // cr175_lch_kundeinfo_spoergeskemasvars-rækker (så der ikke efterlades
 // forældreløse rækker i Dataverse).
 
-const { dvFetch } = require("../_dataverse");
+const { cdFetch: dvFetch } = require("../_coredata");
 
 function json(context, status, body) {
   context.res = {

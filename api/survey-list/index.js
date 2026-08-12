@@ -1,5 +1,5 @@
 // /api/survey-list/index.js
-const { dvFetch } = require('../_dataverse');
+const { cdFetch: dvFetch } = require('../_coredata');
 
 function json(context, status, body) {
   context.res = {

@@ -3,7 +3,7 @@
 // Henter en kundeundersøgelse (via kode) + dens spørgeskemasvar-rækker, og
 // bygger den flade items/groups-struktur som kundesurvey.js forventer.
 
-const { dvFetch } = require("../_dataverse");
+const { cdFetch: dvFetch, getCoredataToken } = require("../_coredata");
 const { getStatusValues } = require("../_kundeundersoegelseStatus");
 
 function json(context, status, body) {
@@ -16,32 +16,6 @@ function json(context, status, body) {
 
 function escODataString(s) {
   return String(s ?? "").replace(/'/g, "''");
-}
-
-async function getCoredataToken() {
-  const tenant = process.env.DV_TENANT_ID;
-  const clientId = process.env.DV_CLIENT_ID;
-  const clientSecret = process.env.DV_CLIENT_SECRET;
-  const resource = process.env.COREDATA_URL;
-
-  if (!tenant || !clientId || !clientSecret || !resource) return null;
-
-  const body = new URLSearchParams({
-    grant_type: "client_credentials",
-    client_id: clientId,
-    client_secret: clientSecret,
-    scope: `${resource}/.default`
-  });
-
-  const r = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body
-  });
-
-  if (!r.ok) return null;
-  const j = await r.json();
-  return j.access_token || null;
 }
 
 async function fetchKundeAdresser(kundenr) {

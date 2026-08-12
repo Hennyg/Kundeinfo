@@ -1,5 +1,5 @@
 // /api/questions-delete/index.js
-const { dvFetch } = require('../_dataverse');
+const { cdFetch: dvFetch } = require('../_coredata');
 
 module.exports = async function (context, req) {
   try {

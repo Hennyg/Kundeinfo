@@ -4,7 +4,7 @@
 // cr175_lch_kundeinfo_spoergeskemasvars-række pr. spørgsmål/gentagelse med det
 // admin har forudfyldt.
 
-const { dvFetch } = require("../_dataverse");
+const { cdFetch: dvFetch } = require("../_coredata");
 const { getStatusValues } = require("../_kundeundersoegelseStatus");
 const crypto = require("crypto");
 

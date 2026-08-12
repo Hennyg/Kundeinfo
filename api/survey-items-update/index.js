@@ -7,7 +7,7 @@
 // Rører IKKE kundens eget indtastede svar (cr175_lch_svarvaerdi) – kun
 // cr175_lch_prefillvaerdi.
 
-const { dvFetch } = require("../_dataverse");
+const { cdFetch: dvFetch } = require("../_coredata");
 
 function json(context, status, body) {
   context.res = {

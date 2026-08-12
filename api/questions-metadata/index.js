@@ -1,5 +1,5 @@
 // /api/questions-metadata/index.js
-const { dvFetch } = require('../_dataverse');
+const { cdFetch: dvFetch } = require('../_coredata');
 
 async function getPicklist(entityLogicalName, attributeLogicalName) {
   const path =

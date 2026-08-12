@@ -5,7 +5,7 @@
 // (kundeundersoegelse, spoergsmaal, gentagelsesindeks) – findes rækken ikke
 // (kunden har selv tilføjet en gentagelse), oprettes den.
 
-const { dvFetch } = require("../_dataverse");
+const { cdFetch: dvFetch } = require("../_coredata");
 const { getStatusValues } = require("../_kundeundersoegelseStatus");
 
 function json(context, status, body) {

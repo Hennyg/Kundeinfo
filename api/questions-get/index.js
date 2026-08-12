@@ -1,5 +1,5 @@
 // /api/questions-get/index.js
-const { dvFetch } = require('../_dataverse');
+const { cdFetch: dvFetch } = require('../_coredata');
 
 const SELECT = [
   'cr175_lch_kundeinfo_spoergsmaalid',

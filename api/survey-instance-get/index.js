@@ -4,7 +4,7 @@
 // (prefillværdi pr. spørgsmål/repeatIndex), så admincreate.html kan indlæse
 // den til redigering.
 
-const { dvFetch } = require("../_dataverse");
+const { cdFetch: dvFetch } = require("../_coredata");
 
 function json(context, status, body) {
   context.res = {
