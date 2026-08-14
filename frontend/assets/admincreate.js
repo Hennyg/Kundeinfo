@@ -77,6 +77,12 @@ let editInstanceId = null;
 let kundeAdresserList = [];      // adresser fra /api/kunde-adresser (Uniconta/Dataverse)
 let contactAddressList = [];     // adresser fra kontaktpersoner (Entra ID, primaerAdresse)
 
+// "Leveringsadresse"-gruppen skal have lige så mange gentagelser som der er
+// adresser i kundelisten, og felterne skal autoudfyldes med adressen.
+const LEVERINGSADRESSE_TITEL = "leveringsadresse";
+const LEVERINGSADRESSE_ADRESSE_NR = "0090";     // "Leveringsadresse:"
+const LEVERINGSADRESSE_POSTBY_NR = "0100";      // "Postnummer og By:"
+
 function hideSuggestions() {
   els.customerSuggest.classList.add("hidden");
   els.customerSuggest.innerHTML = "";
@@ -469,6 +475,50 @@ function kundeAdresseRowHtml(a) {
 function updateKundeAdresseOptions(adresser) {
   kundeAdresserList = Array.isArray(adresser) ? adresser : [];
   refreshKundeAdresseOptions();
+  syncLeveringsadresseFromKundeliste();
+}
+
+function findLeveringsadresseTile() {
+  return [...els.prefillArea.querySelectorAll(".prefillGroup")].find(
+    t => String(t.querySelector(".prefillGroupBar span")?.textContent || "")
+      .trim().toLowerCase() === LEVERINGSADRESSE_TITEL
+  );
+}
+
+// Sørg for at "Leveringsadresse"-gruppen har lige så mange blokke som der er
+// adresser i kundelisten, og udfyld hver blok med den tilhørende adresse.
+// 3 adresser -> 3 blokke, 1 adresse -> kun 1 blok.
+function syncLeveringsadresseFromKundeliste() {
+  const tile = findLeveringsadresseTile();
+  if (!tile) return;
+
+  const groupId = tile.dataset.groupId;
+  const list = tile.querySelector(".prefillRepeatList");
+  const targetCount = Math.max(1, kundeAdresserList.length);
+
+  if (kundeAdresserList.length) {
+    kundeAdresserList.slice(0, targetCount).forEach((a, ri) => {
+      const cityLine = [a.postnr, a.by].filter(Boolean).join(" ");
+      fillPrefillForContact({
+        [LEVERINGSADRESSE_ADRESSE_NR]: a.adresse || "",
+        [LEVERINGSADRESSE_POSTBY_NR]: cityLine
+      }, ri);
+    });
+  } else {
+    // Ingen adresser fundet – ryd evt. autoudfyldte værdier fra en tidligere kunde
+    ensureRepeatBlocks(groupId, 0);
+    fillPrefillForContact({
+      [LEVERINGSADRESSE_ADRESSE_NR]: "",
+      [LEVERINGSADRESSE_POSTBY_NR]: ""
+    }, 0);
+  }
+
+  // Fjern overskydende blokke, hvis den forrige kunde havde flere adresser
+  if (list) {
+    [...list.querySelectorAll(".prefillRepeatBlock")]
+      .filter(b => Number.parseInt(b.dataset.repeatIndex || "0", 10) > targetCount - 1)
+      .forEach(b => b.remove());
+  }
 }
 
 function refreshKundeAdresseOptions() {
@@ -1454,6 +1504,3 @@ document.addEventListener(
     }
   }
 );
-
-
-
