@@ -854,6 +854,9 @@ async function loadEntraCustomerContacts(kundenr) {
 /* ---------- Samlet opslag: Uniconta + Kundeliste + Entra ID ---------- */
 
 async function runCustomerLookup(kundenr) {
+  const shouldContinue = await warnIfExistingSurveyForCustomer(kundenr);
+  if (!shouldContinue) return;
+
   const [unicontaFound, kundelisteFound, entraFound] = await Promise.all([
     loadUnicontaDebtor(kundenr),
     loadKundeliste(kundenr),
@@ -1194,7 +1197,7 @@ async function saveEditedInstance() {
 }
 
 // Tjekker om kunden allerede har et spørgeskema der ikke er afsluttet endnu.
-// Bruges til at advare admin før der oprettes endnu et.
+// Bruges til at advare admin, når kunden vælges.
 async function hasUnfinishedSurveyForCustomer(kundenummer) {
   const nr = String(kundenummer || "").trim();
   if (!nr) return false;
@@ -1209,8 +1212,33 @@ async function hasUnfinishedSurveyForCustomer(kundenummer) {
     return rows.some(r => r.afsluttet !== true);
   } catch (e) {
     console.error("Kunne ikke kontrollere eksisterende spørgeskemaer:", e);
-    return false; // Fejl i opslaget skal ikke blokere oprettelsen
+    return false; // Fejl i opslaget skal ikke blokere valget
   }
+}
+
+// Advarer admin hvis kunden allerede har et ikke-afsluttet spørgeskema, og
+// giver mulighed for at fortsætte eller annullere kundevalget.
+// Returnerer true hvis der skal fortsættes (indlæse kundedata), false hvis
+// kundevalget skal annulleres.
+async function warnIfExistingSurveyForCustomer(kundenummer) {
+  const hasUnfinished = await hasUnfinishedSurveyForCustomer(kundenummer);
+  if (!hasUnfinished) return true;
+
+  const proceed = window.confirm(
+    "Der findes allerede et spørgeskema for denne kunde, som ikke er afsluttet endnu.\n\n" +
+    "Vil du stadig fortsætte med denne kunde?"
+  );
+
+  if (!proceed) {
+    els.customerName.value = "";
+    delete els.customerName.dataset.kundeId;
+    delete els.customerName.dataset.kundenr;
+    delete els.customerName.dataset.kundenavn;
+    setStatus("Kundevalg annulleret – der findes allerede et igangværende skema for kunden.");
+    return false;
+  }
+
+  return true;
 }
 
 async function createOrSaveInstance() {
@@ -1247,18 +1275,6 @@ async function createOrSaveInstance() {
     const customerName =
       `${selectedCustomerName} ` +
       `(${customerNumber})`;
-
-    const hasUnfinished = await hasUnfinishedSurveyForCustomer(customerNumber);
-    if (hasUnfinished) {
-      const proceed = window.confirm(
-        "Der findes allerede et spørgeskema for denne kunde, som ikke er afsluttet endnu.\n\n" +
-        "Vil du stadig oprette et nyt?"
-      );
-      if (!proceed) {
-        setStatus("Oprettelse annulleret – der findes allerede et igangværende skema for kunden.");
-        return;
-      }
-    }
 
     const expiresRaw =
       els.expiresAt.value ||
