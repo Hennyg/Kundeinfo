@@ -191,6 +191,18 @@ function renderQuestions() {
         tag.textContent = (ri === 0) ? "1." : `${ri + 1}.`;
         head.appendChild(tag);
 
+        const right = document.createElement("div");
+        right.style.display = "flex";
+        right.style.alignItems = "center";
+        right.style.gap = "8px";
+
+        if (isRemoved) {
+          const badge = document.createElement("span");
+          badge.className = "removed-badge";
+          badge.textContent = "Slettet";
+          right.appendChild(badge);
+        }
+
         if (!isReadOnly()) {
           const toggleBtn = document.createElement("button");
           toggleBtn.type = "button";
@@ -201,9 +213,10 @@ function renderQuestions() {
             else removedRepeats.add(removedKey);
             renderQuestions();
           };
-          head.appendChild(toggleBtn);
+          right.appendChild(toggleBtn);
         }
 
+        head.appendChild(right);
         block.appendChild(head);
       }
 
