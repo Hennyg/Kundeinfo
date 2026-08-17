@@ -63,12 +63,70 @@ const removedRepeats = new Set();    // `${groupId}:${repeatIndex}`
 
 const ADDRESS_FIELD_NUMBERS = ["0090", "0190"];
 
-let kundeAdresserList = []; // adresser fra data.kundeAdresser (survey-start) – bruges til adresseforslag
+// De to felter der sammen udgør en leveringsadresse (linje 1 = vejnavn/nr,
+// linje 2 = postnummer + by). Bruges til at bygge adresseforslag dynamisk
+// og til at vise produkter pr. adresse.
+const LEVERINGSADRESSE_LINJE1_NR = "0090";
+const LEVERINGSADRESSE_LINJE2_NR = "0100";
+
+let kundeAdresserList = []; // adresser fra data.kundeAdresser (survey-start) – bruges til adresseforslag + produktinfo
 
 function formatAdresse(a) {
   if (!a) return "";
   const cityLine = [a.postnr, a.by].filter(Boolean).join(" ");
   return [a.adresse, cityLine].filter(Boolean).join(", ");
+}
+
+// Map: formateret adressetekst -> produkter (fra kundelisten), til visning
+// af "Produkter på denne adresse" under Leveringsadresse-blokke.
+function produkterByAddressText() {
+  const map = new Map();
+  for (const a of kundeAdresserList) {
+    const full = formatAdresse(a);
+    if (full && Array.isArray(a.produkter) && a.produkter.length) {
+      map.set(full, a.produkter);
+    }
+  }
+  return map;
+}
+
+// Adresseforslag til datalist: både adresser fra kundelisten og de adresser
+// der faktisk står i Leveringsadresse-blokkene på selve skemaet lige nu –
+// så en ny adresse kunden selv tilføjer, også bliver valgbar andre steder
+// (f.eks. "Primær arbejdsadresse").
+function collectAddressSuggestions() {
+  const set = new Set();
+
+  for (const a of kundeAdresserList) {
+    const full = formatAdresse(a);
+    if (full) set.add(full);
+  }
+
+  const byRepeat = new Map(); // `${groupId}|${ri}` -> { linje1, linje2 }
+  ui.form?.querySelectorAll(
+    `[data-number="${LEVERINGSADRESSE_LINJE1_NR}"], [data-number="${LEVERINGSADRESSE_LINJE2_NR}"]`
+  ).forEach(el => {
+    if (el.closest(".repeat-block.removed")) return;
+    const key = `${el.dataset.groupid}|${el.dataset.repeatindex}`;
+    const entry = byRepeat.get(key) || {};
+    if (el.dataset.number === LEVERINGSADRESSE_LINJE1_NR) entry.linje1 = (el.value || "").trim();
+    else entry.linje2 = (el.value || "").trim();
+    byRepeat.set(key, entry);
+  });
+
+  for (const { linje1, linje2 } of byRepeat.values()) {
+    const full = [linje1, linje2].filter(Boolean).join(", ");
+    if (full) set.add(full);
+  }
+
+  return [...set];
+}
+
+function refreshAddressSuggestions() {
+  if (!ui.kundeAdresseOptions) return;
+  ui.kundeAdresseOptions.innerHTML = collectAddressSuggestions()
+    .map(full => `<option value="${escapeHtml(full)}"></option>`)
+    .join("");
 }
 
 function buildInput(it, value) {
@@ -105,6 +163,7 @@ function buildInput(it, value) {
   el.dataset.questionid = it.questionId;
   el.dataset.groupid = it.groupId;
   el.dataset.repeatindex = String(it.repeatIndex);
+  el.dataset.number = String(it.number || "");
   if (it.required) el.required = true;
 
   return el;
@@ -113,6 +172,7 @@ function buildInput(it, value) {
 function renderQuestions() {
   ui.questions.innerHTML = "";
 
+  const produktMap = produkterByAddressText();
   const groups = [...(DATA.groups || [])].sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
 
   // Basale spørgsmål (repeatIndex 0) pr. gruppe – bruges som skabelon for gentagelser
@@ -250,10 +310,32 @@ function renderQuestions() {
         const input = buildInput(it, value);
         if (isReadOnly() || isRemoved) input.disabled = true;
         input.addEventListener("blur", () => autosaveOnBlur());
+        if (it.number === LEVERINGSADRESSE_LINJE1_NR || it.number === LEVERINGSADRESSE_LINJE2_NR) {
+          input.addEventListener("input", () => refreshAddressSuggestions());
+        }
         wrap.appendChild(input);
 
         block.appendChild(wrap);
       });
+
+      // Vis hvilke produkter der er registreret på denne leveringsadresse
+      // (samme info som ses på kundelisten i admincreate), hvis blokken har
+      // begge adressefelter og adressen matcher en kendt kundeliste-adresse.
+      if (!isRemoved) {
+        const linje1 = block.querySelector(`[data-number="${LEVERINGSADRESSE_LINJE1_NR}"]`)?.value?.trim() || "";
+        const linje2 = block.querySelector(`[data-number="${LEVERINGSADRESSE_LINJE2_NR}"]`)?.value?.trim() || "";
+        const fullAddress = [linje1, linje2].filter(Boolean).join(", ");
+        const produkter = fullAddress ? produktMap.get(fullAddress) : null;
+
+        if (produkter && produkter.length) {
+          const hint = document.createElement("div");
+          hint.className = "produkt-hint";
+          hint.innerHTML =
+            `<span class="muted">Produkter på denne adresse:</span> ` +
+            produkter.map(p => `<span class="produkt-pill">${escapeHtml(p.produkt)} × ${p.antal}</span>`).join("");
+          block.appendChild(hint);
+        }
+      }
 
       card.appendChild(block);
     }
@@ -279,6 +361,8 @@ function renderQuestions() {
 
     ui.questions.appendChild(card);
   }
+
+  refreshAddressSuggestions();
 }
 
 function initRepeatCounters() {
@@ -331,15 +415,6 @@ async function loadSurvey() {
 
 function updateKundeAdresseOptions(adresser) {
   kundeAdresserList = Array.isArray(adresser) ? adresser : [];
-
-  if (!ui.kundeAdresseOptions) return;
-
-  ui.kundeAdresseOptions.innerHTML = kundeAdresserList
-    .map(a => {
-      const full = formatAdresse(a);
-      return full ? `<option value="${escapeHtml(full)}"></option>` : "";
-    })
-    .join("");
 }
 
 let autosaveTimer = null;
