@@ -5,7 +5,7 @@
 // feltet blev oprettet i Maker Portal), så vi slår dem op dynamisk via metadata og
 // matcher på label-tekst i stedet for at gætte på tal.
 
-const { dvFetch } = require('./_dataverse');
+const { cdFetch: dvFetch } = require('./_coredata');
 
 let cache = null; // { byLabel: Map(lowercased label -> value), options: [{value,label}] }
 
