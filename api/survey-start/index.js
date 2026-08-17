@@ -37,7 +37,7 @@ async function fetchKundeAdresser(kundenr) {
     };
 
     const kundeUrl =
-      `${resource}/api/data/v9.2/${table}?$select=cr1eb_lch_kundeid&` +
+      `${resource}/api/data/v9.2/${table}?$select=cr1eb_lch_kundeid,cr1eb_lch_kundenr&` +
       `$filter=${encodeURIComponent(`cr1eb_lch_kundenr eq '${escODataString(kundenr)}'`)}&$top=1`;
 
     const kundeRes = await fetch(kundeUrl, { headers });
@@ -48,18 +48,53 @@ async function fetchKundeAdresser(kundenr) {
 
     const adresseUrl =
       `${resource}/api/data/v9.2/cr1eb_lch_kundeadresses?` +
-      `$select=cr1eb_lch_adresse,cr1eb_lch_postnr,cr1eb_lch_by&` +
+      `$select=cr1eb_lch_adressekey,cr1eb_lch_adresse,cr1eb_lch_postnr,cr1eb_lch_by&` +
       `$filter=${encodeURIComponent(`_cr1eb_lch_kunde_value eq '${kunde.cr1eb_lch_kundeid}'`)}&$top=50`;
 
     const adresseRes = await fetch(adresseUrl, { headers });
     if (!adresseRes.ok) return [];
     const adresseData = await adresseRes.json();
 
-    return (adresseData.value || []).map(a => ({
-      adresse: a.cr1eb_lch_adresse || "",
-      postnr: a.cr1eb_lch_postnr || "",
-      by: a.cr1eb_lch_by || ""
-    }));
+    // Produkter pr. adresse (samme kilde/logik som /api/kunde-adresser), så
+    // kundesurvey.js kan vise hvilke produkter der er registreret på hver
+    // leveringsadresse, ligesom på admincreate-siden.
+    const produktUrl =
+      `${resource}/api/data/v9.2/cr1eb_lch_kundeprodukts?` +
+      `$select=cr1eb_lch_adressekey,cr1eb_lch_produkt,cr1eb_lch_aktiv&` +
+      `$filter=${encodeURIComponent(`cr1eb_lch_kundenr eq '${escODataString(kunde.cr1eb_lch_kundenr || kundenr)}'`)}&$top=5000`;
+
+    const countsByAddressKey = {};
+    try {
+      const produktRes = await fetch(produktUrl, { headers });
+      if (produktRes.ok) {
+        const produktData = await produktRes.json();
+        for (const p of (produktData.value || [])) {
+          const aktiv = p.cr1eb_lch_aktiv ?? true;
+          if (!aktiv) continue;
+
+          const key = p.cr1eb_lch_adressekey || "";
+          const produkt = p.cr1eb_lch_produkt || "Ukendt";
+          if (!countsByAddressKey[key]) countsByAddressKey[key] = {};
+          countsByAddressKey[key][produkt] = (countsByAddressKey[key][produkt] || 0) + 1;
+        }
+      }
+    } catch {
+      // Produkter er kun til info – fejl her skal ikke blokere resten af siden.
+    }
+
+    return (adresseData.value || []).map(a => {
+      const counts = countsByAddressKey[a.cr1eb_lch_adressekey || ""] || {};
+      const produkter = Object.entries(counts)
+        .map(([produkt, antal]) => ({ produkt, antal }))
+        .sort((x, y) => y.antal - x.antal || x.produkt.localeCompare(y.produkt, "da"));
+
+      return {
+        adresse: a.cr1eb_lch_adresse || "",
+        postnr: a.cr1eb_lch_postnr || "",
+        by: a.cr1eb_lch_by || "",
+        produkter
+      };
+    });
   } catch {
     return [];
   }
