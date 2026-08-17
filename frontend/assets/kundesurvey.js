@@ -160,6 +160,7 @@ function buildInput(it, value) {
   }
 
   el.name = name;
+  el.autocomplete = "off";
   el.dataset.questionid = it.questionId;
   el.dataset.groupid = it.groupId;
   el.dataset.repeatindex = String(it.repeatIndex);
