@@ -3,7 +3,7 @@
 // Henter en kundeundersøgelse (via kode) + dens spørgeskemasvar-rækker, og
 // bygger den flade items/groups-struktur som kundesurvey.js forventer.
 
-const { cdFetch: dvFetch, getCoredataToken } = require("../_coredata");
+const { cdFetch: dvFetch } = require("../_coredata");
 const { getStatusValues } = require("../_kundeundersoegelseStatus");
 
 function json(context, status, body) {
@@ -18,6 +18,37 @@ function escODataString(s) {
   return String(s ?? "").replace(/'/g, "''");
 }
 
+// Selvstændigt token scopet til COREDATA_URL (Uniconta/kundeliste-miljøet).
+// NB: getCoredataToken() i _coredata.js scoper til HerrupPortal_URL (et andet
+// miljø/app-registrering) og kan derfor IKKE bruges til at kalde COREDATA_URL
+// – det giver et audience-mismatch og en fejlende (401) request, som fanges
+// af try/catch og stille returnerer en tom liste. Samme mønster som i
+// /api/kunde-adresser og /api/kunder-search.
+async function getUnicontaToken(resource) {
+  const tenant = process.env.DV_TENANT_ID;
+  const clientId = process.env.DV_CLIENT_ID;
+  const clientSecret = process.env.DV_CLIENT_SECRET;
+
+  if (!tenant || !clientId || !clientSecret || !resource) return null;
+
+  const body = new URLSearchParams({
+    grant_type: "client_credentials",
+    client_id: clientId,
+    client_secret: clientSecret,
+    scope: `${resource}/.default`
+  });
+
+  const r = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body
+  });
+
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) return null;
+  return j.access_token;
+}
+
 async function fetchKundeAdresser(kundenr) {
   try {
     if (!kundenr) return [];
@@ -26,7 +57,7 @@ async function fetchKundeAdresser(kundenr) {
     const table = process.env.COREDATA_KUNDE_TABEL;
     if (!resource || !table) return [];
 
-    const token = await getCoredataToken();
+    const token = await getUnicontaToken(resource);
     if (!token) return [];
 
     const headers = {
