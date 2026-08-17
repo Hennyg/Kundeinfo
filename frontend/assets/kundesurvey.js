@@ -61,41 +61,14 @@ let DATA = null;                     // { code, customerName, groups, items }
 const repeatCounters = {};           // groupId -> højeste synlige repeatIndex
 const removedRepeats = new Set();    // `${groupId}:${repeatIndex}`
 
-const ADDRESS_FIELD_NUMBERS = ["0190"];
+const ADDRESS_FIELD_NUMBERS = ["0090", "0190"];
 
-// Titel på den gentagelige gruppe der skal styres ud fra antal adresser
-// hentet i kundelisten (kunde-adresser / survey-start -> kundeAdresser).
-const LEVERINGSADRESSE_TITEL = "leveringsadresse";
-
-let kundeAdresserList = []; // adresser fra data.kundeAdresser (survey-start)
+let kundeAdresserList = []; // adresser fra data.kundeAdresser (survey-start) – bruges til adresseforslag
 
 function formatAdresse(a) {
   if (!a) return "";
   const cityLine = [a.postnr, a.by].filter(Boolean).join(" ");
   return [a.adresse, cityLine].filter(Boolean).join(", ");
-}
-
-function findLeveringsadresseGroup() {
-  return (DATA?.groups || []).find(
-    g => g.repeatable && String(g.title || "").trim().toLowerCase() === LEVERINGSADRESSE_TITEL
-  );
-}
-
-// Sørg for at "Leveringsadresse"-gruppen har lige så mange gentagelser som
-// der er adresser i kundeAdresserList. 3 adresser -> 3 blokke, 1 adresse ->
-// kun 1 blok (uanset hvad der evt. tidligere er gemt/fjernet).
-function syncLeveringsadresseRepeats() {
-  const g = findLeveringsadresseGroup();
-  if (!g) return;
-
-  const count = Math.max(1, kundeAdresserList.length);
-  repeatCounters[g.id] = count - 1;
-
-  // Fjern evt. "fjernet"-markeringer for gruppen, så antallet ikke
-  // begrænses af tidligere fravalg.
-  for (const key of [...removedRepeats]) {
-    if (key.startsWith(`${g.id}:`)) removedRepeats.delete(key);
-  }
 }
 
 function buildInput(it, value) {
@@ -198,17 +171,15 @@ function renderQuestions() {
       card.appendChild(desc);
     }
 
-    const isLeveringsadresseGroup = g.repeatable &&
-      String(g.title || "").trim().toLowerCase() === LEVERINGSADRESSE_TITEL;
-
     const maxRi = g.repeatable ? (repeatCounters[g.id] ?? 0) : 0;
 
     for (let ri = 0; ri <= maxRi; ri++) {
       const removedKey = `${g.id}:${ri}`;
-      if (removedRepeats.has(removedKey)) continue;
+      const isRemoved = removedRepeats.has(removedKey);
 
       const block = document.createElement("div");
       block.className = g.repeatable ? "repeat-block" : "";
+      if (isRemoved) block.classList.add("removed");
       block.id = `repeat_${g.id}_${ri}`;
 
       if (g.repeatable) {
@@ -220,15 +191,17 @@ function renderQuestions() {
         tag.textContent = (ri === 0) ? "1." : `${ri + 1}.`;
         head.appendChild(tag);
 
-        // Leveringsadresse-gruppen styres automatisk ud fra antal adresser
-        // hentet i kundelisten, så den skal ikke kunne fjernes/tilføjes manuelt.
-        if (ri > 0 && !isReadOnly() && !isLeveringsadresseGroup) {
-          const delBtn = document.createElement("button");
-          delBtn.type = "button";
-          delBtn.className = "btn danger";
-          delBtn.textContent = "Fjern";
-          delBtn.onclick = () => { removedRepeats.add(removedKey); renderQuestions(); };
-          head.appendChild(delBtn);
+        if (!isReadOnly()) {
+          const toggleBtn = document.createElement("button");
+          toggleBtn.type = "button";
+          toggleBtn.className = isRemoved ? "btn" : "btn danger";
+          toggleBtn.textContent = isRemoved ? "Fortryd" : "Slet";
+          toggleBtn.onclick = () => {
+            if (isRemoved) removedRepeats.delete(removedKey);
+            else removedRepeats.add(removedKey);
+            renderQuestions();
+          };
+          head.appendChild(toggleBtn);
         }
 
         block.appendChild(head);
@@ -247,14 +220,7 @@ function renderQuestions() {
           prefillText: prefillMap.get(`${bq.questionId}|${ri}`) || ""
         };
 
-        let value = valueMap.get(`${it.questionId}|${ri}`) || "";
-
-        // Auto-udfyld adressefeltet i Leveringsadresse-gruppen med den
-        // adresse (fra kundelisten) der svarer til denne gentagelse,
-        // hvis kunden ikke allerede har gemt/rettet en værdi.
-        if (!value && isLeveringsadresseGroup && ADDRESS_FIELD_NUMBERS.includes(String(it.number || ""))) {
-          value = formatAdresse(kundeAdresserList[ri]) || "";
-        }
+        const value = valueMap.get(`${it.questionId}|${ri}`) || "";
 
         const wrap = document.createElement("div");
         wrap.style.padding = "10px 0";
@@ -264,12 +230,12 @@ function renderQuestions() {
         label.innerHTML = `
           <div class="qtitle">${escapeHtml(it.text || "")} ${it.required ? '<span class="muted">(påkrævet)</span>' : ''}</div>
           ${it.explanation ? `<div class="qhelp">${escapeHtml(it.explanation)}</div>` : ""}
-          ${it.prefillText ? `<div class="prefill-box">Nuværende/forudfyldt: <strong>${escapeHtml(it.prefillText)}</strong></div>` : ""}
+          ${it.prefillText ? `<div class="prefill-box">Vores info:<br><strong>${escapeHtml(it.prefillText)}</strong></div>` : ""}
         `;
         wrap.appendChild(label);
 
         const input = buildInput(it, value);
-        if (isReadOnly()) input.disabled = true;
+        if (isReadOnly() || isRemoved) input.disabled = true;
         input.addEventListener("blur", () => autosaveOnBlur());
         wrap.appendChild(input);
 
@@ -279,7 +245,7 @@ function renderQuestions() {
       card.appendChild(block);
     }
 
-    if (g.repeatable && !isReadOnly() && !isLeveringsadresseGroup) {
+    if (g.repeatable && !isReadOnly()) {
       const addRow = document.createElement("div");
       addRow.className = "btnrow";
       addRow.style.marginTop = "8px";
@@ -332,7 +298,6 @@ async function loadSurvey() {
   ui.subtitle.textContent = `Kode: ${data?.code || code}`;
 
   updateKundeAdresseOptions(data?.kundeAdresser);
-  syncLeveringsadresseRepeats();
 
   if (isReadOnly()) {
     show(ui.readonlyBanner);
@@ -380,6 +345,8 @@ function collectAnswers() {
   const answers = [];
 
   inputs.forEach(el => {
+    if (el.closest(".repeat-block.removed")) return; // håndteres separat via collectRemoved()
+
     const questionId = (el.dataset.questionid || "").trim();
     const groupId = (el.dataset.groupid || "").trim();
     const repeatIndex = parseInt(el.dataset.repeatindex || "0", 10);
