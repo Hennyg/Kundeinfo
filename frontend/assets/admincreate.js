@@ -50,19 +50,21 @@ function showResult({ code, link, instanceId }) {
 }
 
 function getPrefillItems() {
-  return [...els.prefillArea.querySelectorAll("tr[data-qid]")].map(tr => {
-    const questionId = tr.dataset.qid || "";
-    const groupId = tr.dataset.groupId || "";
-    const repeatIndex = Number.parseInt(tr.dataset.repeatIndex || "0", 10) || 0;
-    const prefillText = tr.querySelector("[data-prefill]")?.value?.trim() || "";
+  return [...els.prefillArea.querySelectorAll("tr[data-qid]")]
+    .filter(tr => !tr.closest(".prefillGroup")?.classList.contains("excluded"))
+    .map(tr => {
+      const questionId = tr.dataset.qid || "";
+      const groupId = tr.dataset.groupId || "";
+      const repeatIndex = Number.parseInt(tr.dataset.repeatIndex || "0", 10) || 0;
+      const prefillText = tr.querySelector("[data-prefill]")?.value?.trim() || "";
 
-    return {
-      questionId,
-      groupId,
-      repeatIndex,
-      prefillText: prefillText || null
-    };
-  });
+      return {
+        questionId,
+        groupId,
+        repeatIndex,
+        prefillText: prefillText || null
+      };
+    });
 }
 
 /* ---------- Kunde-autocomplete (COREDATA) ---------- */
@@ -1057,11 +1059,15 @@ function rowsHtml(group, repeatIndex) {
     tile.innerHTML = `
       <div class="prefillGroupBar">
         <span>${escapeHtml(group.name)}</span>
-        ${group.repeatable
-          ? `<div class="prefillGroupActions">
-               <button type="button" class="prefillAddButton" data-add-repeat="1" title="Tilføj endnu en" aria-label="Tilføj endnu en">+</button>
-             </div>`
-          : ""}
+        <div class="prefillGroupActions">
+          <label class="prefillGroupIncludeToggle" title="Fravælg for at udelade denne gruppe fra skemaet til kunden">
+            <input type="checkbox" class="prefillGroupIncludeCheckbox" checked />
+            Medtag i skema
+          </label>
+          ${group.repeatable
+            ? `<button type="button" class="prefillAddButton" data-add-repeat="1" title="Tilføj endnu en" aria-label="Tilføj endnu en">+</button>`
+            : ""}
+        </div>
       </div>
       <div class="prefillGroupBody">
         <div class="prefillRepeatList">
@@ -1069,6 +1075,10 @@ function rowsHtml(group, repeatIndex) {
         </div>
       </div>
     `;
+
+    tile.querySelector(".prefillGroupIncludeCheckbox")?.addEventListener("change", (e) => {
+      tile.classList.toggle("excluded", !e.target.checked);
+    });
 
     tile.querySelector("[data-add-repeat]")?.addEventListener("click", () => {
       const list = tile.querySelector(".prefillRepeatList");
@@ -1183,6 +1193,26 @@ async function saveEditedInstance() {
   }
 }
 
+// Tjekker om kunden allerede har et spørgeskema der ikke er afsluttet endnu.
+// Bruges til at advare admin før der oprettes endnu et.
+async function hasUnfinishedSurveyForCustomer(kundenummer) {
+  const nr = String(kundenummer || "").trim();
+  if (!nr) return false;
+
+  try {
+    const data = await fetchJson(
+      `/api/survey-list?kundenummer=${encodeURIComponent(nr)}&top=20`,
+      { cache: "no-store" }
+    );
+    const rows = data?.value || [];
+    // afsluttet === false eller null (status ukendt) betragtes som "ikke afsluttet"
+    return rows.some(r => r.afsluttet !== true);
+  } catch (e) {
+    console.error("Kunne ikke kontrollere eksisterende spørgeskemaer:", e);
+    return false; // Fejl i opslaget skal ikke blokere oprettelsen
+  }
+}
+
 async function createOrSaveInstance() {
   if (editInstanceId) {
     return saveEditedInstance();
@@ -1217,6 +1247,18 @@ async function createOrSaveInstance() {
     const customerName =
       `${selectedCustomerName} ` +
       `(${customerNumber})`;
+
+    const hasUnfinished = await hasUnfinishedSurveyForCustomer(customerNumber);
+    if (hasUnfinished) {
+      const proceed = window.confirm(
+        "Der findes allerede et spørgeskema for denne kunde, som ikke er afsluttet endnu.\n\n" +
+        "Vil du stadig oprette et nyt?"
+      );
+      if (!proceed) {
+        setStatus("Oprettelse annulleret – der findes allerede et igangværende skema for kunden.");
+        return;
+      }
+    }
 
     const expiresRaw =
       els.expiresAt.value ||
