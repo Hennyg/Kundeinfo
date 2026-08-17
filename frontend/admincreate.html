@@ -376,6 +376,36 @@
       font-weight:600;
     }
 
+    .prefillGroupIncludeToggle {
+      display:flex;
+      align-items:center;
+      gap:6px;
+      font-size:13px;
+      font-weight:400;
+      color:#333;
+      white-space:nowrap;
+      cursor:pointer;
+    }
+
+    .prefillGroupIncludeToggle input {
+      width:16px;
+      height:16px;
+      cursor:pointer;
+    }
+
+    .prefillGroup.excluded {
+      opacity:.55;
+    }
+
+    .prefillGroup.excluded .prefillGroupBar {
+      background:#f3d9d9;
+    }
+
+    .prefillGroup.excluded .prefillGroupBody {
+      pointer-events:none;
+      filter: grayscale(40%);
+    }
+
     .prefillBottomActions {
       display:flex;
       align-items:center;
@@ -690,6 +720,3 @@
   ></script>
 </body>
 </html>
-
-
-
