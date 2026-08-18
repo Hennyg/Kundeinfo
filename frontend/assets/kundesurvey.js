@@ -61,6 +61,13 @@ let DATA = null;                     // { code, customerName, groups, items }
 const repeatCounters = {};           // groupId -> højeste synlige repeatIndex
 const removedRepeats = new Set();    // `${groupId}:${repeatIndex}`
 
+// Unik pr. sideindlæsning, tilføjes til hvert felts "name"-attribut.
+// Chromes autofill matcher gemte forslag på feltets name/id – uden dette
+// vil browseren efter et stykke tid begynde at foreslå tidligere indtastede
+// værdier (fra denne eller andre kunders skemaer) i adressefelter, selv med
+// autocomplete="off". Et unikt suffiks pr. load forhindrer den matchning.
+const FORM_INSTANCE_TOKEN = Math.random().toString(36).slice(2);
+
 const ADDRESS_FIELD_NUMBERS = ["0090", "0190"];
 
 // De to felter der sammen udgør en leveringsadresse (linje 1 = vejnavn/nr,
@@ -131,7 +138,7 @@ function refreshAddressSuggestions() {
 
 function buildInput(it, value) {
   const inputType = resolveInputType(it.answertype);
-  const name = `q_${it.questionId}_${it.repeatIndex}`;
+  const name = `q_${it.questionId}_${it.repeatIndex}_${FORM_INSTANCE_TOKEN}`;
   const isAddressField = ADDRESS_FIELD_NUMBERS.includes(String(it.number || ""));
 
   let el;
