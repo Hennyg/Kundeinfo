@@ -332,12 +332,17 @@ function fillPrefillFromUniconta() {
 
   const d = currentDebtor;
 
+  // Leverandørservice: hvis Uniconta-betalingsformen (Payment) ender på "L",
+  // har kunden leverandørservice i forvejen.
+  const harLeverandoerservice = /L$/i.test(String(d.payment || "").trim());
+
   fillPrefillFields({
     "0010": d.vatNumber || "",
     "0020": d.name || "",
     "0030": [d.address1, d.address2].filter(Boolean).join(", "),
     "0040": [d.zipCode, d.city].filter(Boolean).join(" "),
-    "0050": d.email || ""
+    "0050": d.email || "",
+    "0080": harLeverandoerservice ? "Ja" : "Nej"
   });
 }
 
