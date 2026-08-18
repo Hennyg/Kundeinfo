@@ -15,6 +15,8 @@ const ui = {
   readonlyBanner: $("readonlyBanner"),
   openAsCustomerLink: $("openAsCustomerLink"),
   kundeAdresseOptions: $("kundeAdresseOptions"),
+  finishModal: $("finishModal"),
+  finishModalClose: $("finishModalClose"),
 };
 
 function isReadOnly() {
@@ -263,7 +265,7 @@ function renderQuestions() {
       // felter har admin-prefill, og mindst ét besvaret felt er markeret som
       // kunde-oprettet (ny gentagelse via "+ Tilføj flere").
       const hasAnyPrefillInBlock = baseQs.some(bq => !!(prefillMap.get(`${bq.questionId}|${ri}`) || ""));
-      const isAddedBlock = isReadOnly() && !hasAnyPrefillInBlock && baseQs.some(bq => {
+      const isAddedBlock = !hasAnyPrefillInBlock && baseQs.some(bq => {
         const val = valueMap.get(`${bq.questionId}|${ri}`) || "";
         return !!val && (addedMap.get(`${bq.questionId}|${ri}`) || false);
       });
@@ -336,8 +338,8 @@ function renderQuestions() {
         // havde forudfyldt, eller selv har tilføjet (ny gentagelse/blok
         // uden admin-prefill) – kun relevant når man kigger skemaet
         // igennem bagefter (ro=1).
-        const isChangedFromPrefill = isReadOnly() && valuesDiffer(it.prefillText, value);
-        const isAddedByCustomer = isReadOnly() && !it.prefillText && it.addedByCustomer && !!value;
+        const isChangedFromPrefill = valuesDiffer(it.prefillText, value);
+        const isAddedByCustomer = !it.prefillText && it.addedByCustomer && !!value;
         const isMarked = isChangedFromPrefill || isAddedByCustomer;
 
         const wrap = document.createElement("div");
@@ -533,6 +535,7 @@ async function submitSurvey(code, finalize, opts = {}) {
     if (finalize) {
       ui.status.textContent = "Tak! Besvarelsen er sendt ✔";
       ui.form.querySelectorAll("input,textarea,select,button").forEach(x => x.disabled = true);
+      show(ui.finishModal);
     } else {
       ui.status.textContent = "Gemt ✔";
       if (!silent) {
@@ -562,6 +565,8 @@ async function init() {
       e.preventDefault();
       submitSurvey(code, true); // afslut
     });
+
+    ui.finishModalClose?.addEventListener("click", () => hide(ui.finishModal));
 
   } catch (e) {
     console.error(e);
