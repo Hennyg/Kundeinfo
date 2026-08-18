@@ -185,7 +185,11 @@ function buildInput(it, value) {
   el.dataset.groupid = it.groupId;
   el.dataset.repeatindex = String(it.repeatIndex);
   el.dataset.number = String(it.number || "");
-  if (it.required) el.required = true;
+  el.dataset.prefill = it.prefillText || "";
+  // Et påkrævet felt med en prefill-værdi ("Vores info") betragtes som
+  // udfyldt, selv hvis kunden ikke selv har skrevet noget i feltet – derfor
+  // sætter vi kun required, hvis der IKKE er en prefill-tekst at falde tilbage på.
+  if (it.required && !it.prefillText) el.required = true;
 
   return el;
 }
@@ -486,7 +490,9 @@ function collectAnswers() {
     const questionId = (el.dataset.questionid || "").trim();
     const groupId = (el.dataset.groupid || "").trim();
     const repeatIndex = parseInt(el.dataset.repeatindex || "0", 10);
-    const value = (el.value ?? "").trim();
+    const typedValue = (el.value ?? "").trim();
+    const prefillFallback = (el.dataset.prefill ?? "").trim();
+    const value = typedValue || prefillFallback;
 
     if (!questionId) return;
     answers.push({ questionId, groupId, repeatIndex, value: value || null });
