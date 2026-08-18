@@ -293,6 +293,10 @@ function fillForm(q) {
 
   els.qid.value = qid;
   els.qnumber.value = q.cr175_lch_nummer || '';
+  // Nummer bruges i koden til at slå specifikke spørgsmål op (prefill,
+  // adressefelter, produktvisning m.m.) – lås det derfor ved redigering af
+  // et eksisterende spørgsmål, så det ikke ændres ved en fejl.
+  els.qnumber.readOnly = true;
   els.qtext.value = q.cr175_lch_spoergsmaalstekst || '';
   els.qexplanation.value = q.cr175_lch_forklaring || '';
   if (q.cr175_lch_svartype != null) els.qanswertype.value = q.cr175_lch_svartype;
@@ -320,6 +324,7 @@ function resetForm() {
   if (els.qid) els.qid.value = '';
   if (els.status) els.status.textContent = '';
   if (els.qsortorder) els.qsortorder.value = "";
+  if (els.qnumber) els.qnumber.readOnly = false;
   loadConditionalQuestions(null);
 }
 
