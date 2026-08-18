@@ -19,6 +19,7 @@
     .muted { color:#666; }
     .hidden { display:none; }
     .tag { background:#eef; padding:2px 8px; border-radius:12px; font-size:12px; }
+    #qnumber[readonly] { background:#f0f0f0; color:#666; cursor:not-allowed; }
   </style>
 </head>
 
@@ -70,6 +71,11 @@
 
       <section class="card">
         <h2>Opret/ret spørgsmål</h2>
+        <p class="muted" style="margin-top:-4px;">
+          ⚠️ <strong>Nummer</strong> må ikke ændres på et eksisterende spørgsmål – flere steder i koden
+          (prefill, adressefelter, produktvisning m.m.) bruger nummeret til at slå specifikke spørgsmål op.
+          Ret teksten, ikke nummeret. Feltet er derfor låst, når du redigerer et eksisterende spørgsmål.
+        </p>
         <form id="questionForm">
           <input type="hidden" id="qid" />
 
@@ -174,9 +180,3 @@
   <script src="./assets/adminedit.js" type="module"></script>
 </body>
 </html>
-
-
-
-
-
-
