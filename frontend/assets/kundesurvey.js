@@ -875,6 +875,7 @@ function showChangesSummary() {
       ? (bySystemFull.get(system) || [])
       : (bySystemDiff.get(system) || []);
 
+    const hasContent = entries.length > 0;
     const { html: sectionHtml, text: sectionText } = buildAreaSummary(system, entries);
     const icon = SYSTEM_ICONS[system] || "❔";
     const btnId = `sendAreaBtn_${idx}`;
@@ -883,13 +884,13 @@ function showChangesSummary() {
       <div class="summary-card">
         <div class="summary-card-header">
           <h3 style="margin:0;">${icon} ${escapeHtml(system)}</h3>
-          <button type="button" class="btn" id="${btnId}">Send mail</button>
+          ${hasContent ? `<button type="button" class="btn" id="${btnId}">Send mail</button>` : ""}
         </div>
         ${sectionHtml}
       </div>
     `;
 
-    cardData.push({ btnId, system, entries });
+    if (hasContent) cardData.push({ btnId, system, entries });
   });
 
   ui.changesModalBody.innerHTML = html;
