@@ -595,35 +595,59 @@ async function init() {
   }
 }
 
-// Viser en opsummering af hvad kunden har rettet/tilføjet, så man ikke skal
-// gennemgå hele skemaet manuelt for at finde det. Bruges kun ved gennemsyn.
+// Afgør hvilket bagvedliggende system en gruppe hører til, så oversigten
+// kan vise rettelser/tilføjelser samlet pr. kilde. Rent visnings-formål lige
+// nu – ingen faktisk afsendelse endnu.
+function sourceSystemForGroup(title) {
+  const t = String(title || "").toLowerCase();
+  if (t.includes("leveringsadresse")) return "📍 Uniconta – kundeadresse";
+  if (t.includes("leverandørservice") || t.includes("leverandorservice")) return "🚚 Uniconta – leverandørservice";
+  if (t.includes("ejer")) return "👤 Entra ID – ejer";
+  if (t.includes("medarbejder")) return "👤 Entra ID – medarbejder";
+  return "📋 Internt (ingen kilde tilknyttet endnu)";
+}
+
+// Viser en opsummering af hvad kunden har rettet/tilføjet, grupperet efter
+// hvilket bagvedliggende system oplysningen hører til (Uniconta, Entra ID,
+// eller internt) – så man ikke skal gennemgå hele skemaet manuelt for at
+// finde det, og kan se hvor rettelserne skal fordeles til. Bruges kun ved
+// gennemsyn.
 function showChangesSummary() {
   if (!ui.changesModal || !ui.changesModalBody) return;
 
   const { changes, additions } = lastChangeSummary;
+  const allEntries = [
+    ...changes.map(c => ({ ...c, kind: "changed" })),
+    ...additions.map(a => ({ ...a, kind: "added" }))
+  ];
 
-  if (!changes.length && !additions.length) {
+  if (!allEntries.length) {
     ui.changesModalBody.innerHTML = `<p class="muted">Ingen rettelser fundet.</p>`;
-  } else {
-    let html = "";
-    if (changes.length) {
-      html += `<h3 style="margin:14px 0 6px;">Rettet af kunden</h3><ul style="margin:0;padding-left:18px;">`;
-      html += changes.map(c =>
-        `<li style="margin-bottom:8px;"><strong>${escapeHtml(c.group)} – ${escapeHtml(c.question)}:</strong><br>` +
-        `"${escapeHtml(c.before)}" → "${escapeHtml(c.after)}"</li>`
-      ).join("");
-      html += `</ul>`;
-    }
-    if (additions.length) {
-      html += `<h3 style="margin:14px 0 6px;">Tilføjet af kunden</h3><ul style="margin:0;padding-left:18px;">`;
-      html += additions.map(a =>
-        `<li style="margin-bottom:8px;"><strong>${escapeHtml(a.group)} – ${escapeHtml(a.question)}:</strong> "${escapeHtml(a.value)}"</li>`
-      ).join("");
-      html += `</ul>`;
-    }
-    ui.changesModalBody.innerHTML = html;
+    show(ui.changesModal);
+    return;
   }
 
+  const bySystem = new Map();
+  for (const entry of allEntries) {
+    const system = sourceSystemForGroup(entry.group);
+    if (!bySystem.has(system)) bySystem.set(system, []);
+    bySystem.get(system).push(entry);
+  }
+
+  let html = "";
+  for (const [system, entries] of bySystem) {
+    html += `<h3 style="margin:16px 0 6px;">${escapeHtml(system)}</h3><ul style="margin:0;padding-left:18px;">`;
+    html += entries.map(e => {
+      if (e.kind === "changed") {
+        return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> <span class="muted">(${escapeHtml(e.group)})</span><br>` +
+          `"${escapeHtml(e.before)}" → "${escapeHtml(e.after)}"</li>`;
+      }
+      return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> <span class="muted">(${escapeHtml(e.group)})</span> – tilføjet: "${escapeHtml(e.value)}"</li>`;
+    }).join("");
+    html += `</ul>`;
+  }
+
+  ui.changesModalBody.innerHTML = html;
   show(ui.changesModal);
 }
 
