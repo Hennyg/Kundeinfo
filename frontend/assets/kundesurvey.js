@@ -592,7 +592,7 @@ async function init() {
     ui.finishModalClose?.addEventListener("click", () => hide(ui.finishModal));
     ui.changesModalClose?.addEventListener("click", () => hide(ui.changesModal));
 
-    if (isReadOnly()) showChangesSummary();
+    if (isReadOnly() && DATA?.isFinished) showChangesSummary();
 
   } catch (e) {
     console.error(e);
