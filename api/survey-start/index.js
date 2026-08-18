@@ -175,7 +175,7 @@ module.exports = async function (context, req) {
       `&$filter=${encodeURIComponent(`_cr175_lch_kundeundersoegelse_value eq ${instanceId}`)}` +
       `&$expand=${encodeURIComponent(
         `cr175_lch_spoergsmaal($select=cr175_lch_kundeinfo_spoergsmaalid,cr175_lch_nummer,cr175_lch_spoergsmaalstekst,cr175_lch_forklaring,cr175_lch_svartype,cr175_lch_paakraevet,cr175_lch_sorteringsnummer;` +
-        `$expand=cr175_lch_spoergsmaalsgruppe($select=cr175_lch_kundeinfo_spoergsmaalsgruppeid,cr175_lch_titel,cr175_lch_description,cr175_lch_sorteringsnummer,cr175_lch_kangentages))`
+        `$expand=cr175_lch_spoergsmaalsgruppe($select=cr175_lch_kundeinfo_spoergsmaalsgruppeid,cr175_lch_titel,cr175_lch_description,cr175_lch_sorteringsnummer,cr175_lch_kangentages,cr175_lch_rapporterer_til))`
       )}`;
 
     const rowsRes = await dvFetch(rowsPath, {
@@ -213,7 +213,10 @@ module.exports = async function (context, req) {
           title: g ? (g.cr175_lch_titel || "Andet") : "Andet",
           description: g ? (g.cr175_lch_description || "") : "",
           sort: g ? (g.cr175_lch_sorteringsnummer ?? 0) : 999999,
-          repeatable: g ? !!g.cr175_lch_kangentages : false
+          repeatable: g ? !!g.cr175_lch_kangentages : false,
+          rapporterTil: g
+            ? (g["cr175_lch_rapporterer_til@OData.Community.Display.V1.FormattedValue"] || null)
+            : null
         });
       }
 
