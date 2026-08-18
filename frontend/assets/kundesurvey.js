@@ -63,7 +63,7 @@ function resolveInputType(answertypeLabel) {
 
 /* ---------- State ---------- */
 let DATA = null;                     // { code, customerName, groups, items }
-let lastChangeSummary = { changes: [], additions: [] }; // til opsummeringsdialog ved gennemsyn
+let lastChangeSummary = { changes: [], additions: [], allItems: [] }; // til opsummeringsdialog ved gennemsyn
 const repeatCounters = {};           // groupId -> højeste synlige repeatIndex
 const removedRepeats = new Set();    // `${groupId}:${repeatIndex}`
 
@@ -200,7 +200,7 @@ function buildInput(it, value) {
 
 function renderQuestions() {
   ui.questions.innerHTML = "";
-  lastChangeSummary = { changes: [], additions: [] };
+  lastChangeSummary = { changes: [], additions: [], allItems: [] };
 
   const produktMap = produkterByAddressText();
   const groups = [...(DATA.groups || [])].sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
@@ -362,6 +362,15 @@ function renderQuestions() {
             question: it.text || "", value
           });
         }
+
+        // Fuld liste af alle spørgsmål + effektivt svar (kundens svar hvis
+        // givet, ellers prefill) – bruges af SalesForce-oversigten, som skal
+        // vise alt, ikke kun det der er ændret/tilføjet. Er der rettet af
+        // kunden, er det kun det endelige svar der medtages (ikke prefill).
+        lastChangeSummary.allItems.push({
+          group: g, groupId: g.id, repeatIndex: ri, number: it.number,
+          question: it.text || "", value: value || it.prefillText || ""
+        });
 
         const wrap = document.createElement("div");
         wrap.style.padding = "10px 0";
@@ -604,7 +613,8 @@ async function init() {
 const SYSTEM_ICONS = {
   "Kontakter": "👤",
   "Kundeliste": "📋",
-  "Uniconta": "🏢"
+  "Uniconta": "🏢",
+  "SalesForce": "☁️"
 };
 const UKENDT_SYSTEM = "Ikke tildelt endnu";
 
@@ -663,119 +673,162 @@ function mergeAddressLineEntries(entries) {
   return merged;
 }
 
-const SYSTEM_ORDER = ["Kontakter", "Kundeliste", "Uniconta"];
+const SYSTEM_ORDER = ["Kontakter", "Kundeliste", "Uniconta", "SalesForce"];
+const SUMMARY_RECIPIENT = "hng@lcherrup.dk"; // fast modtager for nu
 
-// Bygger både HTML (til modalen) og en ren tekst-udgave (til "Kopiér",
-// klar til at sætte ind i en mail) for ét områdes rettelser/tilføjelser.
+// Bygger både HTML (til modalen) og en ren tekst-udgave for ét områdes
+// indhold. "changed"/"added" (Kontakter/Kundeliste/Uniconta) vises som en
+// diff (kun det der er rettet/tilføjet). "full" (SalesForce) viser alle
+// spørgsmål med det endelige svar – er der rettet, vises kun den nye værdi,
+// ikke den oprindelige prefill.
 function buildAreaSummary(system, entries) {
-  const icon = SYSTEM_ICONS[system] || "❔";
-  const header = `Spørgeskema ${DATA?.code || ""} – ${DATA?.customerName || ""}\n${system}: rettelser/tilføjelser`;
+  const emptyMsg = "Ingen rettelser fundet.";
 
   if (!entries.length) {
-    return {
-      html: `<p class="muted" style="margin:0;">Ingen rettelser fundet.</p>`,
-      text: `${header}\n\nIngen rettelser fundet.`
-    };
+    return { html: `<p class="muted" style="margin:0;">${emptyMsg}</p>`, text: emptyMsg };
   }
 
-  const lines = entries.map(e => {
+  const lineFor = (e) => {
     const groupTitle = e.group?.title || "";
-    return e.kind === "changed"
-      ? `${e.question} (${groupTitle}): "${e.before}" → "${e.after}"`
-      : `${e.question} (${groupTitle}) – tilføjet: "${e.value}"`;
-  });
+    if (e.kind === "changed") return `${e.question} (${groupTitle}): "${e.before}" → "${e.after}"`;
+    if (e.kind === "full") return `${e.question} (${groupTitle}): ${e.value || "(ikke udfyldt)"}`;
+    return `${e.question} (${groupTitle}) – tilføjet: "${e.value}"`;
+  };
 
-  const html = `<ul style="margin:0;padding-left:18px;">` +
-    entries.map(e => {
-      const groupTitle = e.group?.title || "";
-      if (e.kind === "changed") {
-        return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> <span class="muted">(${escapeHtml(groupTitle)})</span><br>` +
-          `"${escapeHtml(e.before)}" → "${escapeHtml(e.after)}"</li>`;
-      }
-      return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> <span class="muted">(${escapeHtml(groupTitle)})</span> – tilføjet: "${escapeHtml(e.value)}"</li>`;
-    }).join("") +
-    `</ul>`;
+  const liFor = (e) => {
+    const groupTitle = e.group?.title || "";
+    if (e.kind === "changed") {
+      return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> <span class="muted">(${escapeHtml(groupTitle)})</span><br>` +
+        `"${escapeHtml(e.before)}" → "${escapeHtml(e.after)}"</li>`;
+    }
+    if (e.kind === "full") {
+      return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> <span class="muted">(${escapeHtml(groupTitle)})</span><br>${escapeHtml(e.value || "(ikke udfyldt)")}</li>`;
+    }
+    return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> <span class="muted">(${escapeHtml(groupTitle)})</span> – tilføjet: "${escapeHtml(e.value)}"</li>`;
+  };
 
-  return { html, text: `${header}\n\n${lines.join("\n")}` };
+  const html = `<ul style="margin:0;padding-left:18px;">` + entries.map(liFor).join("") + `</ul>`;
+  const text = entries.map(lineFor).join("\n");
+
+  return { html, text };
 }
 
-async function copyAreaSummary(text, btn) {
+// Sender ét områdes opsummering som mail via /api/survey-send-summary-mail.
+// Afsender bliver den bruger der er logget ind (bestemt server-side).
+async function sendAreaMail(system, html, btn) {
+  const subjectPrefix = `Spørgeskema ${DATA?.code || ""} – ${DATA?.customerName || ""}`;
+  const fullHtml =
+    `<p><strong>${escapeHtml(subjectPrefix)}</strong><br>${escapeHtml(system)}</p>` +
+    html;
+
+  if (btn) { btn.disabled = true; btn.textContent = "Sender…"; }
+
   try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    const tmp = document.createElement("textarea");
-    tmp.value = text;
-    tmp.style.position = "fixed";
-    tmp.style.opacity = "0";
-    document.body.appendChild(tmp);
-    tmp.focus();
-    tmp.select();
-    try { document.execCommand("copy"); } catch { /* ignore */ }
-    tmp.remove();
-  }
-  if (btn) {
-    const original = btn.textContent;
-    btn.textContent = "Kopieret ✔";
-    setTimeout(() => { btn.textContent = original; }, 1500);
+    await fetchJson("/api/survey-send-summary-mail", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: SUMMARY_RECIPIENT,
+        subject: `${subjectPrefix} – ${system}`,
+        html: fullHtml
+      })
+    });
+    if (btn) { btn.textContent = "Sendt ✔"; setTimeout(() => { btn.textContent = "Send mail"; btn.disabled = false; }, 2000); }
+    return true;
+  } catch (e) {
+    console.error(e);
+    if (btn) { btn.textContent = "Fejl – prøv igen"; btn.disabled = false; }
+    return false;
   }
 }
 
-// Viser en opsummering af hvad kunden har rettet/tilføjet, altid opdelt i 3
-// separate kort – ét pr. område (Kontakter, Kundeliste, Uniconta) – hver med
-// egen "Kopiér"-knap, så det er nemt at sende en mail pr. område uden at
-// skulle klippe det ud af en samlet liste. Bruges kun ved gennemsyn.
+// Viser en opsummering af hvad kunden har rettet/tilføjet, altid opdelt i
+// separate kort – ét pr. område (Kontakter, Kundeliste, Uniconta,
+// SalesForce). Hvert kort har en "Send mail"-knap, og der er en "Send
+// alle"-knap i toppen der sender dem alle efter hinanden. Bruges kun ved
+// gennemsyn af et afsluttet skema.
 function showChangesSummary() {
   if (!ui.changesModal || !ui.changesModalBody) return;
 
-  const { changes, additions } = lastChangeSummary;
-  const allEntries = mergeAddressLineEntries([
+  const { changes, additions, allItems } = lastChangeSummary;
+
+  const diffEntries = mergeAddressLineEntries([
     ...changes.map(c => ({ ...c, kind: "changed" })),
     ...additions.map(a => ({ ...a, kind: "added" }))
   ]);
+  const fullEntries = mergeAddressLineEntries(allItems.map(a => ({ ...a, kind: "full" })));
 
-  const bySystem = new Map();
-  for (const entry of allEntries) {
-    const systems = sourceSystemsForGroup(entry.group);
-    for (const system of systems) {
-      if (!bySystem.has(system)) bySystem.set(system, []);
-      bySystem.get(system).push(entry);
+  const bySystemDiff = new Map();
+  for (const entry of diffEntries) {
+    for (const system of sourceSystemsForGroup(entry.group)) {
+      if (system === "SalesForce") continue; // SalesForce bruger den fulde liste, ikke kun ændringer
+      if (!bySystemDiff.has(system)) bySystemDiff.set(system, []);
+      bySystemDiff.get(system).push(entry);
     }
   }
 
-  // Vis altid alle kendte områder, også dem uden rettelser – "ingen
-  // rettelser fundet" er stadig et svar for det område.
+  const bySystemFull = new Map();
+  for (const entry of fullEntries) {
+    if (!sourceSystemsForGroup(entry.group).includes("SalesForce")) continue;
+    if (!bySystemFull.has("SalesForce")) bySystemFull.set("SalesForce", []);
+    bySystemFull.get("SalesForce").push(entry);
+  }
+
+  // Vis altid alle kendte områder, også dem uden indhold.
   const systemsToShow = [...SYSTEM_ORDER];
-  for (const system of bySystem.keys()) {
+  for (const system of [...bySystemDiff.keys(), ...bySystemFull.keys()]) {
     if (!systemsToShow.includes(system)) systemsToShow.push(system);
   }
 
-  const copyHandlers = [];
-  let html = "";
+  const cardData = [];
+  let html = `
+    <div style="text-align:right; margin-bottom:12px;">
+      <button type="button" class="btn primary" id="sendAllAreasBtn">Send alle</button>
+    </div>
+  `;
 
   systemsToShow.forEach((system, idx) => {
-    const entries = bySystem.get(system) || [];
-    const { html: sectionHtml, text } = buildAreaSummary(system, entries);
+    const entries = system === "SalesForce"
+      ? (bySystemFull.get(system) || [])
+      : (bySystemDiff.get(system) || []);
+
+    const { html: sectionHtml, text: sectionText } = buildAreaSummary(system, entries);
     const icon = SYSTEM_ICONS[system] || "❔";
-    const btnId = `copyAreaBtn_${idx}`;
+    const btnId = `sendAreaBtn_${idx}`;
 
     html += `
       <div class="summary-card">
         <div class="summary-card-header">
           <h3 style="margin:0;">${icon} ${escapeHtml(system)}</h3>
-          <button type="button" class="btn" id="${btnId}">Kopiér</button>
+          <button type="button" class="btn" id="${btnId}">Send mail</button>
         </div>
         ${sectionHtml}
       </div>
     `;
 
-    copyHandlers.push({ btnId, text });
+    cardData.push({ btnId, system, sectionHtml, sectionText });
   });
 
   ui.changesModalBody.innerHTML = html;
 
-  copyHandlers.forEach(({ btnId, text }) => {
+  cardData.forEach(({ btnId, system, sectionHtml }) => {
     const btn = document.getElementById(btnId);
-    btn?.addEventListener("click", () => copyAreaSummary(text, btn));
+    btn?.addEventListener("click", () => sendAreaMail(system, sectionHtml, btn));
+  });
+
+  document.getElementById("sendAllAreasBtn")?.addEventListener("click", async (e) => {
+    const allBtn = e.currentTarget;
+    allBtn.disabled = true;
+    const original = allBtn.textContent;
+    allBtn.textContent = "Sender alle…";
+
+    for (const { btnId, system, sectionHtml } of cardData) {
+      const btn = document.getElementById(btnId);
+      await sendAreaMail(system, sectionHtml, btn);
+    }
+
+    allBtn.textContent = "Alle sendt ✔";
+    setTimeout(() => { allBtn.textContent = original; allBtn.disabled = false; }, 2000);
   });
 
   show(ui.changesModal);
