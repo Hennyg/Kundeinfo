@@ -56,6 +56,7 @@ function rowHtml(row) {
 
   const seSkemaLink = code ? `./kundesurvey.html?code=${encodeURIComponent(code)}&ro=1` : "#";
   const prefillLink = id ? `./admincreate.html?instanceId=${encodeURIComponent(id)}` : "#";
+  const customerLink = code ? `${window.location.origin}/kundesurvey.html?code=${encodeURIComponent(code)}` : "";
 
   return `
     <tr>
@@ -68,9 +69,32 @@ function rowHtml(row) {
       <td>
         <a class="tag" href="${seSkemaLink}" target="_blank" rel="noopener">Se skema</a>
         <a class="tag" href="${prefillLink}">Prefill</a>
+        ${customerLink
+          ? `<a class="tag copyLinkBtn" href="#" data-link="${escapeHtml(customerLink)}">Kopi link</a>`
+          : ""}
       </td>
     </tr>
   `;
+}
+
+async function copyLink(link) {
+  try {
+    await navigator.clipboard.writeText(link);
+    return true;
+  } catch {
+    // Fallback for browsere/kontekster uden Clipboard API-adgang
+    const tmp = document.createElement("textarea");
+    tmp.value = link;
+    tmp.style.position = "fixed";
+    tmp.style.opacity = "0";
+    document.body.appendChild(tmp);
+    tmp.focus();
+    tmp.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch { ok = false; }
+    tmp.remove();
+    return ok;
+  }
 }
 
 function updateSelectionUi() {
@@ -163,6 +187,19 @@ async function load() {
       cb.addEventListener("change", updateSelectionUi);
     });
     updateSelectionUi();
+
+    tbody.querySelectorAll(".copyLinkBtn").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        const link = btn.dataset.link || "";
+        if (!link) return;
+
+        const ok = await copyLink(link);
+        const original = btn.textContent;
+        btn.textContent = ok ? "Kopieret ✔" : "Kunne ikke kopiere";
+        setTimeout(() => { btn.textContent = original; }, 1500);
+      });
+    });
   } catch (e) {
     console.error("survey-list fejl:", e);
     status.textContent = `Kunne ikke hente kundesurveys: ${e.message}`;
@@ -179,6 +216,3 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("btnDeleteSelected")?.addEventListener("click", deleteSelected);
 });
-
-
-
