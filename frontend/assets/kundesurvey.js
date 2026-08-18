@@ -673,53 +673,136 @@ function mergeAddressLineEntries(entries) {
   return merged;
 }
 
+// Fjerner rene dubletter - fx et felt som "Gårdens kontakt mailadresse" der
+// optræder i alle 4 leveringsadresse-gentagelser med samme værdi, skal kun
+// vises én gang, ikke fire.
+function dedupeEntries(entries) {
+  const seen = new Set();
+  const result = [];
+  for (const e of entries) {
+    const key = [e.groupId, e.question, e.kind, e.value ?? "", e.before ?? "", e.after ?? ""].join("|");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(e);
+  }
+  return result;
+}
+
+// Grupperer entries efter deres spørgsmålsgruppe (sorteret efter gruppens
+// egen sortering), så både modal og mail kan vise indholdet opdelt i
+// afsnit i stedet for én lang, samlet liste.
+function groupEntriesByGroupTitle(entries) {
+  const byGroup = new Map(); // groupId -> { title, sort, entries }
+  for (const e of entries) {
+    const gid = e.groupId || "_";
+    if (!byGroup.has(gid)) {
+      byGroup.set(gid, { title: e.group?.title || "Andet", sort: e.group?.sort ?? 999999, entries: [] });
+    }
+    byGroup.get(gid).entries.push(e);
+  }
+  return [...byGroup.values()].sort((a, b) => a.sort - b.sort);
+}
+
 const SYSTEM_ORDER = ["Kontakter", "Kundeliste", "Uniconta", "SalesForce"];
 const SUMMARY_RECIPIENT = "hng@lcherrup.dk"; // fast modtager for nu
 
 // Bygger både HTML (til modalen) og en ren tekst-udgave for ét områdes
-// indhold. "changed"/"added" (Kontakter/Kundeliste/Uniconta) vises som en
-// diff (kun det der er rettet/tilføjet). "full" (SalesForce) viser alle
-// spørgsmål med det endelige svar – er der rettet, vises kun den nye værdi,
-// ikke den oprindelige prefill.
+// indhold, opdelt i afsnit pr. spørgsmålsgruppe. "changed"/"added"
+// (Kontakter/Kundeliste/Uniconta) vises som en diff (kun det der er
+// rettet/tilføjet). "full" (SalesForce) viser alle spørgsmål med det
+// endelige svar – er der rettet, vises kun den nye værdi, ikke prefill.
 function buildAreaSummary(system, entries) {
   const emptyMsg = "Ingen rettelser fundet.";
+  const deduped = dedupeEntries(entries);
 
-  if (!entries.length) {
+  if (!deduped.length) {
     return { html: `<p class="muted" style="margin:0;">${emptyMsg}</p>`, text: emptyMsg };
   }
 
   const lineFor = (e) => {
-    const groupTitle = e.group?.title || "";
-    if (e.kind === "changed") return `${e.question} (${groupTitle}): "${e.before}" → "${e.after}"`;
-    if (e.kind === "full") return `${e.question} (${groupTitle}): ${e.value || "(ikke udfyldt)"}`;
-    return `${e.question} (${groupTitle}) – tilføjet: "${e.value}"`;
+    if (e.kind === "changed") return `${e.question}: "${e.before}" → "${e.after}"`;
+    if (e.kind === "full") return `${e.question}: ${e.value || "(ikke udfyldt)"}`;
+    return `${e.question} – tilføjet: "${e.value}"`;
   };
 
   const liFor = (e) => {
-    const groupTitle = e.group?.title || "";
     if (e.kind === "changed") {
-      return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> <span class="muted">(${escapeHtml(groupTitle)})</span><br>` +
+      return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong><br>` +
         `"${escapeHtml(e.before)}" → "${escapeHtml(e.after)}"</li>`;
     }
     if (e.kind === "full") {
-      return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> <span class="muted">(${escapeHtml(groupTitle)})</span><br>${escapeHtml(e.value || "(ikke udfyldt)")}</li>`;
+      return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong><br>${escapeHtml(e.value || "(ikke udfyldt)")}</li>`;
     }
-    return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> <span class="muted">(${escapeHtml(groupTitle)})</span> – tilføjet: "${escapeHtml(e.value)}"</li>`;
+    return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> – tilføjet: "${escapeHtml(e.value)}"</li>`;
   };
 
-  const html = `<ul style="margin:0;padding-left:18px;">` + entries.map(liFor).join("") + `</ul>`;
-  const text = entries.map(lineFor).join("\n");
+  const groups = groupEntriesByGroupTitle(deduped);
+
+  const html = groups.map(g => `
+    <div style="margin-bottom:14px;">
+      <div class="muted" style="font-weight:600; margin-bottom:4px;">${escapeHtml(g.title)}</div>
+      <ul style="margin:0;padding-left:18px;">${g.entries.map(liFor).join("")}</ul>
+    </div>
+  `).join("");
+
+  const text = groups.map(g =>
+    `${g.title}\n` + g.entries.map(lineFor).join("\n")
+  ).join("\n\n");
 
   return { html, text };
 }
 
+// Pænere, selvstændig HTML-skabelon til selve mailen. Mail-klienter
+// ignorerer sidens eget stylesheet, så alt styling her er inline med vilje.
+function buildAreaEmailHtml(system, entries, subjectPrefix) {
+  const icon = SYSTEM_ICONS[system] || "❔";
+  const deduped = dedupeEntries(entries);
+  const groups = groupEntriesByGroupTitle(deduped);
+
+  const rowFor = (e) => {
+    const body = e.kind === "changed"
+      ? `<span style="color:#888;">"${escapeHtml(e.before)}"</span> → <strong>"${escapeHtml(e.after)}"</strong>`
+      : e.kind === "full"
+        ? escapeHtml(e.value || "(ikke udfyldt)")
+        : `<strong>${escapeHtml(e.value)}</strong> <span style="color:#888;">(tilføjet)</span>`;
+
+    return `
+      <div style="padding:10px 0; border-bottom:1px solid #f0f0f0;">
+        <div style="font-weight:600; color:#222; font-size:14px;">${escapeHtml(e.question)}</div>
+        <div style="color:#444; font-size:14px; margin-top:2px;">${body}</div>
+      </div>
+    `;
+  };
+
+  const groupsHtml = groups.length
+    ? groups.map(g => `
+        <div style="margin-bottom:20px;">
+          <div style="font-size:12px; font-weight:700; color:#1f6c7a; text-transform:uppercase; letter-spacing:.5px; border-bottom:2px solid #1f6c7a; padding-bottom:6px; margin-bottom:4px;">
+            ${escapeHtml(g.title)}
+          </div>
+          ${g.entries.map(rowFor).join("")}
+        </div>
+      `).join("")
+    : `<p style="color:#666; font-size:14px;">Ingen rettelser fundet.</p>`;
+
+  return `
+    <div style="font-family:'Segoe UI', Arial, sans-serif; max-width:620px; margin:0 auto;">
+      <div style="background:#1f6c7a; color:#fff; padding:16px 22px; border-radius:10px 10px 0 0;">
+        <div style="font-size:18px; font-weight:700;">${icon} ${escapeHtml(system)}</div>
+        <div style="font-size:13px; opacity:.85; margin-top:2px;">${escapeHtml(subjectPrefix)}</div>
+      </div>
+      <div style="border:1px solid #e3e3e3; border-top:none; border-radius:0 0 10px 10px; padding:18px 22px; background:#fff;">
+        ${groupsHtml}
+      </div>
+    </div>
+  `;
+}
+
 // Sender ét områdes opsummering som mail via /api/survey-send-summary-mail.
 // Afsender bliver den bruger der er logget ind (bestemt server-side).
-async function sendAreaMail(system, html, btn) {
+async function sendAreaMail(system, entries, btn) {
   const subjectPrefix = `Spørgeskema ${DATA?.code || ""} – ${DATA?.customerName || ""}`;
-  const fullHtml =
-    `<p><strong>${escapeHtml(subjectPrefix)}</strong><br>${escapeHtml(system)}</p>` +
-    html;
+  const html = buildAreaEmailHtml(system, entries, subjectPrefix);
 
   if (btn) { btn.disabled = true; btn.textContent = "Sender…"; }
 
@@ -730,7 +813,7 @@ async function sendAreaMail(system, html, btn) {
       body: JSON.stringify({
         to: SUMMARY_RECIPIENT,
         subject: `${subjectPrefix} – ${system}`,
-        html: fullHtml
+        html
       })
     });
     if (btn) { btn.textContent = "Sendt ✔"; setTimeout(() => { btn.textContent = "Send mail"; btn.disabled = false; }, 2000); }
@@ -806,14 +889,14 @@ function showChangesSummary() {
       </div>
     `;
 
-    cardData.push({ btnId, system, sectionHtml, sectionText });
+    cardData.push({ btnId, system, entries });
   });
 
   ui.changesModalBody.innerHTML = html;
 
-  cardData.forEach(({ btnId, system, sectionHtml }) => {
+  cardData.forEach(({ btnId, system, entries }) => {
     const btn = document.getElementById(btnId);
-    btn?.addEventListener("click", () => sendAreaMail(system, sectionHtml, btn));
+    btn?.addEventListener("click", () => sendAreaMail(system, entries, btn));
   });
 
   document.getElementById("sendAllAreasBtn")?.addEventListener("click", async (e) => {
@@ -822,9 +905,9 @@ function showChangesSummary() {
     const original = allBtn.textContent;
     allBtn.textContent = "Sender alle…";
 
-    for (const { btnId, system, sectionHtml } of cardData) {
+    for (const { btnId, system, entries } of cardData) {
       const btn = document.getElementById(btnId);
-      await sendAreaMail(system, sectionHtml, btn);
+      await sendAreaMail(system, entries, btn);
     }
 
     allBtn.textContent = "Alle sendt ✔";
