@@ -18,6 +18,13 @@
     .hidden { display:none; }
     .tag { background:#eef; padding:2px 8px; border-radius:12px; font-size:12px; }
     textarea { width:100%; }
+    .toggle3 { display:inline-flex; border:1px solid #ccc; border-radius:8px; overflow:hidden; }
+    .toggle3-btn {
+      border:none; background:#fff; padding:8px 14px; cursor:pointer;
+      font-size:14px; color:#333; border-right:1px solid #ccc;
+    }
+    .toggle3-btn:last-child { border-right:none; }
+    .toggle3-btn.active { background:#1f6c7a; color:#fff; font-weight:600; }
   </style>
 </head>
 
@@ -90,6 +97,22 @@
           </div>
 
           <div class="row">
+            <label>Rapporterer til</label>
+            <div id="grapportertil" class="toggle3" role="group" aria-label="Rapporterer til">
+              <button type="button" data-value="245500000" class="toggle3-btn">Kontakter</button>
+              <button type="button" data-value="245500001" class="toggle3-btn">Kundeliste</button>
+              <button type="button" data-value="245500002" class="toggle3-btn">Uniconta</button>
+            </div>
+          </div>
+          <div class="row">
+            <label></label>
+            <div class="muted" style="margin-top:-6px;">
+              Bestemmer hvilket menupunkt gruppens rettelser/tilføjelser vises under i
+              oversigten, når et kundesvar gennemses.
+            </div>
+          </div>
+
+          <div class="row">
             <label for="grepeatable">Kan udfyldes flere gange?</label>
             <input id="grepeatable" type="checkbox" />
           </div>
@@ -121,6 +144,7 @@
               <th>Titel</th>
               <th>Aktiv</th>
               <th>Gentages</th>
+              <th>Rapporterer til</th>
               <th style="width:180px;">Handling</th>
             </tr>
           </thead>
@@ -138,9 +162,3 @@
   <script src="./assets/adminquestiongroup.js" type="module"></script>
 </body>
 </html>
-
-
-
-
-
-
