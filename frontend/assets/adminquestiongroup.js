@@ -34,15 +34,25 @@ function getEls() {
 }
 
 function getRapporterTil() {
-  const active = els.grapportertil?.querySelector(".toggle3-btn.active");
-  return active ? parseInt(active.dataset.value, 10) : null;
+  if (!els.grapportertil) return [];
+  return [...els.grapportertil.querySelectorAll(".toggle3-btn.active")]
+    .map(b => parseInt(b.dataset.value, 10));
 }
 
-function setRapporterTil(value) {
+function setRapporterTil(values) {
   if (!els.grapportertil) return;
+
+  // Kan komme som array af tal, eller som en kommasepareret streng fra
+  // Dataverse' multi-select valgliste (fx "245500000,245500002").
+  const list = Array.isArray(values)
+    ? values
+    : String(values ?? "").split(",").map(s => s.trim()).filter(Boolean);
+
+  const selected = new Set(list.map(v => Number(v)));
+
   const buttons = [...els.grapportertil.querySelectorAll(".toggle3-btn")];
   buttons.forEach(b => {
-    b.classList.toggle("active", value != null && parseInt(b.dataset.value, 10) === Number(value));
+    b.classList.toggle("active", selected.has(parseInt(b.dataset.value, 10)));
   });
 }
 
@@ -95,7 +105,7 @@ function resetForm() {
   els.form.reset();
   els.gid.value = "";
   els.status.textContent = "";
-  setRapporterTil(null);
+  setRapporterTil([]);
 }
 
 const RAPPORTER_TIL_LABELS = {
@@ -121,7 +131,10 @@ async function listGroups() {
 
   rows.forEach(g => {
     const tr = document.createElement("tr");
-    const rapporterTilLabel = RAPPORTER_TIL_LABELS[g.cr175_lch_rapporterer_til] || "—";
+    const rapporterTilValues = String(g.cr175_lch_rapporterer_til ?? "").split(",").map(s => s.trim()).filter(Boolean);
+    const rapporterTilLabel = rapporterTilValues.length
+      ? rapporterTilValues.map(v => RAPPORTER_TIL_LABELS[v] || v).join(", ")
+      : "—";
 
     tr.innerHTML = `
       <td>${escapeHtml(g.cr175_lch_sorteringsnummer ?? '')}</td>
@@ -199,7 +212,7 @@ function wireEvents() {
   els.grapportertil?.addEventListener("click", (e) => {
     const btn = e.target.closest(".toggle3-btn");
     if (!btn) return;
-    setRapporterTil(parseInt(btn.dataset.value, 10));
+    btn.classList.toggle("active");
   });
 
   els.table.addEventListener("click", async (e) => {
