@@ -334,7 +334,9 @@ function fillPrefillFromUniconta() {
 
   // Leverandørservice: hvis Uniconta-betalingsformen (Payment) ender på "L",
   // har kunden leverandørservice i forvejen.
-  const harLeverandoerservice = /L$/i.test(String(d.payment || "").trim());
+  // Kun stort L til sidst i Payment-feltet betyder leverandørservice
+  // (fx "lb.mdr+10L") - små bogstaver skal IKKE matche.
+  const harLeverandoerservice = /L$/.test(String(d.payment || "").trim());
 
   fillPrefillFields({
     "0010": d.vatNumber || "",
