@@ -13,7 +13,10 @@ module.exports = async function (context, req) {
       cr175_lch_description: p.description ?? null,
       cr175_lch_sorteringsnummer: (p.sortorder ?? null),
       cr175_lch_aktiv: !!p.isactive,
-      cr175_lch_kangentages: !!p.repeatable
+      cr175_lch_kangentages: !!p.repeatable,
+      // Hvilket system gruppens svar skal rapporteres til: 245500000=Kontakter,
+      // 245500001=Kundeliste, 245500002=Uniconta (Valgliste, sat fra frontend)
+      cr175_lch_rapporterer_til: (p.rapporterTil ?? null)
     };
 
     await dvFetch(`cr175_lch_kundeinfo_spoergsmaalsgruppes(${id})`, {
