@@ -112,6 +112,7 @@ const RAPPORTER_TIL_LABELS = {
   245500000: "Kontakter",
   245500001: "Kundeliste",
   245500002: "Uniconta",
+  245500003: "SalesForce", // NB: ret denne værdi hvis Dataverse gav SalesForce et andet tal
 };
 
 async function listGroups() {
