@@ -134,6 +134,7 @@ async function fetchKundeAdresser(kundenr) {
 module.exports = async function (context, req) {
   try {
     const code = String(req?.body?.code || "").trim();
+    const readOnly = !!req?.body?.ro;
     if (!code) return json(context, 400, { error: "missing_code", message: "Mangler code i body." });
 
     // 1) Find kundeundersøgelse på kode
@@ -153,9 +154,10 @@ module.exports = async function (context, req) {
       return json(context, 404, { error: "invalid_code", message: "Koden er ugyldig eller findes ikke." });
     }
 
-    // --- Check om survey allerede er gennemført ---
+    // --- Check om survey allerede er gennemført (springes over ved gennemsyn/ro=1,
+    //     hvor formålet netop er at kunne åbne og se et afsluttet skema) ---
     const status = await getStatusValues().catch(() => ({ AFSLUTTET: null }));
-    if (status.AFSLUTTET != null && Number(inst.cr175_lch_status) === status.AFSLUTTET) {
+    if (!readOnly && status.AFSLUTTET != null && Number(inst.cr175_lch_status) === status.AFSLUTTET) {
       return json(context, 409, {
         error: "already_completed",
         message: "Surveyen er allerede gennemført."
