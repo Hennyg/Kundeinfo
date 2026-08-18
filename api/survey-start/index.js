@@ -169,7 +169,7 @@ module.exports = async function (context, req) {
     // 2) Hent spørgeskemasvar for denne kundeundersøgelse + udvid spørgsmål + gruppe
     const rowsPath =
       `cr175_lch_kundeinfo_spoergeskemasvars` +
-      `?$select=cr175_lch_kundeinfo_spoergeskemasvarid,cr175_lch_prefillvaerdi,cr175_lch_svarvaerdi,cr175_lch_gentagelsesindeks,_cr175_lch_spoergsmaal_value` +
+      `?$select=cr175_lch_kundeinfo_spoergeskemasvarid,cr175_lch_unik,cr175_lch_prefillvaerdi,cr175_lch_svarvaerdi,cr175_lch_gentagelsesindeks,_cr175_lch_spoergsmaal_value` +
       `&$filter=${encodeURIComponent(`_cr175_lch_kundeundersoegelse_value eq ${instanceId}`)}` +
       `&$expand=${encodeURIComponent(
         `cr175_lch_spoergsmaal($select=cr175_lch_kundeinfo_spoergsmaalid,cr175_lch_nummer,cr175_lch_spoergsmaalstekst,cr175_lch_forklaring,cr175_lch_svartype,cr175_lch_paakraevet,cr175_lch_sorteringsnummer;` +
@@ -195,6 +195,7 @@ module.exports = async function (context, req) {
     const baseQuestionByQid = new Map();
     const prefillByQuestionRepeat = new Map();
     const answerByQuestionRepeat = new Map();
+    const addedByQuestionRepeat = new Map();
     const repeatIndexesByGroup = new Map();
 
     for (const row of rows) {
@@ -224,6 +225,7 @@ module.exports = async function (context, req) {
 
       prefillByQuestionRepeat.set(`${qid}|${ri}`, row.cr175_lch_prefillvaerdi || "");
       answerByQuestionRepeat.set(`${qid}|${ri}`, row.cr175_lch_svarvaerdi || "");
+      addedByQuestionRepeat.set(`${qid}|${ri}`, /-NY-/.test(String(row.cr175_lch_unik || "")));
 
       if (!repeatIndexesByGroup.has(groupId)) repeatIndexesByGroup.set(groupId, new Set());
       repeatIndexesByGroup.get(groupId).add(ri);
@@ -262,6 +264,7 @@ module.exports = async function (context, req) {
       for (let ri = 0; ri <= maxRi; ri++) {
         const savedValue = answerByQuestionRepeat.get(`${bq.questionId}|${ri}`) ?? "";
         const prefillText = prefillByQuestionRepeat.get(`${bq.questionId}|${ri}`) || "";
+        const addedByCustomer = addedByQuestionRepeat.get(`${bq.questionId}|${ri}`) || false;
 
         items.push({
           itemId: ri === 0 ? bq.itemId : null,
@@ -275,6 +278,7 @@ module.exports = async function (context, req) {
           explanation: bq.explanation,
           prefillText,
           savedValue,
+          addedByCustomer,
           sortKey: bq.sortKey
         });
       }
