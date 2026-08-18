@@ -29,7 +29,21 @@ function getEls() {
     gsort: document.getElementById("gsort"),
     gactive: document.getElementById("gactive"),
     grepeatable: document.getElementById("grepeatable"),
+    grapportertil: document.getElementById("grapportertil"),
   };
+}
+
+function getRapporterTil() {
+  const active = els.grapportertil?.querySelector(".toggle3-btn.active");
+  return active ? parseInt(active.dataset.value, 10) : null;
+}
+
+function setRapporterTil(value) {
+  if (!els.grapportertil) return;
+  const buttons = [...els.grapportertil.querySelectorAll(".toggle3-btn")];
+  buttons.forEach(b => {
+    b.classList.toggle("active", value != null && parseInt(b.dataset.value, 10) === Number(value));
+  });
 }
 
 async function getMe() {
@@ -63,6 +77,7 @@ function readForm() {
     sortorder: els.gsort.value === "" ? null : parseInt(els.gsort.value, 10),
     isactive: !!els.gactive.checked,
     repeatable: !!els.grepeatable.checked,
+    rapporterTil: getRapporterTil(),
   };
 }
 
@@ -73,13 +88,21 @@ function fillForm(g) {
   els.gsort.value = (g.cr175_lch_sorteringsnummer ?? "") === null ? "" : (g.cr175_lch_sorteringsnummer ?? "");
   els.gactive.checked = (g.cr175_lch_aktiv ?? true) === true;
   els.grepeatable.checked = (g.cr175_lch_kangentages ?? false) === true;
+  setRapporterTil(g.cr175_lch_rapporterer_til ?? null);
 }
 
 function resetForm() {
   els.form.reset();
   els.gid.value = "";
   els.status.textContent = "";
+  setRapporterTil(null);
 }
+
+const RAPPORTER_TIL_LABELS = {
+  245500000: "Kontakter",
+  245500001: "Kundeliste",
+  245500002: "Uniconta",
+};
 
 async function listGroups() {
   els.listStatus.textContent = "Indlæser…";
@@ -98,12 +121,14 @@ async function listGroups() {
 
   rows.forEach(g => {
     const tr = document.createElement("tr");
+    const rapporterTilLabel = RAPPORTER_TIL_LABELS[g.cr175_lch_rapporterer_til] || "—";
 
     tr.innerHTML = `
       <td>${escapeHtml(g.cr175_lch_sorteringsnummer ?? '')}</td>
       <td>${escapeHtml(g.cr175_lch_titel ?? '')}</td>
       <td>${(g.cr175_lch_aktiv ?? true) ? 'Ja' : 'Nej'}</td>
       <td>${g.cr175_lch_kangentages ? 'Ja' : 'Nej'}</td>
+      <td>${escapeHtml(rapporterTilLabel)}</td>
       <td class="actions">
         <button data-act="edit" data-id="${g.cr175_lch_kundeinfo_spoergsmaalsgruppeid}">Redigér</button>
         <button data-act="del"  data-id="${g.cr175_lch_kundeinfo_spoergsmaalsgruppeid}">Slet</button>
@@ -170,6 +195,12 @@ function wireEvents() {
   });
 
   els.btnReset.addEventListener("click", resetForm);
+
+  els.grapportertil?.addEventListener("click", (e) => {
+    const btn = e.target.closest(".toggle3-btn");
+    if (!btn) return;
+    setRapporterTil(parseInt(btn.dataset.value, 10));
+  });
 
   els.table.addEventListener("click", async (e) => {
     const btn = e.target.closest("button");
