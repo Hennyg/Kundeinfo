@@ -81,6 +81,7 @@ const ADDRESS_FIELD_NUMBERS = ["0090", "0190"];
 // og til at vise produkter pr. adresse.
 const LEVERINGSADRESSE_LINJE1_NR = "0090";
 const LEVERINGSADRESSE_LINJE2_NR = "0100";
+const LEVERINGSADRESSE_LINJE_MAIL_NR = "0110"; // "Gårdens kontakt mailadresse" - ens for hele gruppen
 
 let kundeAdresserList = []; // adresser fra data.kundeAdresser (survey-start) – bruges til adresseforslag + produktinfo
 
@@ -673,13 +674,17 @@ function mergeAddressLineEntries(entries) {
   return merged;
 }
 
+// Feltnumre der er ens for HELE gruppen, ikke pr. person/gentagelse (i dag
+// kun "Gårdens kontakt mailadresse" i Leveringsadresse-gruppen). Alt andet
+// skal altid vises pr. blok/person, uanset om værdierne tilfældigvis matcher
+// - fx skal to personers tomme "Mailadresse"-felt IKKE slås sammen til ét.
+const GROUP_WIDE_FIELD_NUMBERS = [LEVERINGSADRESSE_LINJE_MAIL_NR];
+
 // Grupperer entries efter spørgsmålsgruppe, og deler dem op i:
-// - "faste" felter: samme spørgsmål/værdi i ALLE gentagelser i gruppen (fx
-//   et fælles kontaktfelt der er sat ens på hver leveringsadresse) - disse
-//   vises kun én gang.
-// - "varierende" felter: forskellige pr. gentagelse (fx navn, telefon på en
-//   liste af personer) - disse vises pr. nummereret blok, ligesom "1.", "2."
-//   på selve skemaet, så forskellige personers data ikke blandes sammen.
+// - "faste" felter: kun de kendte gruppebrede feltnumre (se ovenfor), og kun
+//   hvis værdien faktisk er ens i ALLE gentagelser - disse vises én gang.
+// - "varierende" felter: alt andet, vises pr. nummereret blok, ligesom "1.",
+//   "2." på selve skemaet, så forskellige personers data aldrig blandes.
 function groupAndSplitEntries(entries) {
   const byGroup = new Map(); // groupId -> { title, sort, byRepeat: Map(ri -> entry[]) }
 
@@ -711,7 +716,10 @@ function groupAndSplitEntries(entries) {
       blocks.push({ ri, entries: g.byRepeat.get(ri) || [] });
     } else {
       const firstRi = repeatIndices[0];
-      const questionsInFirst = (g.byRepeat.get(firstRi) || []).map(e => e.question);
+      // Kun kendte gruppebrede feltnumre er kandidater til at blive hivet ud.
+      const candidateQuestions = (g.byRepeat.get(firstRi) || [])
+        .filter(e => GROUP_WIDE_FIELD_NUMBERS.includes(String(e.number || "")))
+        .map(e => e.question);
 
       const isConstantAcrossAllRepeats = (question) => {
         let refSig = null;
@@ -725,7 +733,7 @@ function groupAndSplitEntries(entries) {
         return true;
       };
 
-      const constantQuestions = new Set(questionsInFirst.filter(isConstantAcrossAllRepeats));
+      const constantQuestions = new Set(candidateQuestions.filter(isConstantAcrossAllRepeats));
 
       for (const q of constantQuestions) {
         const entry = (g.byRepeat.get(firstRi) || []).find(e => e.question === q);
@@ -812,7 +820,6 @@ function buildAreaSummary(system, entries) {
 // Pænere, selvstændig HTML-skabelon til selve mailen. Mail-klienter
 // ignorerer sidens eget stylesheet, så alt styling her er inline med vilje.
 function buildAreaEmailHtml(system, entries, subjectPrefix) {
-  const icon = SYSTEM_ICONS[system] || "❔";
   const groups = groupAndSplitEntries(entries);
 
   const rowFor = (e) => {
@@ -854,8 +861,7 @@ function buildAreaEmailHtml(system, entries, subjectPrefix) {
   return `
     <div style="font-family:'Segoe UI', Arial, sans-serif; max-width:620px; margin:0 auto;">
       <div style="background:#1f6c7a; color:#fff; padding:16px 22px; border-radius:10px 10px 0 0;">
-        <div style="font-size:18px; font-weight:700;">${icon} ${escapeHtml(system)}</div>
-        <div style="font-size:13px; opacity:.85; margin-top:2px;">${escapeHtml(subjectPrefix)}</div>
+        <div style="font-size:16px; font-weight:700;">${escapeHtml(subjectPrefix)}</div>
       </div>
       <div style="border:1px solid #e3e3e3; border-top:none; border-radius:0 0 10px 10px; padding:18px 22px; background:#fff;">
         ${groupsHtml}
