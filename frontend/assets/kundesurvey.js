@@ -352,9 +352,15 @@ function renderQuestions() {
         const isMarked = isChangedFromPrefill || isAddedByCustomer;
 
         if (isChangedFromPrefill) {
-          lastChangeSummary.changes.push({ group: g.title || "", question: it.text || "", before: it.prefillText, after: value });
+          lastChangeSummary.changes.push({
+            group: g, groupId: g.id, repeatIndex: ri, number: it.number,
+            question: it.text || "", before: it.prefillText, after: value
+          });
         } else if (isAddedByCustomer) {
-          lastChangeSummary.additions.push({ group: g.title || "", question: it.text || "", value });
+          lastChangeSummary.additions.push({
+            group: g, groupId: g.id, repeatIndex: ri, number: it.number,
+            question: it.text || "", value
+          });
         }
 
         const wrap = document.createElement("div");
@@ -595,31 +601,76 @@ async function init() {
   }
 }
 
-// Afgør hvilket bagvedliggende system en gruppe hører til, så oversigten
-// kan vise rettelser/tilføjelser samlet pr. kilde. Rent visnings-formål lige
-// nu – ingen faktisk afsendelse endnu.
-function sourceSystemForGroup(title) {
-  const t = String(title || "").toLowerCase();
-  if (t.includes("leveringsadresse")) return "📍 Uniconta – kundeadresse";
-  if (t.includes("leverandørservice") || t.includes("leverandorservice")) return "🚚 Uniconta – leverandørservice";
-  if (t.includes("ejer")) return "👤 Entra ID – ejer";
-  if (t.includes("medarbejder")) return "👤 Entra ID – medarbejder";
-  return "📋 Internt (ingen kilde tilknyttet endnu)";
+const SYSTEM_ICONS = {
+  "Kontakter": "👤",
+  "Kundeliste": "📋",
+  "Uniconta": "🏢"
+};
+const UKENDT_SYSTEM = "Ikke tildelt endnu";
+
+// Afgør hvilket bagvedliggende system en gruppe rapporterer til. Bruger
+// primært det admin har sat på gruppen (cr175_lch_rapporterer_til:
+// Kontakter / Kundeliste / Uniconta). For grupper hvor det endnu ikke er
+// sat, gættes der på titlen som en overgangsløsning.
+function sourceSystemForGroup(group) {
+  const explicit = String(group?.rapporterTil || "").trim();
+  if (explicit) return explicit;
+
+  const t = String(group?.title || "").toLowerCase();
+  if (t.includes("leveringsadresse")) return "Kontakter";
+  if (t.includes("ejer")) return "Kontakter";
+  if (t.includes("medarbejder")) return "Kontakter";
+  if (t.includes("leverandørservice") || t.includes("leverandorservice")) return "Kundeliste";
+  return UKENDT_SYSTEM;
+}
+
+// Leveringsadresse-gruppens to felter (vejnavn + postnr/by) vises som én
+// samlet linje i stedet for to separate punkter i opsummeringen.
+function mergeAddressLineEntries(entries) {
+  const merged = [];
+  const byRepeat = new Map(); // `${groupId}|${repeatIndex}|${kind}` -> { linje1?, linje2? }
+
+  for (const e of entries) {
+    if (e.number === LEVERINGSADRESSE_LINJE1_NR || e.number === LEVERINGSADRESSE_LINJE2_NR) {
+      const key = `${e.groupId}|${e.repeatIndex}|${e.kind}`;
+      const bucket = byRepeat.get(key) || {};
+      if (e.number === LEVERINGSADRESSE_LINJE1_NR) bucket.linje1 = e;
+      else bucket.linje2 = e;
+      byRepeat.set(key, bucket);
+    } else {
+      merged.push(e);
+    }
+  }
+
+  for (const { linje1, linje2 } of byRepeat.values()) {
+    const anyEntry = linje1 || linje2;
+    if (!anyEntry) continue;
+
+    if (anyEntry.kind === "changed") {
+      const before = [linje1?.before, linje2?.before].filter(Boolean).join(", ");
+      const after = [linje1?.after, linje2?.after].filter(Boolean).join(", ");
+      merged.push({ ...anyEntry, question: "Leveringsadresse", before, after });
+    } else {
+      const value = [linje1?.value, linje2?.value].filter(Boolean).join(", ");
+      merged.push({ ...anyEntry, question: "Leveringsadresse", value });
+    }
+  }
+
+  return merged;
 }
 
 // Viser en opsummering af hvad kunden har rettet/tilføjet, grupperet efter
-// hvilket bagvedliggende system oplysningen hører til (Uniconta, Entra ID,
-// eller internt) – så man ikke skal gennemgå hele skemaet manuelt for at
-// finde det, og kan se hvor rettelserne skal fordeles til. Bruges kun ved
-// gennemsyn.
+// hvilket bagvedliggende system oplysningen skal rapporteres til (Kontakter,
+// Kundeliste eller Uniconta) – så man ikke skal gennemgå hele skemaet
+// manuelt for at finde det. Bruges kun ved gennemsyn.
 function showChangesSummary() {
   if (!ui.changesModal || !ui.changesModalBody) return;
 
   const { changes, additions } = lastChangeSummary;
-  const allEntries = [
+  const allEntries = mergeAddressLineEntries([
     ...changes.map(c => ({ ...c, kind: "changed" })),
     ...additions.map(a => ({ ...a, kind: "added" }))
-  ];
+  ]);
 
   if (!allEntries.length) {
     ui.changesModalBody.innerHTML = `<p class="muted">Ingen rettelser fundet.</p>`;
@@ -636,13 +687,14 @@ function showChangesSummary() {
 
   let html = "";
   for (const [system, entries] of bySystem) {
-    html += `<h3 style="margin:16px 0 6px;">${escapeHtml(system)}</h3><ul style="margin:0;padding-left:18px;">`;
+    const icon = SYSTEM_ICONS[system] || "❔";
+    html += `<h3 style="margin:16px 0 6px;">${icon} ${escapeHtml(system)}</h3><ul style="margin:0;padding-left:18px;">`;
     html += entries.map(e => {
       if (e.kind === "changed") {
-        return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> <span class="muted">(${escapeHtml(e.group)})</span><br>` +
+        return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> <span class="muted">(${escapeHtml(e.group?.title || "")})</span><br>` +
           `"${escapeHtml(e.before)}" → "${escapeHtml(e.after)}"</li>`;
       }
-      return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> <span class="muted">(${escapeHtml(e.group)})</span> – tilføjet: "${escapeHtml(e.value)}"</li>`;
+      return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> <span class="muted">(${escapeHtml(e.group?.title || "")})</span> – tilføjet: "${escapeHtml(e.value)}"</li>`;
     }).join("");
     html += `</ul>`;
   }
