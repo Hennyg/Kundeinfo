@@ -673,34 +673,75 @@ function mergeAddressLineEntries(entries) {
   return merged;
 }
 
-// Fjerner rene dubletter - fx et felt som "Gårdens kontakt mailadresse" der
-// optræder i alle 4 leveringsadresse-gentagelser med samme værdi, skal kun
-// vises én gang, ikke fire.
-function dedupeEntries(entries) {
-  const seen = new Set();
-  const result = [];
-  for (const e of entries) {
-    const key = [e.groupId, e.question, e.kind, e.value ?? "", e.before ?? "", e.after ?? ""].join("|");
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push(e);
-  }
-  return result;
-}
+// Grupperer entries efter spørgsmålsgruppe, og deler dem op i:
+// - "faste" felter: samme spørgsmål/værdi i ALLE gentagelser i gruppen (fx
+//   et fælles kontaktfelt der er sat ens på hver leveringsadresse) - disse
+//   vises kun én gang.
+// - "varierende" felter: forskellige pr. gentagelse (fx navn, telefon på en
+//   liste af personer) - disse vises pr. nummereret blok, ligesom "1.", "2."
+//   på selve skemaet, så forskellige personers data ikke blandes sammen.
+function groupAndSplitEntries(entries) {
+  const byGroup = new Map(); // groupId -> { title, sort, byRepeat: Map(ri -> entry[]) }
 
-// Grupperer entries efter deres spørgsmålsgruppe (sorteret efter gruppens
-// egen sortering), så både modal og mail kan vise indholdet opdelt i
-// afsnit i stedet for én lang, samlet liste.
-function groupEntriesByGroupTitle(entries) {
-  const byGroup = new Map(); // groupId -> { title, sort, entries }
   for (const e of entries) {
     const gid = e.groupId || "_";
     if (!byGroup.has(gid)) {
-      byGroup.set(gid, { title: e.group?.title || "Andet", sort: e.group?.sort ?? 999999, entries: [] });
+      byGroup.set(gid, {
+        title: e.group?.title || "Andet",
+        sort: e.group?.sort ?? 999999,
+        byRepeat: new Map()
+      });
     }
-    byGroup.get(gid).entries.push(e);
+    const g = byGroup.get(gid);
+    const ri = e.repeatIndex ?? 0;
+    if (!g.byRepeat.has(ri)) g.byRepeat.set(ri, []);
+    g.byRepeat.get(ri).push(e);
   }
-  return [...byGroup.values()].sort((a, b) => a.sort - b.sort);
+
+  const sig = (e) => [e.kind, e.value ?? "", e.before ?? "", e.after ?? ""].join("|");
+
+  const groups = [];
+  for (const g of byGroup.values()) {
+    const repeatIndices = [...g.byRepeat.keys()].sort((a, b) => a - b);
+    const constantEntries = [];
+    const blocks = [];
+
+    if (repeatIndices.length <= 1) {
+      const ri = repeatIndices[0] ?? 0;
+      blocks.push({ ri, entries: g.byRepeat.get(ri) || [] });
+    } else {
+      const firstRi = repeatIndices[0];
+      const questionsInFirst = (g.byRepeat.get(firstRi) || []).map(e => e.question);
+
+      const isConstantAcrossAllRepeats = (question) => {
+        let refSig = null;
+        for (const ri of repeatIndices) {
+          const entry = (g.byRepeat.get(ri) || []).find(e => e.question === question);
+          if (!entry) return false;
+          const s = sig(entry);
+          if (refSig === null) refSig = s;
+          else if (s !== refSig) return false;
+        }
+        return true;
+      };
+
+      const constantQuestions = new Set(questionsInFirst.filter(isConstantAcrossAllRepeats));
+
+      for (const q of constantQuestions) {
+        const entry = (g.byRepeat.get(firstRi) || []).find(e => e.question === q);
+        if (entry) constantEntries.push(entry);
+      }
+
+      for (const ri of repeatIndices) {
+        const varying = (g.byRepeat.get(ri) || []).filter(e => !constantQuestions.has(e.question));
+        if (varying.length) blocks.push({ ri, entries: varying });
+      }
+    }
+
+    groups.push({ title: g.title, sort: g.sort, constantEntries, blocks });
+  }
+
+  return groups.sort((a, b) => a.sort - b.sort);
 }
 
 const SYSTEM_ORDER = ["Kontakter", "Kundeliste", "Uniconta", "SalesForce"];
@@ -713,9 +754,8 @@ const SUMMARY_RECIPIENT = "hng@lcherrup.dk"; // fast modtager for nu
 // endelige svar – er der rettet, vises kun den nye værdi, ikke prefill.
 function buildAreaSummary(system, entries) {
   const emptyMsg = "Ingen rettelser fundet.";
-  const deduped = dedupeEntries(entries);
 
-  if (!deduped.length) {
+  if (!entries.length) {
     return { html: `<p class="muted" style="margin:0;">${emptyMsg}</p>`, text: emptyMsg };
   }
 
@@ -736,18 +776,35 @@ function buildAreaSummary(system, entries) {
     return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> – tilføjet: "${escapeHtml(e.value)}"</li>`;
   };
 
-  const groups = groupEntriesByGroupTitle(deduped);
+  const groups = groupAndSplitEntries(entries);
 
-  const html = groups.map(g => `
-    <div style="margin-bottom:14px;">
-      <div class="muted" style="font-weight:600; margin-bottom:4px;">${escapeHtml(g.title)}</div>
-      <ul style="margin:0;padding-left:18px;">${g.entries.map(liFor).join("")}</ul>
-    </div>
-  `).join("");
+  const html = groups.map(g => {
+    const constantHtml = g.constantEntries.length
+      ? `<ul style="margin:0 0 6px;padding-left:18px;">${g.constantEntries.map(liFor).join("")}</ul>`
+      : "";
+    const blocksHtml = g.blocks.map((block, idx) => {
+      const label = g.blocks.length > 1
+        ? `<div class="muted" style="font-weight:600; margin:8px 0 2px;">${idx + 1}.</div>`
+        : "";
+      return `${label}<ul style="margin:0;padding-left:18px;">${block.entries.map(liFor).join("")}</ul>`;
+    }).join("");
 
-  const text = groups.map(g =>
-    `${g.title}\n` + g.entries.map(lineFor).join("\n")
-  ).join("\n\n");
+    return `
+      <div style="margin-bottom:14px;">
+        <div class="muted" style="font-weight:600; margin-bottom:4px;">${escapeHtml(g.title)}</div>
+        ${constantHtml}${blocksHtml}
+      </div>
+    `;
+  }).join("");
+
+  const text = groups.map(g => {
+    const lines = [...g.constantEntries.map(lineFor)];
+    g.blocks.forEach((block, idx) => {
+      if (g.blocks.length > 1) lines.push(`${idx + 1}.`);
+      lines.push(...block.entries.map(lineFor));
+    });
+    return `${g.title}\n${lines.join("\n")}`;
+  }).join("\n\n");
 
   return { html, text };
 }
@@ -756,8 +813,7 @@ function buildAreaSummary(system, entries) {
 // ignorerer sidens eget stylesheet, så alt styling her er inline med vilje.
 function buildAreaEmailHtml(system, entries, subjectPrefix) {
   const icon = SYSTEM_ICONS[system] || "❔";
-  const deduped = dedupeEntries(entries);
-  const groups = groupEntriesByGroupTitle(deduped);
+  const groups = groupAndSplitEntries(entries);
 
   const rowFor = (e) => {
     const body = e.kind === "changed"
@@ -775,14 +831,24 @@ function buildAreaEmailHtml(system, entries, subjectPrefix) {
   };
 
   const groupsHtml = groups.length
-    ? groups.map(g => `
-        <div style="margin-bottom:20px;">
-          <div style="font-size:12px; font-weight:700; color:#1f6c7a; text-transform:uppercase; letter-spacing:.5px; border-bottom:2px solid #1f6c7a; padding-bottom:6px; margin-bottom:4px;">
-            ${escapeHtml(g.title)}
+    ? groups.map(g => {
+        const constantRows = g.constantEntries.map(rowFor).join("");
+        const blocksHtml = g.blocks.map((block, idx) => {
+          const label = g.blocks.length > 1
+            ? `<div style="font-size:12px; font-weight:700; color:#555; margin:12px 0 2px; padding-top:8px; border-top:1px dashed #ddd;">Nr. ${idx + 1}</div>`
+            : "";
+          return `${label}${block.entries.map(rowFor).join("")}`;
+        }).join("");
+
+        return `
+          <div style="margin-bottom:20px;">
+            <div style="font-size:12px; font-weight:700; color:#1f6c7a; text-transform:uppercase; letter-spacing:.5px; border-bottom:2px solid #1f6c7a; padding-bottom:6px; margin-bottom:4px;">
+              ${escapeHtml(g.title)}
+            </div>
+            ${constantRows}${blocksHtml}
           </div>
-          ${g.entries.map(rowFor).join("")}
-        </div>
-      `).join("")
+        `;
+      }).join("")
     : `<p style="color:#666; font-size:14px;">Ingen rettelser fundet.</p>`;
 
   return `
