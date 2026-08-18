@@ -123,6 +123,28 @@
       margin: 2px 4px 0 0;
     }
 
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 16px;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 28px 32px;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+      text-align: center;
+    }
+    .modal-card .btn { margin-top: 10px; }
+
     .readonly-banner {
       background:#eef;
       border:1px solid #ccd;
@@ -184,6 +206,14 @@
     </div>
 
     <datalist id="kundeAdresseOptions"></datalist>
+
+    <div id="finishModal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <h2 style="margin-top:0;">Tak for din besvarelse!</h2>
+        <p class="muted">Dine svar er gemt og bliver videresendt til os.</p>
+        <button type="button" class="btn primary" id="finishModalClose">Luk</button>
+      </div>
+    </div>
 
   </div>
 
