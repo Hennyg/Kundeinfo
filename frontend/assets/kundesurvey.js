@@ -84,6 +84,17 @@ function formatAdresse(a) {
   return [a.adresse, cityLine].filter(Boolean).join(", ");
 }
 
+// Sammenligner forudfyldt værdi ("Vores info") med kundens faktiske svar,
+// normaliseret for mellemrum/store-/små bogstaver. Bruges til at markere
+// felter kunden har rettet, når skemaet gennemses (ro=1).
+function valuesDiffer(prefillText, value) {
+  const norm = s => String(s ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+  const p = norm(prefillText);
+  const v = norm(value);
+  if (!p || !v) return false; // intet at sammenligne, eller kunden har ikke svaret
+  return p !== v;
+}
+
 // Map: formateret adressetekst -> produkter (fra kundelisten), til visning
 // af "Produkter på denne adresse" under Leveringsadresse-blokke.
 function produkterByAddressText() {
@@ -303,6 +314,11 @@ function renderQuestions() {
 
         const value = valueMap.get(`${it.questionId}|${ri}`) || "";
 
+        // Vis tydeligt hvilke felter kunden selv har rettet, i forhold til
+        // det vi havde forudfyldt (kun relevant når man kigger skemaet
+        // igennem bagefter – ro=1).
+        const isChangedFromPrefill = isReadOnly() && valuesDiffer(it.prefillText, value);
+
         const wrap = document.createElement("div");
         wrap.style.padding = "10px 0";
         wrap.style.borderBottom = "1px solid #eee";
@@ -311,11 +327,12 @@ function renderQuestions() {
         label.innerHTML = `
           <div class="qtitle">${escapeHtml(it.text || "")} ${it.required ? '<span class="muted">(påkrævet)</span>' : ''}</div>
           ${it.explanation ? `<div class="qhelp">${escapeHtml(it.explanation)}</div>` : ""}
-          ${it.prefillText ? `<div class="prefill-box">Vores info:<br><strong>${escapeHtml(it.prefillText)}</strong></div>` : ""}
+          ${it.prefillText ? `<div class="prefill-box${isChangedFromPrefill ? " changed" : ""}">Vores info:<br><strong>${escapeHtml(it.prefillText)}</strong></div>` : ""}
         `;
         wrap.appendChild(label);
 
         const input = buildInput(it, value);
+        if (isChangedFromPrefill) input.classList.add("changed");
         if (isReadOnly() || isRemoved) input.disabled = true;
         input.addEventListener("blur", () => autosaveOnBlur());
         if (it.number === LEVERINGSADRESSE_LINJE1_NR || it.number === LEVERINGSADRESSE_LINJE2_NR) {
