@@ -53,13 +53,35 @@ async function sendAfsluttetMail(context, { kundenavn, kundenummer, code, req })
     const link = origin ? `${origin}/kundesurvey.html?code=${encodeURIComponent(code)}&ro=1` : "";
 
     const kundeLabel = kundenavn || kundenummer || "(ukendt kunde)";
+    const subjectPrefix = `Spørgeskema ${code}${kundenavn ? ` – ${kundenavn}` : ""}${kundenummer ? ` (${kundenummer})` : ""}`;
 
     const subject = `Kunde ${kundenavn || kundenummer || ""} har afsluttet spørgeskema ${code}`;
-    const htmlBody =
-      `<p>Kunde <strong>${escapeHtml(kundeLabel)}</strong>` +
-      (kundenummer ? ` (${escapeHtml(kundenummer)})` : "") +
-      ` har afsluttet spørgeskema <strong>${escapeHtml(code)}</strong>.</p>` +
-      (link ? `<p><a href="${link}">Se besvarelsen</a></p>` : "");
+    const htmlBody = `
+      <div style="font-family:'Segoe UI', Arial, sans-serif; max-width:620px; margin:0 auto;">
+        <div style="background:#1f6c7a; color:#fff; padding:16px 22px; border-radius:10px 10px 0 0;">
+          <div style="font-size:16px; font-weight:700;">${escapeHtml(subjectPrefix)}</div>
+        </div>
+        <div style="border:1px solid #e3e3e3; border-top:none; border-radius:0 0 10px 10px; padding:18px 22px; background:#fff;">
+          <div style="padding:10px 0; border-bottom:1px solid #f0f0f0;">
+            <div style="font-weight:600; color:#222; font-size:14px;">Kunde</div>
+            <div style="color:#444; font-size:14px; margin-top:2px;">
+              ${escapeHtml(kundeLabel)}${kundenummer ? ` (${escapeHtml(kundenummer)})` : ""}
+            </div>
+          </div>
+          <div style="padding:10px 0; border-bottom:1px solid #f0f0f0;">
+            <div style="font-weight:600; color:#222; font-size:14px;">Status</div>
+            <div style="color:#444; font-size:14px; margin-top:2px;">Spørgeskemaet er afsluttet af kunden.</div>
+          </div>
+          ${link ? `
+            <div style="padding:16px 0 4px; text-align:center;">
+              <a href="${link}" style="display:inline-block; background:#1f6c7a; color:#fff; text-decoration:none; padding:10px 20px; border-radius:8px; font-weight:600; font-size:14px;">
+                Se besvarelsen
+              </a>
+            </div>
+          ` : ""}
+        </div>
+      </div>
+    `;
 
     await graph("POST", `/users/${encodeURIComponent(fromMailbox)}/sendMail`, {
       message: {
