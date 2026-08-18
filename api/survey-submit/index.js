@@ -7,6 +7,7 @@
 
 const { cdFetch: dvFetch } = require("../_coredata");
 const { getStatusValues } = require("../_kundeundersoegelseStatus");
+const { graph } = require("../_graph/graph");
 
 function json(context, status, body) {
   context.res = {
@@ -17,6 +18,60 @@ function json(context, status, body) {
 }
 function escODataString(s) {
   return String(s ?? "").replace(/'/g, "''");
+}
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// Sender en mail til adresserne i Application Setting "Kundeinfo_Afsluttet_survey"
+// når en kunde afslutter et spørgeskema. Fejl her må ikke vælte selve
+// indsendelsen af skemaet, så alt er wrappet i try/catch.
+async function sendAfsluttetMail(context, { kundenavn, kundenummer, code, req }) {
+  try {
+    const recipients = String(process.env.Kundeinfo_Afsluttet_survey || "")
+      .split(/[;,]/)
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    if (!recipients.length) {
+      context.log("Kundeinfo_Afsluttet_survey er ikke sat (eller tom) – ingen mail sendt.");
+      return;
+    }
+
+    const fromMailbox = String(process.env.KUNDEINFO_MAIL_FROM || "").trim();
+    if (!fromMailbox) {
+      context.log("KUNDEINFO_MAIL_FROM er ikke sat – ingen mail sendt.");
+      return;
+    }
+
+    const host = req.headers["x-forwarded-host"];
+    const origin = host ? `https://${host}` : "";
+    const link = origin ? `${origin}/kundesurvey.html?code=${encodeURIComponent(code)}&ro=1` : "";
+
+    const kundeLabel = kundenavn || kundenummer || "(ukendt kunde)";
+
+    const subject = `Kunde ${kundenavn || kundenummer || ""} har afsluttet spørgeskema ${code}`;
+    const htmlBody =
+      `<p>Kunde <strong>${escapeHtml(kundeLabel)}</strong>` +
+      (kundenummer ? ` (${escapeHtml(kundenummer)})` : "") +
+      ` har afsluttet spørgeskema <strong>${escapeHtml(code)}</strong>.</p>` +
+      (link ? `<p><a href="${link}">Se besvarelsen</a></p>` : "");
+
+    await graph("POST", `/users/${encodeURIComponent(fromMailbox)}/sendMail`, {
+      message: {
+        subject,
+        body: { contentType: "HTML", content: htmlBody },
+        toRecipients: recipients.map(address => ({ emailAddress: { address } }))
+      },
+      saveToSentItems: false
+    });
+  } catch (e) {
+    context.log.error("Kunne ikke sende 'afsluttet skema'-mail:", e);
+  }
 }
 
 module.exports = async function (context, req) {
@@ -33,7 +88,7 @@ module.exports = async function (context, req) {
     // 1) Find kundeundersøgelse via kode
     const instPath =
       `cr175_lch_kundeinfo_kundeundersoegelses` +
-      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kode` +
+      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kode,cr175_lch_kundenavn,cr175_lch_kundenummer` +
       `&$filter=${encodeURIComponent(`cr175_lch_kode eq '${escODataString(code)}'`)}` +
       `&$top=1`;
 
@@ -133,6 +188,15 @@ module.exports = async function (context, req) {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cr175_lch_status: nextStatus })
+      });
+    }
+
+    if (finalize) {
+      await sendAfsluttetMail(context, {
+        kundenavn: inst.cr175_lch_kundenavn || "",
+        kundenummer: inst.cr175_lch_kundenummer || "",
+        code,
+        req
       });
     }
 
