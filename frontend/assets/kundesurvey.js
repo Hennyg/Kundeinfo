@@ -17,6 +17,9 @@ const ui = {
   kundeAdresseOptions: $("kundeAdresseOptions"),
   finishModal: $("finishModal"),
   finishModalClose: $("finishModalClose"),
+  changesModal: $("changesModal"),
+  changesModalBody: $("changesModalBody"),
+  changesModalClose: $("changesModalClose"),
 };
 
 function isReadOnly() {
@@ -60,6 +63,7 @@ function resolveInputType(answertypeLabel) {
 
 /* ---------- State ---------- */
 let DATA = null;                     // { code, customerName, groups, items }
+let lastChangeSummary = { changes: [], additions: [] }; // til opsummeringsdialog ved gennemsyn
 const repeatCounters = {};           // groupId -> højeste synlige repeatIndex
 const removedRepeats = new Set();    // `${groupId}:${repeatIndex}`
 
@@ -196,6 +200,7 @@ function buildInput(it, value) {
 
 function renderQuestions() {
   ui.questions.innerHTML = "";
+  lastChangeSummary = { changes: [], additions: [] };
 
   const produktMap = produkterByAddressText();
   const groups = [...(DATA.groups || [])].sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
@@ -346,6 +351,12 @@ function renderQuestions() {
         const isAddedByCustomer = !it.prefillText && it.addedByCustomer && !!value;
         const isMarked = isChangedFromPrefill || isAddedByCustomer;
 
+        if (isChangedFromPrefill) {
+          lastChangeSummary.changes.push({ group: g.title || "", question: it.text || "", before: it.prefillText, after: value });
+        } else if (isAddedByCustomer) {
+          lastChangeSummary.additions.push({ group: g.title || "", question: it.text || "", value });
+        }
+
         const wrap = document.createElement("div");
         wrap.style.padding = "10px 0";
         wrap.style.borderBottom = "1px solid #eee";
@@ -433,7 +444,7 @@ async function loadSurvey() {
   const data = await fetchJson("/api/survey-start", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code })
+    body: JSON.stringify({ code, ro: isReadOnly() })
   });
 
   const items = data?.items || [];
@@ -573,12 +584,47 @@ async function init() {
     });
 
     ui.finishModalClose?.addEventListener("click", () => hide(ui.finishModal));
+    ui.changesModalClose?.addEventListener("click", () => hide(ui.changesModal));
+
+    if (isReadOnly()) showChangesSummary();
 
   } catch (e) {
     console.error(e);
     hide(ui.loading); hide(ui.app); show(ui.error);
     ui.errorText.textContent = e.message;
   }
+}
+
+// Viser en opsummering af hvad kunden har rettet/tilføjet, så man ikke skal
+// gennemgå hele skemaet manuelt for at finde det. Bruges kun ved gennemsyn.
+function showChangesSummary() {
+  if (!ui.changesModal || !ui.changesModalBody) return;
+
+  const { changes, additions } = lastChangeSummary;
+
+  if (!changes.length && !additions.length) {
+    ui.changesModalBody.innerHTML = `<p class="muted">Ingen rettelser fundet.</p>`;
+  } else {
+    let html = "";
+    if (changes.length) {
+      html += `<h3 style="margin:14px 0 6px;">Rettet af kunden</h3><ul style="margin:0;padding-left:18px;">`;
+      html += changes.map(c =>
+        `<li style="margin-bottom:8px;"><strong>${escapeHtml(c.group)} – ${escapeHtml(c.question)}:</strong><br>` +
+        `"${escapeHtml(c.before)}" → "${escapeHtml(c.after)}"</li>`
+      ).join("");
+      html += `</ul>`;
+    }
+    if (additions.length) {
+      html += `<h3 style="margin:14px 0 6px;">Tilføjet af kunden</h3><ul style="margin:0;padding-left:18px;">`;
+      html += additions.map(a =>
+        `<li style="margin-bottom:8px;"><strong>${escapeHtml(a.group)} – ${escapeHtml(a.question)}:</strong> "${escapeHtml(a.value)}"</li>`
+      ).join("");
+      html += `</ul>`;
+    }
+    ui.changesModalBody.innerHTML = html;
+  }
+
+  show(ui.changesModal);
 }
 
 document.addEventListener("DOMContentLoaded", init);
