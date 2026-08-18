@@ -201,10 +201,13 @@ function renderQuestions() {
   const valueMap = new Map();
   // Prefill-tekst pr. faktisk gentagelse: `${questionId}|${ri}` -> prefillText
   const prefillMap = new Map();
+  // Er feltet tilføjet af kunden selv (ny gentagelse/blok, ingen admin-prefill)?
+  const addedMap = new Map();
 
   for (const it of (DATA.items || [])) {
     valueMap.set(`${it.questionId}|${it.repeatIndex}`, it.savedValue || "");
     prefillMap.set(`${it.questionId}|${it.repeatIndex}`, it.prefillText || "");
+    addedMap.set(`${it.questionId}|${it.repeatIndex}`, !!it.addedByCustomer);
 
     if (it.repeatIndex === 0) {
       if (!baseByGroup.has(it.groupId)) {
@@ -256,6 +259,15 @@ function renderQuestions() {
       const removedKey = `${g.id}:${ri}`;
       const isRemoved = removedRepeats.has(removedKey);
 
+      // Hele blokken betragtes som tilføjet af kunden, hvis ingen af dens
+      // felter har admin-prefill, og mindst ét besvaret felt er markeret som
+      // kunde-oprettet (ny gentagelse via "+ Tilføj flere").
+      const hasAnyPrefillInBlock = baseQs.some(bq => !!(prefillMap.get(`${bq.questionId}|${ri}`) || ""));
+      const isAddedBlock = isReadOnly() && !hasAnyPrefillInBlock && baseQs.some(bq => {
+        const val = valueMap.get(`${bq.questionId}|${ri}`) || "";
+        return !!val && (addedMap.get(`${bq.questionId}|${ri}`) || false);
+      });
+
       const block = document.createElement("div");
       block.className = g.repeatable ? "repeat-block" : "";
       if (isRemoved) block.classList.add("removed");
@@ -279,6 +291,11 @@ function renderQuestions() {
           const badge = document.createElement("span");
           badge.className = "removed-badge";
           badge.textContent = "Slettet";
+          right.appendChild(badge);
+        } else if (isAddedBlock) {
+          const badge = document.createElement("span");
+          badge.className = "added-badge";
+          badge.textContent = "Tilføjet af kunden";
           right.appendChild(badge);
         }
 
@@ -309,15 +326,19 @@ function renderQuestions() {
           required: bq.required,
           answertype: bq.answertype,
           explanation: bq.explanation,
-          prefillText: prefillMap.get(`${bq.questionId}|${ri}`) || ""
+          prefillText: prefillMap.get(`${bq.questionId}|${ri}`) || "",
+          addedByCustomer: addedMap.get(`${bq.questionId}|${ri}`) || false
         };
 
         const value = valueMap.get(`${it.questionId}|${ri}`) || "";
 
-        // Vis tydeligt hvilke felter kunden selv har rettet, i forhold til
-        // det vi havde forudfyldt (kun relevant når man kigger skemaet
-        // igennem bagefter – ro=1).
+        // Vis tydeligt hvilke felter kunden selv har rettet ift. det vi
+        // havde forudfyldt, eller selv har tilføjet (ny gentagelse/blok
+        // uden admin-prefill) – kun relevant når man kigger skemaet
+        // igennem bagefter (ro=1).
         const isChangedFromPrefill = isReadOnly() && valuesDiffer(it.prefillText, value);
+        const isAddedByCustomer = isReadOnly() && !it.prefillText && it.addedByCustomer && !!value;
+        const isMarked = isChangedFromPrefill || isAddedByCustomer;
 
         const wrap = document.createElement("div");
         wrap.style.padding = "10px 0";
@@ -332,7 +353,7 @@ function renderQuestions() {
         wrap.appendChild(label);
 
         const input = buildInput(it, value);
-        if (isChangedFromPrefill) input.classList.add("changed");
+        if (isMarked) input.classList.add("changed");
         if (isReadOnly() || isRemoved) input.disabled = true;
         input.addEventListener("blur", () => autosaveOnBlur());
         if (it.number === LEVERINGSADRESSE_LINJE1_NR || it.number === LEVERINGSADRESSE_LINJE2_NR) {
