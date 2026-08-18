@@ -616,7 +616,7 @@ const UKENDT_SYSTEM = "Ikke tildelt endnu";
 function sourceSystemsForGroup(group) {
   const raw = String(group?.rapporterTil || "").trim();
   if (raw) {
-    const list = raw.split(",").map(s => s.trim()).filter(Boolean);
+    const list = raw.split(/[;,]/).map(s => s.trim()).filter(Boolean);
     if (list.length) return list;
   }
 
