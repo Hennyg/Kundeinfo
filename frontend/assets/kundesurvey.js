@@ -663,10 +663,67 @@ function mergeAddressLineEntries(entries) {
   return merged;
 }
 
-// Viser en opsummering af hvad kunden har rettet/tilføjet, grupperet efter
-// hvilket bagvedliggende system oplysningen skal rapporteres til (Kontakter,
-// Kundeliste eller Uniconta) – så man ikke skal gennemgå hele skemaet
-// manuelt for at finde det. Bruges kun ved gennemsyn.
+const SYSTEM_ORDER = ["Kontakter", "Kundeliste", "Uniconta"];
+
+// Bygger både HTML (til modalen) og en ren tekst-udgave (til "Kopiér",
+// klar til at sætte ind i en mail) for ét områdes rettelser/tilføjelser.
+function buildAreaSummary(system, entries) {
+  const icon = SYSTEM_ICONS[system] || "❔";
+  const header = `Spørgeskema ${DATA?.code || ""} – ${DATA?.customerName || ""}\n${system}: rettelser/tilføjelser`;
+
+  if (!entries.length) {
+    return {
+      html: `<p class="muted" style="margin:0;">Ingen rettelser fundet.</p>`,
+      text: `${header}\n\nIngen rettelser fundet.`
+    };
+  }
+
+  const lines = entries.map(e => {
+    const groupTitle = e.group?.title || "";
+    return e.kind === "changed"
+      ? `${e.question} (${groupTitle}): "${e.before}" → "${e.after}"`
+      : `${e.question} (${groupTitle}) – tilføjet: "${e.value}"`;
+  });
+
+  const html = `<ul style="margin:0;padding-left:18px;">` +
+    entries.map(e => {
+      const groupTitle = e.group?.title || "";
+      if (e.kind === "changed") {
+        return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> <span class="muted">(${escapeHtml(groupTitle)})</span><br>` +
+          `"${escapeHtml(e.before)}" → "${escapeHtml(e.after)}"</li>`;
+      }
+      return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> <span class="muted">(${escapeHtml(groupTitle)})</span> – tilføjet: "${escapeHtml(e.value)}"</li>`;
+    }).join("") +
+    `</ul>`;
+
+  return { html, text: `${header}\n\n${lines.join("\n")}` };
+}
+
+async function copyAreaSummary(text, btn) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const tmp = document.createElement("textarea");
+    tmp.value = text;
+    tmp.style.position = "fixed";
+    tmp.style.opacity = "0";
+    document.body.appendChild(tmp);
+    tmp.focus();
+    tmp.select();
+    try { document.execCommand("copy"); } catch { /* ignore */ }
+    tmp.remove();
+  }
+  if (btn) {
+    const original = btn.textContent;
+    btn.textContent = "Kopieret ✔";
+    setTimeout(() => { btn.textContent = original; }, 1500);
+  }
+}
+
+// Viser en opsummering af hvad kunden har rettet/tilføjet, altid opdelt i 3
+// separate kort – ét pr. område (Kontakter, Kundeliste, Uniconta) – hver med
+// egen "Kopiér"-knap, så det er nemt at sende en mail pr. område uden at
+// skulle klippe det ud af en samlet liste. Bruges kun ved gennemsyn.
 function showChangesSummary() {
   if (!ui.changesModal || !ui.changesModalBody) return;
 
@@ -675,12 +732,6 @@ function showChangesSummary() {
     ...changes.map(c => ({ ...c, kind: "changed" })),
     ...additions.map(a => ({ ...a, kind: "added" }))
   ]);
-
-  if (!allEntries.length) {
-    ui.changesModalBody.innerHTML = `<p class="muted">Ingen rettelser fundet.</p>`;
-    show(ui.changesModal);
-    return;
-  }
 
   const bySystem = new Map();
   for (const entry of allEntries) {
@@ -691,21 +742,42 @@ function showChangesSummary() {
     }
   }
 
-  let html = "";
-  for (const [system, entries] of bySystem) {
-    const icon = SYSTEM_ICONS[system] || "❔";
-    html += `<h3 style="margin:16px 0 6px;">${icon} ${escapeHtml(system)}</h3><ul style="margin:0;padding-left:18px;">`;
-    html += entries.map(e => {
-      if (e.kind === "changed") {
-        return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> <span class="muted">(${escapeHtml(e.group?.title || "")})</span><br>` +
-          `"${escapeHtml(e.before)}" → "${escapeHtml(e.after)}"</li>`;
-      }
-      return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> <span class="muted">(${escapeHtml(e.group?.title || "")})</span> – tilføjet: "${escapeHtml(e.value)}"</li>`;
-    }).join("");
-    html += `</ul>`;
+  // Vis altid alle kendte områder, også dem uden rettelser – "ingen
+  // rettelser fundet" er stadig et svar for det område.
+  const systemsToShow = [...SYSTEM_ORDER];
+  for (const system of bySystem.keys()) {
+    if (!systemsToShow.includes(system)) systemsToShow.push(system);
   }
 
+  const copyHandlers = [];
+  let html = "";
+
+  systemsToShow.forEach((system, idx) => {
+    const entries = bySystem.get(system) || [];
+    const { html: sectionHtml, text } = buildAreaSummary(system, entries);
+    const icon = SYSTEM_ICONS[system] || "❔";
+    const btnId = `copyAreaBtn_${idx}`;
+
+    html += `
+      <div class="summary-card">
+        <div class="summary-card-header">
+          <h3 style="margin:0;">${icon} ${escapeHtml(system)}</h3>
+          <button type="button" class="btn" id="${btnId}">Kopiér</button>
+        </div>
+        ${sectionHtml}
+      </div>
+    `;
+
+    copyHandlers.push({ btnId, text });
+  });
+
   ui.changesModalBody.innerHTML = html;
+
+  copyHandlers.forEach(({ btnId, text }) => {
+    const btn = document.getElementById(btnId);
+    btn?.addEventListener("click", () => copyAreaSummary(text, btn));
+  });
+
   show(ui.changesModal);
 }
 
