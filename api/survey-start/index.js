@@ -157,7 +157,9 @@ module.exports = async function (context, req) {
     // --- Check om survey allerede er gennemført (springes over ved gennemsyn/ro=1,
     //     hvor formålet netop er at kunne åbne og se et afsluttet skema) ---
     const status = await getStatusValues().catch(() => ({ AFSLUTTET: null }));
-    if (!readOnly && status.AFSLUTTET != null && Number(inst.cr175_lch_status) === status.AFSLUTTET) {
+    const isFinished = status.AFSLUTTET != null && Number(inst.cr175_lch_status) === status.AFSLUTTET;
+
+    if (!readOnly && isFinished) {
       return json(context, 409, {
         error: "already_completed",
         message: "Surveyen er allerede gennemført."
@@ -301,7 +303,7 @@ module.exports = async function (context, req) {
 
     const kundeAdresser = await fetchKundeAdresser(kundenr);
 
-    return json(context, 200, { code, customerName, groups, items, kundeAdresser });
+    return json(context, 200, { code, customerName, groups, items, kundeAdresser, isFinished });
   } catch (err) {
     context.log.error(err);
     return json(context, 500, { error: "server_error", message: err.message || String(err) });
