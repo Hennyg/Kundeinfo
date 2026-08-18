@@ -608,20 +608,24 @@ const SYSTEM_ICONS = {
 };
 const UKENDT_SYSTEM = "Ikke tildelt endnu";
 
-// Afgør hvilket bagvedliggende system en gruppe rapporterer til. Bruger
-// primært det admin har sat på gruppen (cr175_lch_rapporterer_til:
-// Kontakter / Kundeliste / Uniconta). For grupper hvor det endnu ikke er
-// sat, gættes der på titlen som en overgangsløsning.
-function sourceSystemForGroup(group) {
-  const explicit = String(group?.rapporterTil || "").trim();
-  if (explicit) return explicit;
+// Afgør hvilke bagvedliggende systemer en gruppe rapporterer til. Bruger
+// primært det admin har sat på gruppen (cr175_lch_rapporterer_til er en
+// multi-select valgliste, så en gruppe kan godt rapportere til flere
+// systemer på samme tid, fx både Kontakter og Kundeliste). For grupper hvor
+// det endnu ikke er sat, gættes der på titlen som en overgangsløsning.
+function sourceSystemsForGroup(group) {
+  const raw = String(group?.rapporterTil || "").trim();
+  if (raw) {
+    const list = raw.split(",").map(s => s.trim()).filter(Boolean);
+    if (list.length) return list;
+  }
 
   const t = String(group?.title || "").toLowerCase();
-  if (t.includes("leveringsadresse")) return "Kontakter";
-  if (t.includes("ejer")) return "Kontakter";
-  if (t.includes("medarbejder")) return "Kontakter";
-  if (t.includes("leverandørservice") || t.includes("leverandorservice")) return "Kundeliste";
-  return UKENDT_SYSTEM;
+  if (t.includes("leveringsadresse")) return ["Kontakter"];
+  if (t.includes("ejer")) return ["Kontakter"];
+  if (t.includes("medarbejder")) return ["Kontakter"];
+  if (t.includes("leverandørservice") || t.includes("leverandorservice")) return ["Kundeliste"];
+  return [UKENDT_SYSTEM];
 }
 
 // Leveringsadresse-gruppens to felter (vejnavn + postnr/by) vises som én
@@ -680,9 +684,11 @@ function showChangesSummary() {
 
   const bySystem = new Map();
   for (const entry of allEntries) {
-    const system = sourceSystemForGroup(entry.group);
-    if (!bySystem.has(system)) bySystem.set(system, []);
-    bySystem.get(system).push(entry);
+    const systems = sourceSystemsForGroup(entry.group);
+    for (const system of systems) {
+      if (!bySystem.has(system)) bySystem.set(system, []);
+      bySystem.get(system).push(entry);
+    }
   }
 
   let html = "";
