@@ -8,44 +8,65 @@
   <style>
     .center-card { max-width: 520px; margin: 64px auto; }
 
-    /* 1 kolonne (3 på store skærme) */
-    .grid {
+    /* Hero-banner - samme gradient/stil som resten af Herrup-portalerne */
+    .welcome-hero {
+      background: linear-gradient(135deg, #850c18 0%, #5a0810 100%);
+      color: #fff;
+      border-radius: 20px;
+      padding: 40px;
+      margin: 32px 0;
+      box-shadow: 0 10px 30px rgba(0,0,0,.15);
+    }
+    .welcome-hero h1 { margin: 0 0 12px; font-size: 2.1rem; line-height: 1.15; }
+    .welcome-hero p { margin: 0; font-size: 1.02rem; line-height: 1.6; color: rgba(255,255,255,.9); max-width: 620px; }
+    .welcome-hero .user-greeting {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 18px;
+      background: rgba(255,255,255,.15);
+      border: 1px solid rgba(255,255,255,.25);
+      border-radius: 999px;
+      padding: 6px 16px;
+      font-size: .95rem;
+      font-weight: 600;
+    }
+    .welcome-hero .user-greeting a {
+      color: #fff;
+      opacity: .85;
+      text-decoration: none;
+      font-weight: 400;
+    }
+    .welcome-hero .user-greeting a:hover { opacity: 1; text-decoration: underline; }
+
+    /* Card-tiles - matcher IT Support-portalens design */
+    .cards {
       display: grid;
-      grid-template-columns: 1fr;
-      gap: 16px;
-      margin-top: 16px;
-      max-width: 980px;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 18px;
+      margin-bottom: 32px;
     }
-    @media (min-width: 900px) {
-      .grid { grid-template-columns: 1fr 1fr 1fr; }
-    }
-
-    .card h2 { margin-top: 0; }
-    .card p { margin: 8px 0 12px; }
-    .muted { color:#666; }
-
-    .card .btnrow { display:flex; gap:8px; flex-wrap:wrap; }
-    .card .btnrow .btn { margin: 0; }
-
-    /* Tiles til de 3 admin-genveje */
-    .tile {
+    .card.tile {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.05);
+      transition: box-shadow .15s, border-color .15s, transform .12s ease;
       display: flex;
       flex-direction: column;
-      transition: transform .12s ease, box-shadow .12s ease;
-      cursor: default;
     }
-    .tile:hover {
+    .card.tile:hover {
+      box-shadow: 0 6px 18px rgba(0,0,0,.1);
+      border-color: #d1d5db;
       transform: translateY(-2px);
-      box-shadow: 0 6px 18px rgba(0,0,0,.08);
     }
-    .tile-icon {
-      font-size: 28px;
-      line-height: 1;
-      margin-bottom: 10px;
-    }
-    .tile h2 { font-size: 18px; }
+    .tile-icon { font-size: 2rem; margin-bottom: 12px; line-height: 1; }
+    .card.tile h2 { margin: 0 0 8px; font-size: 1.1rem; }
+    .card.tile p { margin: 0; font-size: .95rem; color: #6b7280; line-height: 1.55; }
     .tile-body { flex: 1; }
-    .tile .btnrow { margin-top: auto; padding-top: 10px; }
+    .card.tile .btnrow { display:flex; gap:8px; flex-wrap:wrap; margin-top: 16px; padding-top: 0; }
+    .card.tile .btnrow .btn { margin: 0; }
   </style>
 </head>
 
@@ -76,37 +97,34 @@
       <div class="navbar-inner">
         <div class="brand">Admin - Kundeinfo</div>
         <nav class="nav">
-          <a href="./index.html">Kundeindgang</a>
+          <a href="./index.html?preview=1">Kundeindgang</a>
           <span class="sep">•</span>
-        <a href="./unicontadebitor.html">Uniconta debitorer</a>
-      </nav>
+          <a href="./unicontadebitor.html">Uniconta debitorer</a>
+        </nav>
       </div>
     </div>
     <div class="nav-accent"></div>
 
     <div class="container">
-      <header>
-        <h1>Admin · Kundeinfo</h1>
-        <div id="authArea">
-          <span id="userInfo" class="muted"></span>
-          <a class="tag" href="/.auth/logout?post_logout_redirect_uri=/">Log ud</a>
-        </div>
-      </header>
-
-      <section class="card" style="max-width:980px;">
-        <p class="muted" style="margin:0;">
-          Her vedligeholder du <span class="pill">spørgsmål</span>, opretter nye
-          <span class="pill">kundeforespørgsler</span> og følger op på svar.
+      <section class="welcome-hero">
+        <h1>Velkommen til Admin</h1>
+        <p>
+          Her vedligeholder du spørgsmål, opretter nye kundeforespørgsler og følger op på svar.
         </p>
+        <div class="user-greeting">
+          <span id="greetingUser">Logget ind</span>
+          <span class="sep" style="opacity:.5;">|</span>
+          <a href="/.auth/logout?post_logout_redirect_uri=/">Log ud</a>
+        </div>
       </section>
 
-      <div class="grid">
+      <div class="cards">
         <!-- Spørgsmål (spørgsmål + grupper samlet, indtil de to sider er slået sammen) -->
         <section class="card tile">
           <div class="tile-icon">❓</div>
           <div class="tile-body">
             <h2>Spørgsmål</h2>
-            <p class="muted">Opret/ret spørgsmål og de grupper de hører under.</p>
+            <p>Opret/ret spørgsmål og de grupper de hører under.</p>
           </div>
           <div class="btnrow">
             <a class="btn btnlink" href="./adminedit.html">Spørgsmål</a>
@@ -119,7 +137,7 @@
           <div class="tile-icon">📝</div>
           <div class="tile-body">
             <h2>Opret kundeforespørgsel</h2>
-            <p class="muted">Opret en ny forespørgsel til en kunde – du får en kode og et link med det samme.</p>
+            <p>Opret en ny forespørgsel til en kunde – du får en kode og et link med det samme.</p>
           </div>
           <div class="btnrow">
             <a class="btn btnlink" href="./admincreate.html">Opret ny</a>
@@ -131,7 +149,7 @@
           <div class="tile-icon">📊</div>
           <div class="tile-body">
             <h2>Oversigt</h2>
-            <p class="muted">Se oprettede kundeforespørgsler, status og svar.</p>
+            <p>Se oprettede kundeforespørgsler, status og svar.</p>
           </div>
           <div class="btnrow">
             <a class="btn btnlink" href="./adminoversigt.html">Åbn oversigt</a>
@@ -145,6 +163,21 @@
   <script type="module">
     import { requireAuth } from "./assets/auth-guard.js";
     requireAuth({ autoRedirect: false });
+  </script>
+
+  <!-- Hilsen i hero-banneret ("Logget ind som: ...") -->
+  <script type="module">
+    (async () => {
+      try {
+        const r = await fetch("/.auth/me", { cache: "no-store" });
+        const data = await r.json();
+        const user = data?.clientPrincipal?.userDetails;
+        const el = document.getElementById("greetingUser");
+        if (el) el.textContent = user ? `Logget ind som: ${user}` : "Ikke logget ind";
+      } catch {
+        // Lad standardteksten stå, hvis opslaget fejler
+      }
+    })();
   </script>
 
   <script type="module" src="./assets/adminhub.js"></script>
