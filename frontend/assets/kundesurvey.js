@@ -753,7 +753,19 @@ function groupAndSplitEntries(entries) {
 }
 
 const SYSTEM_ORDER = ["Kontakter", "Kundeliste", "Uniconta", "SalesForce"];
-const SUMMARY_RECIPIENT = "hng@lcherrup.dk"; // fast modtager for nu
+
+let currentUserEmailCache = null;
+async function getCurrentUserEmail() {
+  if (currentUserEmailCache !== null) return currentUserEmailCache;
+  try {
+    const r = await fetch("/.auth/me", { cache: "no-store" });
+    const data = await r.json();
+    currentUserEmailCache = data?.clientPrincipal?.userDetails || "";
+  } catch {
+    currentUserEmailCache = "";
+  }
+  return currentUserEmailCache;
+}
 
 // Bygger både HTML (til modalen) og en ren tekst-udgave for ét områdes
 // indhold, opdelt i afsnit pr. spørgsmålsgruppe. "changed"/"added"
@@ -871,8 +883,15 @@ function buildAreaEmailHtml(system, entries, subjectPrefix) {
 }
 
 // Sender ét områdes opsummering som mail via /api/survey-send-summary-mail.
-// Afsender bliver den bruger der er logget ind (bestemt server-side).
-async function sendAreaMail(system, entries, btn) {
+// Afsenderen bestemmes server-side (den bruger der er logget ind).
+// Modtageren kommer fra det pågældende korts eget tekstfelt.
+async function sendAreaMail(system, entries, btn, toInput) {
+  const to = (toInput?.value || "").trim();
+  if (!to) {
+    if (toInput) toInput.focus();
+    return false;
+  }
+
   const subjectPrefix = `Spørgeskema ${DATA?.code || ""} – ${DATA?.customerName || ""}`;
   const html = buildAreaEmailHtml(system, entries, subjectPrefix);
 
@@ -883,7 +902,7 @@ async function sendAreaMail(system, entries, btn) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        to: SUMMARY_RECIPIENT,
+        to,
         subject: `${subjectPrefix} – ${system}`,
         html
       })
@@ -899,11 +918,14 @@ async function sendAreaMail(system, entries, btn) {
 
 // Viser en opsummering af hvad kunden har rettet/tilføjet, altid opdelt i
 // separate kort – ét pr. område (Kontakter, Kundeliste, Uniconta,
-// SalesForce). Hvert kort har en "Send mail"-knap, og der er en "Send
-// alle"-knap i toppen der sender dem alle efter hinanden. Bruges kun ved
-// gennemsyn af et afsluttet skema.
-function showChangesSummary() {
+// SalesForce). Hvert kort har sit eget modtager-felt (default: den
+// loggede-ind bruger, så testmails lander i egen indbakke) og en "Send
+// mail"-knap, samt en "Send alle"-knap i toppen. Bruges kun ved gennemsyn
+// af et afsluttet skema.
+async function showChangesSummary() {
   if (!ui.changesModal || !ui.changesModalBody) return;
+
+  const defaultRecipient = await getCurrentUserEmail();
 
   const { changes, additions, allItems } = lastChangeSummary;
 
@@ -937,7 +959,8 @@ function showChangesSummary() {
 
   const cardData = [];
   let html = `
-    <div style="text-align:right; margin-bottom:12px;">
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;">
+      <button type="button" class="btn" id="closeSummaryTopBtn">Luk</button>
       <button type="button" class="btn primary" id="sendAllAreasBtn">Send alle</button>
     </div>
   `;
@@ -951,25 +974,36 @@ function showChangesSummary() {
     const { html: sectionHtml, text: sectionText } = buildAreaSummary(system, entries);
     const icon = SYSTEM_ICONS[system] || "❔";
     const btnId = `sendAreaBtn_${idx}`;
+    const toInputId = `sendAreaTo_${idx}`;
 
     html += `
       <div class="summary-card">
         <div class="summary-card-header">
           <h3 style="margin:0;">${icon} ${escapeHtml(system)}</h3>
-          ${hasContent ? `<button type="button" class="btn" id="${btnId}">Send mail</button>` : ""}
+          ${hasContent ? `
+            <div style="display:flex; align-items:center; gap:8px;">
+              <input type="email" id="${toInputId}" value="${escapeHtml(defaultRecipient)}"
+                     placeholder="modtager@eksempel.dk"
+                     style="border:1px solid #ccc; border-radius:6px; padding:4px 8px; font-size:13px; width:200px;" />
+              <button type="button" class="btn" id="${btnId}">Send mail</button>
+            </div>
+          ` : ""}
         </div>
         ${sectionHtml}
       </div>
     `;
 
-    if (hasContent) cardData.push({ btnId, system, entries });
+    if (hasContent) cardData.push({ btnId, toInputId, system, entries });
   });
 
   ui.changesModalBody.innerHTML = html;
 
-  cardData.forEach(({ btnId, system, entries }) => {
+  document.getElementById("closeSummaryTopBtn")?.addEventListener("click", () => hide(ui.changesModal));
+
+  cardData.forEach(({ btnId, toInputId, system, entries }) => {
     const btn = document.getElementById(btnId);
-    btn?.addEventListener("click", () => sendAreaMail(system, entries, btn));
+    const toInput = document.getElementById(toInputId);
+    btn?.addEventListener("click", () => sendAreaMail(system, entries, btn, toInput));
   });
 
   document.getElementById("sendAllAreasBtn")?.addEventListener("click", async (e) => {
@@ -978,9 +1012,10 @@ function showChangesSummary() {
     const original = allBtn.textContent;
     allBtn.textContent = "Sender alle…";
 
-    for (const { btnId, system, entries } of cardData) {
+    for (const { btnId, toInputId, system, entries } of cardData) {
       const btn = document.getElementById(btnId);
-      await sendAreaMail(system, entries, btn);
+      const toInput = document.getElementById(toInputId);
+      await sendAreaMail(system, entries, btn, toInput);
     }
 
     allBtn.textContent = "Alle sendt ✔";
