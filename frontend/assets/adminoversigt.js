@@ -66,7 +66,7 @@ function rowHtml(row) {
       <td>${statusPillHtml(row)}</td>
       <td>${fmtDateTime(expiresAt)}${expiredTag}</td>
       <td>${fmtDateTime(row.createdon)}</td>
-      <td>${fmtDateTime(row.modifiedon)}</td>
+      <td>${fmtDateTime(row.sidstRettet)}</td>
       <td>
         <a class="tag" href="${seSkemaLink}" target="_blank" rel="noopener">Se skema</a>
         <a class="tag" href="${prefillLink}">Prefill</a>
