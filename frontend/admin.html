@@ -26,6 +26,26 @@
 
     .card .btnrow { display:flex; gap:8px; flex-wrap:wrap; }
     .card .btnrow .btn { margin: 0; }
+
+    /* Tiles til de 3 admin-genveje */
+    .tile {
+      display: flex;
+      flex-direction: column;
+      transition: transform .12s ease, box-shadow .12s ease;
+      cursor: default;
+    }
+    .tile:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 18px rgba(0,0,0,.08);
+    }
+    .tile-icon {
+      font-size: 28px;
+      line-height: 1;
+      margin-bottom: 10px;
+    }
+    .tile h2 { font-size: 18px; }
+    .tile-body { flex: 1; }
+    .tile .btnrow { margin-top: auto; padding-top: 10px; }
   </style>
 </head>
 
@@ -82,9 +102,12 @@
 
       <div class="grid">
         <!-- Spørgsmål (spørgsmål + grupper samlet, indtil de to sider er slået sammen) -->
-        <section class="card">
-          <h2>Spørgsmål</h2>
-          <p class="muted">Opret/ret spørgsmål og de grupper de hører under.</p>
+        <section class="card tile">
+          <div class="tile-icon">❓</div>
+          <div class="tile-body">
+            <h2>Spørgsmål</h2>
+            <p class="muted">Opret/ret spørgsmål og de grupper de hører under.</p>
+          </div>
           <div class="btnrow">
             <a class="btn btnlink" href="./adminedit.html">Spørgsmål</a>
             <a class="btn btnlink" href="./adminquestiongroup.html">Grupper</a>
@@ -92,17 +115,27 @@
         </section>
 
         <!-- Opret kundeforespørgsel -->
-        <section class="card">
-          <h2>Opret kundeforespørgsel</h2>
-          <p class="muted">Opret en ny forespørgsel til en kunde – du får en kode og et link med det samme.</p>
-          <a class="btn btnlink" href="./admincreate.html">Opret ny</a>
+        <section class="card tile">
+          <div class="tile-icon">📝</div>
+          <div class="tile-body">
+            <h2>Opret kundeforespørgsel</h2>
+            <p class="muted">Opret en ny forespørgsel til en kunde – du får en kode og et link med det samme.</p>
+          </div>
+          <div class="btnrow">
+            <a class="btn btnlink" href="./admincreate.html">Opret ny</a>
+          </div>
         </section>
 
         <!-- Oversigt -->
-        <section class="card">
-          <h2>Oversigt</h2>
-          <p class="muted">Se oprettede kundeforespørgsler, status og svar.</p>
-          <a class="btn btnlink" href="./adminoversigt.html">Åbn oversigt</a>
+        <section class="card tile">
+          <div class="tile-icon">📊</div>
+          <div class="tile-body">
+            <h2>Oversigt</h2>
+            <p class="muted">Se oprettede kundeforespørgsler, status og svar.</p>
+          </div>
+          <div class="btnrow">
+            <a class="btn btnlink" href="./adminoversigt.html">Åbn oversigt</a>
+          </div>
         </section>
       </div>
     </div>
@@ -117,6 +150,3 @@
   <script type="module" src="./assets/adminhub.js"></script>
 </body>
 </html>
-
-
-
