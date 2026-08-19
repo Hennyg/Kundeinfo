@@ -1,34 +1,11 @@
-const els = {
-  me: document.getElementById('userInfo'),
-  login: document.getElementById('btnLogin'),
-  logout: document.getElementById('btnLogout'),
-};
-
-async function getMe() {
-  try {
-    const r = await fetch('/.auth/me');
-    if (!r.ok) return null;
-    const data = await r.json();
-    return data?.clientPrincipal || null;
-  } catch { return null; }
-}
-
-function setAuthUI(me) {
-  if (me) {
-    els.me.textContent = `${me.userDetails}`;
-    els.login.classList.add('hidden');
-    els.logout.classList.remove('hidden');
-  } else {
-    els.me.textContent = 'Ikke logget ind';
-    els.login.classList.remove('hidden');
-    els.logout.classList.add('hidden');
-  }
-}
-
-(async function init() {
-  const me = await getMe();
-  setAuthUI(me);
-})();
-
-
-
+// /frontend/assets/adminhub.js
+//
+// Login/logout-visning på admin.html håndteres allerede af den indlejrede
+// auth-guard.js (viser/skjuler #loading, #app, #authDenied og sætter
+// #userInfo). Denne fil forsøgte tidligere selv at styre #btnLogin/
+// #btnLogout, som ikke findes i admin.html - det gav et uncaught
+// TypeError ("Cannot read properties of null") på hver sideindlæsning.
+//
+// Filen er bevidst tømt for at undgå det crash. Tilføj evt. admin.html-
+// specifik logik her igen, men brug optional chaining (?.) hvis du
+// refererer til elementer, så en manglende knap ikke vælter resten af siden.
