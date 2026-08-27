@@ -1,3 +1,4 @@
+===== FIL: C:\Users\henri\Downloads\Kundeinfo-main (1)\Kundeinfo-main\frontend\adminoversigt.html =====
 <!doctype html>
 <html lang="da">
 <head>
@@ -7,7 +8,7 @@
   <link href="./assets/style.css" rel="stylesheet" />
 
   <style>
-    .container { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
+    .container { max-width: 1400px; margin: 24px auto; padding: 0 16px; }
     header { display:flex; justify-content: space-between; align-items:center; gap:16px; }
     table { width:100%; border-collapse: collapse; }
     th, td { border-bottom:1px solid #eee; padding:8px; text-align:left; }
@@ -97,7 +98,8 @@
             <th>Kode</th>
             <th>Status</th>
             <th>Sende SMS</th>
-            <th>Sendt den</th>
+            <th>Skema oprettet</th>
+            <th>Mail sendt</th>
             <th>Sidst rettet</th>
             <th>Handling</th>
           </tr>
@@ -108,6 +110,7 @@
             <th><select id="filterStatus"><option value="">Alle</option></select></th>
             <th><input type="text" id="filterUdloeber" placeholder="Filtrér…" /></th>
             <th><input type="text" id="filterOprettet" placeholder="Filtrér…" /></th>
+            <th><input type="text" id="filterMailSendt" placeholder="Filtrér…" /></th>
             <th><input type="text" id="filterSidstRettet" placeholder="Filtrér…" /></th>
             <th></th>
           </tr>
@@ -125,3 +128,4 @@
   <script type="module" src="./assets/adminoversigt.js"></script>
 </body>
 </html>
+

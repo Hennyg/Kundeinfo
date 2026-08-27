@@ -1410,6 +1410,8 @@ async function createOrSaveInstance(sendMailAfter) {
             code: res.code,
             link: res.link,
             customerName,
+            customerNumber,
+            instanceId: res.instanceId || res.id,
             to: testRecipient,
             templateKey
           })

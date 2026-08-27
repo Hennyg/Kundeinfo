@@ -8,9 +8,21 @@
 // opkald der endnu ikke sender templateKey med.
 // Afsenderen er den admin-bruger der er logget ind (samme mønster som
 // survey-send-summary-mail).
+//
+// Uniconta-pladsholdere (kundeemail, telefon, mobil, cvr, adresse,
+// postnr_by, kontaktperson) hentes HER på serveren via det eksisterende
+// _uniconta.js-modul, ud fra customerNumber - ikke fra data browseren
+// sender med. Det sikrer at mailen altid bruger de aktuelle Uniconta-data,
+// uanset hvad der evt. har ligget i browserens formular.
+//
+// Efter mailen er sendt, gemmes tidspunktet på selve kundeundersøgelsen
+// (cr175_lch_mailsendttidspunkt), så adminoversigt.html kan vise en ægte
+// "Mail sendt"-kolonne adskilt fra "Skema oprettet".
 
 const { graph } = require("../_graph/graph");
 const { renderTemplateByKey } = require("../_mail/renderTemplate");
+const { unicontaFetch, normalizeDebtor } = require("../_uniconta");
+const { cdFetch: dvFetch } = require("../_coredata");
 
 function json(context, status, body) {
   context.res = {
@@ -27,6 +39,35 @@ function getClientPrincipal(req) {
     const decoded = Buffer.from(header, "base64").toString("utf8");
     return JSON.parse(decoded);
   } catch {
+    return null;
+  }
+}
+
+function esc(value) {
+  return String(value || "").replace(/'/g, "''");
+}
+
+// Samme konvertering som customerNumberToUnicontaAccount() i
+// admincreate.js: kundenummer "0080001985" -> Uniconta-konto "80001985".
+function customerNumberToUnicontaAccount(kundenr) {
+  return String(kundenr || "").trim().replace(/\s+/g, "").replace(/^00/, "");
+}
+
+// Henter og normaliserer Uniconta-debitoren for kundenummeret. Fejler
+// opslaget (kunden findes ikke i Uniconta, forkert kundenummer, Uniconta er
+// nede osv.), skal selve mail-afsendelsen IKKE stoppe - Uniconta-
+// pladsholderne bliver bare tomme i det tilfælde.
+async function loadUnicontaDebtorSafe(context, customerNumber) {
+  const account = customerNumberToUnicontaAccount(customerNumber);
+  if (!account) return null;
+
+  try {
+    const response = await unicontaFetch(`DebtorClient?$filter=Account eq '${esc(account)}'&$top=1`);
+    const data = await response.json();
+    const row = (Array.isArray(data) ? data : (data.value || []))[0];
+    return row ? normalizeDebtor(row) : null;
+  } catch (e) {
+    context.log.error("survey-send-invite-mail: Uniconta-opslag fejlede:", e);
     return null;
   }
 }
@@ -48,6 +89,8 @@ module.exports = async function (context, req) {
     const code = String(req?.body?.code || "").trim();
     const link = String(req?.body?.link || "").trim();
     const customerName = String(req?.body?.customerName || "").trim();
+    const customerNumber = String(req?.body?.customerNumber || "").trim();
+    const instanceId = String(req?.body?.instanceId || "").trim();
     const to = String(req?.body?.to || "").trim();
     const templateKey = String(req?.body?.templateKey || "").trim() || DEFAULT_TEMPLATE_KEY;
 
@@ -58,12 +101,21 @@ module.exports = async function (context, req) {
       });
     }
 
+    const debtor = await loadUnicontaDebtorSafe(context, customerNumber);
+
     let rendered;
     try {
       rendered = await renderTemplateByKey(templateKey, {
         kundenavn: customerName || "(uden navn)",
         kode: code,
-        link
+        link,
+        kundeemail: debtor?.email || "",
+        telefon: debtor?.phone || "",
+        mobil: debtor?.mobile || "",
+        cvr: debtor?.vatNumber || "",
+        adresse: [debtor?.address1, debtor?.address2].filter(Boolean).join(", "),
+        postnr_by: [debtor?.zipCode, debtor?.city].filter(Boolean).join(" "),
+        kontaktperson: debtor?.contactPerson || ""
       });
     } catch (e) {
       return json(context, 500, {
@@ -90,7 +142,32 @@ module.exports = async function (context, req) {
       saveToSentItems: true
     });
 
-    return json(context, 200, { ok: true, from: fromMailbox, to, templateKey });
+    // Registrér hvornår mailen blev sendt, så adminoversigt.html kan vise
+    // en ægte "Mail sendt"-kolonne (i stedet for bare at gætte ud fra
+    // oprettelsestidspunktet). Fejler denne opdatering, skal det IKKE gøre
+    // hele kaldet til en fejl - mailen er jo allerede sendt.
+    let mailTimestampSaved = false;
+    if (instanceId) {
+      try {
+        await dvFetch(`cr175_lch_kundeinfo_kundeundersoegelses(${instanceId})`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", "If-Match": "*" },
+          body: JSON.stringify({ cr175_lch_mailsendttidspunkt: new Date().toISOString() })
+        });
+        mailTimestampSaved = true;
+      } catch (e) {
+        context.log.error("survey-send-invite-mail: kunne ikke gemme mailsendttidspunkt:", e);
+      }
+    }
+
+    return json(context, 200, {
+      ok: true,
+      from: fromMailbox,
+      to,
+      templateKey,
+      unicontaDebtorFound: !!debtor,
+      mailTimestampSaved
+    });
 
   } catch (err) {
     context.log.error("survey-send-invite-mail failed:", err);

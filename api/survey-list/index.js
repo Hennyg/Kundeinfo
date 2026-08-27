@@ -25,7 +25,7 @@ module.exports = async function (context, req) {
 
     const url =
       `cr175_lch_kundeinfo_kundeundersoegelses` +
-      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kundenavn,cr175_lch_kundenummer,cr175_lch_kode,cr175_lch_udloebstidspunkt,cr175_lch_status,createdon` +
+      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kundenavn,cr175_lch_kundenummer,cr175_lch_kode,cr175_lch_udloebstidspunkt,cr175_lch_status,cr175_lch_mailsendttidspunkt,createdon` +
       `&$orderby=createdon desc` +
       filterPart +
       `&$top=${top}`;

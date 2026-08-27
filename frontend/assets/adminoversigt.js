@@ -70,6 +70,7 @@ function rowHtml(row) {
       <td>${statusPillHtml(row)}</td>
       <td>${fmtDateTime(expiresAt)}${expiredTag}</td>
       <td>${fmtDateTime(row.createdon)}</td>
+      <td>${fmtDateTime(row.cr175_lch_mailsendttidspunkt)}</td>
       <td>${fmtDateTime(row.sidstRettet)}</td>
       <td>
         <a class="tag" href="${seSkemaLink}">Se skema</a>
@@ -170,6 +171,7 @@ function getFilterValues() {
     status: $("filterStatus")?.value || "",
     udloeber: ($("filterUdloeber")?.value || "").trim().toLowerCase(),
     oprettet: ($("filterOprettet")?.value || "").trim().toLowerCase(),
+    mailSendt: ($("filterMailSendt")?.value || "").trim().toLowerCase(),
     sidstRettet: ($("filterSidstRettet")?.value || "").trim().toLowerCase()
   };
 }
@@ -180,6 +182,7 @@ function rowMatchesFilters(row, f) {
   const statusLabel = getStatusLabel(row);
   const udloeber = fmtDateTime(row.cr175_lch_udloebstidspunkt).toLowerCase();
   const oprettet = fmtDateTime(row.createdon).toLowerCase();
+  const mailSendt = fmtDateTime(row.cr175_lch_mailsendttidspunkt).toLowerCase();
   const sidstRettet = fmtDateTime(row.sidstRettet).toLowerCase();
 
   if (f.search && !(kundenavn.includes(f.search) || kode.includes(f.search))) return false;
@@ -188,6 +191,7 @@ function rowMatchesFilters(row, f) {
   if (f.status && statusLabel !== f.status) return false;
   if (f.udloeber && !udloeber.includes(f.udloeber)) return false;
   if (f.oprettet && !oprettet.includes(f.oprettet)) return false;
+  if (f.mailSendt && !mailSendt.includes(f.mailSendt)) return false;
   if (f.sidstRettet && !sidstRettet.includes(f.sidstRettet)) return false;
 
   return true;
@@ -213,7 +217,7 @@ function renderTable(rows) {
 
   tbody.innerHTML = rows.length
     ? rows.map(rowHtml).join("")
-    : `<tr class="noResults"><td colspan="8">Ingen kundesurveys matcher filtrene.</td></tr>`;
+    : `<tr class="noResults"><td colspan="9">Ingen kundesurveys matcher filtrene.</td></tr>`;
 
   tbody.querySelectorAll(".rowCheck").forEach(cb => {
     cb.addEventListener("change", updateSelectionUi);
@@ -248,7 +252,7 @@ function applyFilters() {
 function clearFilters() {
   const searchInput = $("searchInput");
   if (searchInput) searchInput.value = "";
-  ["filterKundenavn", "filterKode", "filterUdloeber", "filterOprettet", "filterSidstRettet"].forEach(id => {
+  ["filterKundenavn", "filterKode", "filterUdloeber", "filterOprettet", "filterMailSendt", "filterSidstRettet"].forEach(id => {
     const el = $(id);
     if (el) el.value = "";
   });
@@ -300,7 +304,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("btnDeleteSelected")?.addEventListener("click", deleteSelected);
 
-  ["searchInput", "filterKundenavn", "filterKode", "filterUdloeber", "filterOprettet", "filterSidstRettet"]
+  ["searchInput", "filterKundenavn", "filterKode", "filterUdloeber", "filterOprettet", "filterMailSendt", "filterSidstRettet"]
     .forEach(id => $(id)?.addEventListener("input", applyFilters));
   $("filterStatus")?.addEventListener("change", applyFilters);
   $("btnClearFilters")?.addEventListener("click", clearFilters);
