@@ -159,29 +159,47 @@ function buildInput(it, value) {
   const name = `q_${it.questionId}_${it.repeatIndex}_${FORM_INSTANCE_TOKEN}`;
   const isAddressField = ADDRESS_FIELD_NUMBERS.includes(String(it.number || ""));
 
-  // Ja/Nej vises som to knapper (radio-knapper stylet som knapper) i stedet
-  // for en dropdown – hurtigere at bruge. Et påkrævet felt med en
-  // prefill-værdi ("Vores info") betragtes som udfyldt, selv hvis kunden
-  // ikke selv har valgt noget, derfor sættes required kun hvis der IKKE er
-  // en prefill-tekst at falde tilbage på (samme regel som før).
+  // Ja/Nej vises som knapper (radio-knapper stylet som knapper) i stedet for
+  // en dropdown – hurtigere at bruge. Der er altid en 3. knap "Vælg", som er
+  // markeret som standard – også selvom der findes en "Vores info"-værdi –
+  // så kunden aktivt skal tage stilling og ikke tror "Vores info" allerede
+  // er deres eget svar. Lader kunden "Vælg" stå, falder svaret automatisk
+  // tilbage til prefill-værdien ved indsendelse (se collectAnswers).
+  //
+  // Et påkrævet felt UDEN en prefill-værdi (intet at falde tilbage på) skal
+  // stadig tvinge kunden til aktivt at vælge Ja/Nej. Da en radiogruppe i
+  // browseren betragtes som "besvaret" hvis blot ÉN knap er markeret – uanset
+  // hvilken – kan "Vælg" ikke være markeret som standard i det tilfælde, og
+  // den gøres disabled så kunden ikke kan vælge den som et "tomt" svar.
   if (inputType === "yesno") {
     const isRequired = !!(it.required && !it.prefillText);
+    const hasOwnAnswer = value === "Ja" || value === "Nej";
     const container = document.createElement("div");
     container.className = "yesno-group";
     container.dataset.yesnoGroup = "1";
 
-    [["Ja", "ja"], ["Nej", "nej"]].forEach(([label, suffix]) => {
+    const options = [["", "vaelg", "Vælg"], ["Ja", "ja", "Ja"], ["Nej", "nej", "Nej"]];
+
+    options.forEach(([val, suffix, label]) => {
+      const isPlaceholder = val === "";
       const id = `${name}_${suffix}`;
 
       const radio = document.createElement("input");
       radio.type = "radio";
       radio.name = name;
       radio.id = id;
-      radio.value = label;
+      radio.value = val;
       radio.className = "yesno-radio";
-      radio.checked = value === label;
       radio.autocomplete = "off";
-      if (isRequired) radio.required = true;
+
+      if (isPlaceholder) {
+        radio.checked = !hasOwnAnswer && !isRequired;
+        if (isRequired) radio.disabled = true; // ægte krav: "Vælg" kan ikke bruges som svar
+      } else {
+        radio.checked = value === val;
+        if (isRequired) radio.required = true;
+      }
+
       radio.dataset.questionid = it.questionId;
       radio.dataset.groupid = it.groupId;
       radio.dataset.repeatindex = String(it.repeatIndex);
@@ -190,7 +208,7 @@ function buildInput(it, value) {
 
       const lbl = document.createElement("label");
       lbl.htmlFor = id;
-      lbl.className = "yesno-btn";
+      lbl.className = "yesno-btn" + (isPlaceholder ? " yesno-btn-placeholder" : "");
       lbl.textContent = label;
 
       container.appendChild(radio);
@@ -408,7 +426,7 @@ function renderQuestions() {
         });
 
         const wrap = document.createElement("div");
-        wrap.style.padding = "10px 0";
+        wrap.style.padding = "18px 0";
         wrap.style.borderBottom = "1px solid #eee";
 
         const label = document.createElement("div");
