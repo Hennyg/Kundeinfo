@@ -8,6 +8,8 @@
 const { cdFetch: dvFetch } = require("../_coredata");
 const { getStatusValues } = require("../_kundeundersoegelseStatus");
 const { graph } = require("../_graph/graph");
+const { loadSurveyItems } = require("../_survey/loadSurveyItems");
+const { buildSurveyPdf } = require("../_pdf/buildSurveyPdf");
 
 function json(context, status, body) {
   context.res = {
@@ -25,6 +27,33 @@ function escapeHtml(s) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+// Bygger PDF-kopien af det udfyldte skema som Graph-vedhæftning. Fejler
+// PDF-byggeriet (fx en enkelt manglende Dataverse-kolonne), skal mailen
+// stadig sendes – bare uden vedhæftning – så alt er wrappet i try/catch.
+async function buildSurveyPdfAttachment(context, code) {
+  try {
+    const data = await loadSurveyItems(code);
+    if (!data || !data.items.length) return null;
+
+    const pdfBuffer = await buildSurveyPdf({
+      customerName: data.customerName,
+      code: data.code,
+      groups: data.groups,
+      items: data.items
+    });
+
+    return {
+      "@odata.type": "#microsoft.graph.fileAttachment",
+      name: `Spoergeskema-${code}.pdf`,
+      contentType: "application/pdf",
+      contentBytes: pdfBuffer.toString("base64")
+    };
+  } catch (e) {
+    context.log.error("Kunne ikke bygge PDF til 'afsluttet skema'-mail:", e);
+    return null;
+  }
 }
 
 // Sender en mail til adresserne i Application Setting "Kundeinfo_Afsluttet_survey"
@@ -54,18 +83,22 @@ async function sendAfsluttetMail(context, { kundenavn, kundenummer, code, req })
 
     const kundeLabel = kundenavn || kundenummer || "(ukendt kunde)";
 
+    const attachment = await buildSurveyPdfAttachment(context, code);
+
     const subject = `Kunde ${kundenavn || kundenummer || ""} har afsluttet spørgeskema ${code}`;
     const htmlBody =
       `<p>Kunde <strong>${escapeHtml(kundeLabel)}</strong>` +
       (kundenummer ? ` (${escapeHtml(kundenummer)})` : "") +
       ` har afsluttet spørgeskema <strong>${escapeHtml(code)}</strong>.</p>` +
-      (link ? `<p><a href="${link}">Se besvarelsen</a></p>` : "");
+      (link ? `<p><a href="${link}">Se besvarelsen</a></p>` : "") +
+      (attachment ? `<p>Se vedhæftede PDF for en kopi af det udfyldte skema.</p>` : "");
 
     await graph("POST", `/users/${encodeURIComponent(fromMailbox)}/sendMail`, {
       message: {
         subject,
         body: { contentType: "HTML", content: htmlBody },
-        toRecipients: recipients.map(address => ({ emailAddress: { address } }))
+        toRecipients: recipients.map(address => ({ emailAddress: { address } })),
+        attachments: attachment ? [attachment] : []
       },
       saveToSentItems: false
     });
