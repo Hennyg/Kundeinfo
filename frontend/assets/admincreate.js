@@ -328,14 +328,56 @@ function debtorRow(label, value) {
 }
 
 // Opdaterer "Opret skema og send mail til: xx"-knappen med kundens e-mail
-// fra Uniconta debitor-data. Knappen deaktiveres hvis der ikke findes en
-// e-mail, så man ikke kan sende til en tom modtager.
+// fra Uniconta debitor-data, og kræver samtidig at en mailskabelon er
+// valgt i dropdown'en øverst. Knappen deaktiveres hvis et af delene mangler.
 function updateCreateMailTarget() {
   if (!els.createMailTarget || !els.btnCreateAndMail) return;
 
   const email = (currentDebtor?.email || "").trim();
+  const hasTemplate = !!(els.mailTemplateSelect?.value || "").trim();
+
   els.createMailTarget.textContent = email || "(ingen e-mail fundet)";
-  els.btnCreateAndMail.disabled = !email;
+  els.btnCreateAndMail.disabled = !email || !hasTemplate;
+}
+
+// Henter mail-skabeloner i kategorien "opret-skema" (se
+// adminmailskabeloner.html) og fylder dropdown'en øverst på siden.
+// Skabelonens Nøgle sendes med til /api/survey-send-invite-mail, når
+// "Opret skema og send mail" trykkes.
+async function loadMailTemplates() {
+  if (!els.mailTemplateSelect) return;
+
+  try {
+    const data = await fetchJson(
+      "/api/mailskabeloner-get?kategori=opret-skema&aktiv=1",
+      { cache: "no-store" }
+    );
+    const rows = data?.value || data || [];
+
+    if (!rows.length) {
+      els.mailTemplateSelect.innerHTML =
+        `<option value="">Ingen skabeloner fundet (kategori "opret-skema")</option>`;
+      els.mailTemplateSelect.disabled = true;
+      updateCreateMailTarget();
+      return;
+    }
+
+    els.mailTemplateSelect.disabled = false;
+    els.mailTemplateSelect.innerHTML = rows
+      .map(t => {
+        const key = t.cr175_lch_noegle || "";
+        const label = t.cr175_lch_navn || key;
+        return `<option value="${escapeHtml(key)}">${escapeHtml(label)}</option>`;
+      })
+      .join("");
+
+    updateCreateMailTarget();
+  } catch (e) {
+    console.error("Kunne ikke hente mailskabeloner:", e);
+    els.mailTemplateSelect.innerHTML = `<option value="">Kunne ikke hente skabeloner</option>`;
+    els.mailTemplateSelect.disabled = true;
+    updateCreateMailTarget();
+  }
 }
 
 function fillPrefillFromUniconta() {
@@ -1181,6 +1223,7 @@ async function loadInstanceForEdit(instanceId) {
       els.btnCreateNoMail.textContent = "Gem ændringer";
     }
     els.btnCreateAndMail?.classList.add("hidden");
+    document.getElementById("mailTemplateRow")?.classList.add("hidden");
 
     setStatus(`Redigerer eksisterende skema (kode: ${data.code || "—"})`);
   } catch (e) {
@@ -1357,6 +1400,7 @@ async function createOrSaveInstance(sendMailAfter) {
       // e-mail knappen viste. Skift til `currentDebtor?.email` her, når det
       // er klar til at gå i drift med rigtige kundemails.
       const testRecipient = "hng@lcherrup.dk";
+      const templateKey = (els.mailTemplateSelect?.value || "").trim();
 
       try {
         await fetchJson("/api/survey-send-invite-mail", {
@@ -1366,7 +1410,8 @@ async function createOrSaveInstance(sendMailAfter) {
             code: res.code,
             link: res.link,
             customerName,
-            to: testRecipient
+            to: testRecipient,
+            templateKey
           })
         });
 
@@ -1423,6 +1468,9 @@ document.addEventListener(
 
       createMailTarget:
         $("createMailTarget"),
+
+      mailTemplateSelect:
+        $("mailTemplateSelect"),
 
       prefillBottomActions:
         $("prefillBottomActions"),
@@ -1620,6 +1668,9 @@ document.addEventListener(
     clearUnicontaDebtor();
     clearKundeliste();
     clearEntraCustomerContacts();
+
+    els.mailTemplateSelect?.addEventListener("change", updateCreateMailTarget);
+    await loadMailTemplates();
 
     await loadQuestionnaire();
 

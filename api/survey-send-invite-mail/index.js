@@ -2,9 +2,12 @@
 //
 // Sender "opret skema"-invitationsmailen til kunden, når admin opretter et
 // nyt spørgeskema på admincreate.html og vælger "Opret skema og send mail".
-// Bruger mail-skabelonen med nøglen "survey-invite" (oprettes/redigeres på
-// adminmailskabeloner.html). Afsenderen er den admin-bruger der er logget
-// ind (samme mønster som survey-send-summary-mail).
+// Skabelonen vælges via dropdown på admincreate.html (kategori
+// "opret-skema" i mailskabeloner) og sendes med som `templateKey`. Falder
+// tilbage til "survey-invite" hvis intet er valgt, af hensyn til ældre
+// opkald der endnu ikke sender templateKey med.
+// Afsenderen er den admin-bruger der er logget ind (samme mønster som
+// survey-send-summary-mail).
 
 const { graph } = require("../_graph/graph");
 const { renderTemplateByKey } = require("../_mail/renderTemplate");
@@ -28,7 +31,7 @@ function getClientPrincipal(req) {
   }
 }
 
-const TEMPLATE_KEY = "survey-invite";
+const DEFAULT_TEMPLATE_KEY = "survey-invite";
 
 module.exports = async function (context, req) {
   try {
@@ -46,6 +49,7 @@ module.exports = async function (context, req) {
     const link = String(req?.body?.link || "").trim();
     const customerName = String(req?.body?.customerName || "").trim();
     const to = String(req?.body?.to || "").trim();
+    const templateKey = String(req?.body?.templateKey || "").trim() || DEFAULT_TEMPLATE_KEY;
 
     if (!code || !link || !to) {
       return json(context, 400, {
@@ -56,7 +60,7 @@ module.exports = async function (context, req) {
 
     let rendered;
     try {
-      rendered = await renderTemplateByKey(TEMPLATE_KEY, {
+      rendered = await renderTemplateByKey(templateKey, {
         kundenavn: customerName || "(uden navn)",
         kode: code,
         link
@@ -72,7 +76,7 @@ module.exports = async function (context, req) {
       return json(context, 404, {
         error: "template_missing",
         message:
-          `Mail-skabelonen "${TEMPLATE_KEY}" findes ikke eller er ikke aktiv. ` +
+          `Mail-skabelonen "${templateKey}" findes ikke eller er ikke aktiv. ` +
           `Opret/aktivér den under Admin → Mailskabeloner.`
       });
     }
@@ -86,7 +90,7 @@ module.exports = async function (context, req) {
       saveToSentItems: true
     });
 
-    return json(context, 200, { ok: true, from: fromMailbox, to });
+    return json(context, 200, { ok: true, from: fromMailbox, to, templateKey });
 
   } catch (err) {
     context.log.error("survey-send-invite-mail failed:", err);
