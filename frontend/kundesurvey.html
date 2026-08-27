@@ -107,6 +107,38 @@
       background: rgba(179, 38, 30, .05);
     }
 
+    /* Ja/Nej som knapper i stedet for dropdown */
+    .yesno-group { display:flex; gap:8px; }
+    .yesno-radio {
+      position: absolute;
+      opacity: 0;
+      width: 1px;
+      height: 1px;
+      pointer-events: none;
+    }
+    .yesno-btn {
+      display: inline-block;
+      padding: .5rem 1.4rem;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      cursor: pointer;
+      user-select: none;
+      font-weight: 500;
+      background: #fff;
+    }
+    .yesno-radio:checked + .yesno-btn {
+      background: #1f6c7a;
+      border-color: #1f6c7a;
+      color: #fff;
+    }
+    .yesno-radio:disabled + .yesno-btn {
+      cursor: default;
+      opacity: .6;
+    }
+    .yesno-group.changed .yesno-btn {
+      border-color: #b3261e;
+    }
+
     .produkt-hint {
       margin-top: 10px;
       padding-top: 8px;
@@ -208,7 +240,7 @@
     <div id="app" class="hidden">
       <div id="readonlyBanner" class="readonly-banner hidden">
         Dette skema vises kun til gennemsyn og kan ikke redigeres her.
-        <a id="openAsCustomerLink" href="#" target="_blank" rel="noopener" class="tag" style="margin-left:10px;">Åbn som kunden ser den</a>
+        <a id="openAsCustomerLink" href="#" class="tag" style="margin-left:10px;">Åbn som kunden ser den</a>
       </div>
 
       <div class="card">
