@@ -30,6 +30,23 @@ function getEls() {
     temne: document.getElementById("temne"),
     tbroedtekst: document.getElementById("tbroedtekst"),
     taktiv: document.getElementById("taktiv"),
+
+    placeholderList: document.getElementById("placeholderList"),
+
+    placeholderListStatus: document.getElementById("placeholderListStatus"),
+    pTableBody: document.querySelector("#ptable tbody"),
+    pTable: document.getElementById("ptable"),
+
+    placeholderForm: document.getElementById("placeholderForm"),
+    placeholderStatus: document.getElementById("placeholderFormStatus"),
+    btnResetPlaceholder: document.getElementById("btnResetPlaceholder"),
+
+    pid: document.getElementById("pid"),
+    pnavn: document.getElementById("pnavn"),
+    pkode: document.getElementById("pkode"),
+    pbeskrivelse: document.getElementById("pbeskrivelse"),
+    psort: document.getElementById("psort"),
+    paktiv: document.getElementById("paktiv"),
   };
 }
 
@@ -119,6 +136,141 @@ async function listTemplates() {
   els.listStatus.textContent = "";
 }
 
+/* ---------- Pladsholdere ({{kode}}) ---------- */
+
+function readPlaceholderForm() {
+  return {
+    id: (els.pid.value || "").trim() || null,
+    navn: (els.pnavn.value || "").trim(),
+    kode: (els.pkode.value || "").trim(),
+    beskrivelse: (els.pbeskrivelse.value || "").trim() || null,
+    sortorder: els.psort.value === "" ? null : parseInt(els.psort.value, 10),
+    aktiv: !!els.paktiv.checked,
+  };
+}
+
+function fillPlaceholderForm(p) {
+  els.pid.value = p.cr175_lch_kundeinfo_mailpladsholderid || "";
+  els.pnavn.value = p.cr175_lch_navn || "";
+  els.pkode.value = p.cr175_lch_kode || "";
+  els.pbeskrivelse.value = p.cr175_lch_beskrivelse || "";
+  els.psort.value = (p.cr175_lch_sorteringsnummer ?? "") === null ? "" : (p.cr175_lch_sorteringsnummer ?? "");
+  els.paktiv.checked = (p.cr175_lch_aktiv ?? true) === true;
+}
+
+function resetPlaceholderForm() {
+  els.placeholderForm.reset();
+  els.pid.value = "";
+  els.placeholderStatus.textContent = "";
+  els.paktiv.checked = true;
+}
+
+// Henter alle aktive pladsholdere og viser dem som en kompakt liste lige
+// under Brødtekst-feltet, så man kan se hvilke {{koder}} der findes uden at
+// skulle scrolle ned til selve pladsholder-tabellen.
+function renderPlaceholderHintList(rows) {
+  if (!els.placeholderList) return;
+
+  const active = rows.filter(p => (p.cr175_lch_aktiv ?? true) === true);
+
+  if (!active.length) {
+    els.placeholderList.innerHTML = `<span class="muted">Ingen pladsholdere oprettet endnu.</span>`;
+    return;
+  }
+
+  els.placeholderList.innerHTML = active
+    .map(p => `
+      <span class="ph-item">
+        <code>{{${escapeHtml(p.cr175_lch_kode ?? '')}}}</code>${escapeHtml(p.cr175_lch_navn ?? '')}${
+          p.cr175_lch_beskrivelse ? ` – ${escapeHtml(p.cr175_lch_beskrivelse)}` : ''
+        }
+      </span>
+    `)
+    .join("");
+}
+
+async function listPlaceholders() {
+  els.placeholderListStatus.textContent = "Indlæser…";
+  els.pTableBody.innerHTML = "";
+
+  const r = await fetch('/api/mailpladsholdere-get?top=500', { cache: "no-store" });
+  if (!r.ok) {
+    const t = await r.text().catch(() => "");
+    throw new Error(`mailpladsholdere-get fejlede (${r.status}): ${t}`);
+  }
+
+  const data = await r.json();
+  const rows = data?.value || data || [];
+
+  rows.sort((a, b) =>
+    (a.cr175_lch_sorteringsnummer ?? 0) - (b.cr175_lch_sorteringsnummer ?? 0) ||
+    String(a.cr175_lch_navn || "").localeCompare(String(b.cr175_lch_navn || ""), "da")
+  );
+
+  rows.forEach(p => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(p.cr175_lch_navn ?? '')}</td>
+      <td><code>{{${escapeHtml(p.cr175_lch_kode ?? '')}}}</code></td>
+      <td>${escapeHtml(p.cr175_lch_beskrivelse ?? '')}</td>
+      <td>${(p.cr175_lch_aktiv ?? true) ? 'Ja' : 'Nej'}</td>
+      <td class="actions">
+        <button data-act="edit" data-id="${p.cr175_lch_kundeinfo_mailpladsholderid}">Redigér</button>
+        <button data-act="del"  data-id="${p.cr175_lch_kundeinfo_mailpladsholderid}">Slet</button>
+      </td>
+    `;
+    els.pTableBody.appendChild(tr);
+  });
+
+  els.placeholderListStatus.textContent = "";
+
+  renderPlaceholderHintList(rows);
+}
+
+async function upsertPlaceholder(payload) {
+  const isNew = !payload.id;
+  els.placeholderStatus.textContent = isNew ? "Opretter…" : "Opdaterer…";
+
+  if (!payload.navn) throw new Error("Navn mangler");
+  if (!payload.kode) throw new Error("Kode mangler");
+
+  const url = isNew
+    ? "/api/mailpladsholdere-post"
+    : `/api/mailpladsholdere-patch?id=${encodeURIComponent(payload.id)}`;
+
+  const method = isNew ? "POST" : "PATCH";
+
+  const r = await fetch(url, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  if (!r.ok) {
+    const t = await r.text().catch(() => "");
+    throw new Error(t || `${method} fejlede (${r.status})`);
+  }
+
+  els.placeholderStatus.textContent = isNew ? "Oprettet ✔" : "Opdateret ✔";
+  await listPlaceholders();
+  resetPlaceholderForm();
+}
+
+async function deletePlaceholder(id) {
+  if (!confirm("Slet denne pladsholder?")) return;
+
+  const r = await fetch(`/api/mailpladsholdere-delete?id=${encodeURIComponent(id)}`, {
+    method: "DELETE"
+  });
+
+  if (!r.ok) {
+    const t = await r.text().catch(() => "");
+    throw new Error(t || `DELETE fejlede (${r.status})`);
+  }
+
+  await listPlaceholders();
+}
+
 async function upsertTemplate(payload) {
   const isNew = !payload.id;
   els.status.textContent = isNew ? "Opretter…" : "Opdaterer…";
@@ -199,6 +351,42 @@ function wireEvents() {
       els.status.textContent = `Fejl: ${err.message}`;
     }
   });
+
+  els.placeholderForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      await upsertPlaceholder(readPlaceholderForm());
+    } catch (err) {
+      console.error(err);
+      els.placeholderStatus.textContent = `Fejl: ${err.message}`;
+    }
+  });
+
+  els.btnResetPlaceholder.addEventListener("click", resetPlaceholderForm);
+
+  els.pTable.addEventListener("click", async (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+
+    const id = btn.dataset.id;
+    const act = btn.dataset.act;
+
+    try {
+      if (act === "edit") {
+        const r = await fetch(`/api/mailpladsholdere-get?id=${encodeURIComponent(id)}`, { cache: "no-store" });
+        if (!r.ok) throw new Error(await r.text());
+        const p = await r.json();
+        fillPlaceholderForm(p);
+        els.placeholderStatus.textContent = "Indlæst – du redigerer nu";
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else if (act === "del") {
+        await deletePlaceholder(id);
+      }
+    } catch (err) {
+      console.error(err);
+      els.placeholderStatus.textContent = `Fejl: ${err.message}`;
+    }
+  });
 }
 
 async function init() {
@@ -210,6 +398,7 @@ async function init() {
 
   wireEvents();
   await listTemplates();
+  await listPlaceholders();
 }
 
 document.addEventListener("DOMContentLoaded", init);

@@ -27,6 +27,15 @@
       background:#fff; border:1px solid #ddd; border-radius:4px;
       padding:1px 5px; font-size:12px;
     }
+    .placeholderList {
+      display:flex; flex-wrap:wrap; gap:8px 16px;
+      padding:10px 12px; background:#f7f7f7; border:1px solid #e3e3e3; border-radius:8px;
+      font-size:13px; color:#444;
+    }
+    .placeholderList .ph-item code {
+      background:#fff; border:1px solid #ddd; border-radius:4px;
+      padding:1px 5px; font-size:12px; margin-right:4px;
+    }
   </style>
 </head>
 
@@ -75,9 +84,9 @@
         <h2>Opret/ret skabelon</h2>
 
         <div class="placeholderHint">
-          Pladsholdere du kan bruge i Emne og Brødtekst: <code>{{kundenavn}}</code>,
-          <code>{{kode}}</code>, <code>{{link}}</code>. De bliver erstattet med de rigtige
-          værdier når mailen sendes. Brødtekst må gerne indeholde HTML.
+          Pladsholdere indsættes som <code>{{kode}}</code> i Emne og Brødtekst og bliver erstattet
+          med de rigtige værdier når mailen sendes. Se listen med tilgængelige pladsholdere lige
+          under Brødtekst-feltet. Brødtekst må gerne indeholde HTML.
         </div>
 
         <form id="templateForm">
@@ -124,6 +133,13 @@
           </div>
 
           <div class="row">
+            <label></label>
+            <div id="placeholderList" class="placeholderList">
+              <span class="muted">Indlæser pladsholdere…</span>
+            </div>
+          </div>
+
+          <div class="row">
             <label for="taktiv">Aktiv?</label>
             <input id="taktiv" type="checkbox" checked />
           </div>
@@ -148,6 +164,65 @@
               <th>Nøgle</th>
               <th>Kategori</th>
               <th>Emne</th>
+              <th>Aktiv</th>
+              <th style="width:180px;">Handling</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <section class="card">
+        <h2>Pladsholdere</h2>
+        <p class="muted">
+          Pladsholdere du kan bruge med <code>{{kode}}</code> i skabelonernes Emne og Brødtekst.
+          Opret en ny herunder, hvis du får brug for at kunne indsætte flere felter.
+        </p>
+
+        <form id="placeholderForm">
+          <input type="hidden" id="pid" />
+
+          <div class="row">
+            <label for="pnavn">Navn</label>
+            <input id="pnavn" placeholder="fx Kundenavn" required />
+          </div>
+
+          <div class="row">
+            <label for="pkode">Kode</label>
+            <input id="pkode" placeholder="fx kundenavn (uden {{ }})" required />
+          </div>
+
+          <div class="row">
+            <label for="pbeskrivelse">Beskrivelse</label>
+            <input id="pbeskrivelse" placeholder="fx Kundens navn og nummer, fx 'Enslev Agro I/S (0080001985)'" />
+          </div>
+
+          <div class="row">
+            <label for="psort">Sortering</label>
+            <input id="psort" type="number" placeholder="fx 10" />
+          </div>
+
+          <div class="row">
+            <label for="paktiv">Aktiv?</label>
+            <input id="paktiv" type="checkbox" checked />
+          </div>
+
+          <div>
+            <button type="submit" id="btnSavePlaceholder">Gem</button>
+            <button type="button" id="btnResetPlaceholder">Nulstil</button>
+          </div>
+
+          <div id="placeholderFormStatus" class="muted" style="margin-top:8px;"></div>
+        </form>
+
+        <div class="muted" id="placeholderListStatus" style="margin-top:16px;">Indlæser…</div>
+
+        <table id="ptable">
+          <thead>
+            <tr>
+              <th>Navn</th>
+              <th>Kode</th>
+              <th>Beskrivelse</th>
               <th>Aktiv</th>
               <th style="width:180px;">Handling</th>
             </tr>
