@@ -68,7 +68,7 @@ function rowHtml(row) {
       <td>${fmtDateTime(row.createdon)}</td>
       <td>${fmtDateTime(row.sidstRettet)}</td>
       <td>
-        <a class="tag" href="${seSkemaLink}" target="_blank" rel="noopener">Se skema</a>
+        <a class="tag" href="${seSkemaLink}">Se skema</a>
         <a class="tag" href="${prefillLink}">Prefill</a>
         ${customerLink
           ? `<a class="tag copyLinkBtn" href="#" data-link="${escapeHtml(customerLink)}">Kopi link</a>`
