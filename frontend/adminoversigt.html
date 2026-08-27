@@ -19,6 +19,29 @@
     .btn.danger { background:#fff; color:#b3261e; border-color:#b3261e; }
     .btnrow { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
     th:first-child, td:first-child { width: 32px; text-align:center; }
+
+    .toolbar { display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+    .toolbar input[type="search"] {
+      flex: 1 1 260px;
+      min-width: 200px;
+      padding: 8px 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+    .toolbar .clearFiltersBtn { white-space: nowrap; }
+
+    tr.filterRow th { background:#fff; padding:4px 8px 8px; }
+    tr.filterRow input,
+    tr.filterRow select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 5px 6px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-weight: normal;
+      font-size: 13px;
+    }
+    tr.noResults td { text-align:center; color:#666; padding:20px; }
   </style>
 </head>
 
@@ -58,6 +81,12 @@
         <span id="selectedCount" class="muted"></span>
       </div>
 
+      <div class="toolbar">
+        <input type="search" id="searchInput" placeholder="Søg på kundenavn eller kode…" autocomplete="off" />
+        <button id="btnClearFilters" class="btn clearFiltersBtn" type="button">Ryd filtre</button>
+        <span id="filterCount" class="muted"></span>
+      </div>
+
       <div id="status" class="muted">Indlæser kundesurveys…</div>
 
       <table id="surveyTable" style="display:none">
@@ -71,6 +100,16 @@
             <th>Oprettet</th>
             <th>Sidst rettet</th>
             <th>Handling</th>
+          </tr>
+          <tr class="filterRow">
+            <th></th>
+            <th><input type="text" id="filterKundenavn" placeholder="Filtrér…" /></th>
+            <th><input type="text" id="filterKode" placeholder="Filtrér…" /></th>
+            <th><select id="filterStatus"><option value="">Alle</option></select></th>
+            <th><input type="text" id="filterUdloeber" placeholder="Filtrér…" /></th>
+            <th><input type="text" id="filterOprettet" placeholder="Filtrér…" /></th>
+            <th><input type="text" id="filterSidstRettet" placeholder="Filtrér…" /></th>
+            <th></th>
           </tr>
         </thead>
         <tbody></tbody>
