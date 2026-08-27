@@ -12,7 +12,23 @@
 // pixel-for-pixel identisk med kundesurvey.html, men indeholder samme
 // grupper/spørgsmål/svar i et pænt, læsbart layout.
 
-const PDFDocument = require("pdfkit");
+// Kræves "lazy" (inde i buildSurveyPdf, ikke her øverst) med vilje: et
+// top-level require af et npm-modul der ikke er installeret får HELE
+// Azure Function-kaldet til at crashe med et tomt 500-svar, før noget som
+// helst af vores egen fejlhåndtering når at køre. Ved at kræve pdfkit
+// først når funktionen rent faktisk bruges, og i et try/catch, kan en
+// manglende pakke i stedet fanges og rapporteres pænt som "pdfError" i
+// JSON-svaret.
+function getPdfDocumentClass() {
+  try {
+    return require("pdfkit");
+  } catch (e) {
+    throw new Error(
+      "pdfkit er ikke installeret i api-mappen (require fejlede: " + (e?.message || e) + "). " +
+      "Kør 'npm install pdfkit' i api-mappen og commit package.json/package-lock.json."
+    );
+  }
+}
 
 function groupItemsByGroupAndRepeat(items) {
   const byGroup = new Map();
@@ -39,6 +55,7 @@ function displayValue(it) {
 function buildSurveyPdf({ customerName, code, groups, items }) {
   return new Promise((resolve, reject) => {
     try {
+      const PDFDocument = getPdfDocumentClass();
       const doc = new PDFDocument({ margin: 50, size: "A4" });
       const chunks = [];
       doc.on("data", chunk => chunks.push(chunk));
