@@ -23,11 +23,10 @@ const ui = {
   navLinks: $("navLinks"),
 };
 
-// Denne side vises altid via et ?code=…-link (kunden selv, eller admins
-// "se/preview"-visning). Der skal aldrig være navigationslinks til interne
-// sider (Hjem, Uniconta debitorer) når der er en kode i URL'en – kunden skal
-// ikke kunne klikke sig videre ind i interne værktøjer.
-if (getCodeFromUrl()) {
+// Denne side vises enten af kunden selv (rent ?code=…-link) eller af admin
+// i "se som kunden"-preview (?code=…&ro=1). Nav-linkene skal kun fjernes for
+// kunden – admin skal stadig kunne navigere rundt i preview-visningen.
+if (getCodeFromUrl() && !isReadOnly()) {
   ui.navLinks?.remove();
 }
 
