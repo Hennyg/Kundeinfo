@@ -1,3 +1,4 @@
+===== FIL: C:\Users\henri\Downloads\Kundeinfo-main (1)\Kundeinfo-main\frontend\admincreate.html =====
 <!doctype html>
 <html lang="da">
 <head>
@@ -698,9 +699,10 @@
 
         <datalist id="kundeAdresseOptions"></datalist>
 
-        <div id="prefillBottomActions" class="prefillBottomActions hidden" style="justify-content:flex-end;">
+        <div id="prefillBottomActions" class="prefillBottomActions hidden" style="justify-content:flex-end; gap:10px;">
           <span id="statusBottom" class="muted"></span>
-          <button id="btnCreateBottom" type="button" class="btn" style="padding:12px 28px;font-size:16px;">Gem og opret spørgeskema</button>
+          <button id="btnCreateNoMail" type="button" class="btn" style="padding:12px 20px;font-size:15px;">Opret skema uden at sende mail</button>
+          <button id="btnCreateAndMail" type="button" class="btn primary" style="padding:12px 20px;font-size:15px;">Opret skema og send mail til: <span id="createMailTarget">—</span></button>
         </div>
       </section>
     </div>
@@ -720,3 +722,4 @@
   ></script>
 </body>
 </html>
+

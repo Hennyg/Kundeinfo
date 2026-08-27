@@ -327,6 +327,17 @@ function debtorRow(label, value) {
   );
 }
 
+// Opdaterer "Opret skema og send mail til: xx"-knappen med kundens e-mail
+// fra Uniconta debitor-data. Knappen deaktiveres hvis der ikke findes en
+// e-mail, så man ikke kan sende til en tom modtager.
+function updateCreateMailTarget() {
+  if (!els.createMailTarget || !els.btnCreateAndMail) return;
+
+  const email = (currentDebtor?.email || "").trim();
+  els.createMailTarget.textContent = email || "(ingen e-mail fundet)";
+  els.btnCreateAndMail.disabled = !email;
+}
+
 function fillPrefillFromUniconta() {
   if (!currentDebtor) return;
 
@@ -350,6 +361,7 @@ function fillPrefillFromUniconta() {
 
 function clearUnicontaDebtor() {
   currentDebtor = null;
+  updateCreateMailTarget();
   els.unicontaDebtorCard.classList.add(
     "hidden"
   );
@@ -404,6 +416,7 @@ async function loadUnicontaDebtor(kundenr) {
 
     const d = data?.debtor;
     currentDebtor = d;
+    updateCreateMailTarget();
 
     if (!d) {
       throw new Error(
@@ -1164,9 +1177,10 @@ async function loadInstanceForEdit(instanceId) {
       setPrefillValueByQuestionRepeat(it.questionId, it.repeatIndex, it.prefillText);
     }
 
-    if (els.btnCreateBottom) {
-      els.btnCreateBottom.textContent = "Gem ændringer";
+    if (els.btnCreateNoMail) {
+      els.btnCreateNoMail.textContent = "Gem ændringer";
     }
+    els.btnCreateAndMail?.classList.add("hidden");
 
     setStatus(`Redigerer eksisterende skema (kode: ${data.code || "—"})`);
   } catch (e) {
@@ -1248,7 +1262,7 @@ async function warnIfExistingSurveyForCustomer(kundenummer) {
   return true;
 }
 
-async function createOrSaveInstance() {
+async function createOrSaveInstance(sendMailAfter) {
   if (editInstanceId) {
     return saveEditedInstance();
   }
@@ -1334,13 +1348,48 @@ async function createOrSaveInstance() {
         res.id
     });
 
-    setStatus(
-      "Oprettet ✔ – sender dig til listen…"
-    );
+    let mailFailed = false;
 
-    setTimeout(() => {
-      location.href = "./adminoversigt.html";
-    }, 900);
+    if (sendMailAfter) {
+      setStatus("Oprettet ✔ – sender invitations-mail…");
+
+      // TEST-FASE: sender altid til hng@lcherrup.dk lige nu, uanset hvilken
+      // e-mail knappen viste. Skift til `currentDebtor?.email` her, når det
+      // er klar til at gå i drift med rigtige kundemails.
+      const testRecipient = "hng@lcherrup.dk";
+
+      try {
+        await fetchJson("/api/survey-send-invite-mail", {
+          method: "POST",
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+          body: JSON.stringify({
+            code: res.code,
+            link: res.link,
+            customerName,
+            to: testRecipient
+          })
+        });
+
+        setStatus(`Oprettet ✔ – mail sendt til ${testRecipient} – sender dig til listen…`);
+      } catch (mailErr) {
+        console.error("survey-send-invite-mail fejl:", mailErr);
+        mailFailed = true;
+        setStatus(
+          `Oprettet ✔ – men mailen kunne ikke sendes: ${mailErr.message}. ` +
+          `Skemaet er stadig oprettet, du kan sende linket manuelt (se link ovenfor).`
+        );
+      }
+    } else {
+      setStatus(
+        "Oprettet ✔ – sender dig til listen…"
+      );
+    }
+
+    if (!mailFailed) {
+      setTimeout(() => {
+        location.href = "./adminoversigt.html";
+      }, 900);
+    }
   } catch (e) {
     console.error(e);
 
@@ -1366,8 +1415,14 @@ document.addEventListener(
       expiresAt:
         $("expiresAt"),
 
-      btnCreateBottom:
-        $("btnCreateBottom"),
+      btnCreateNoMail:
+        $("btnCreateNoMail"),
+
+      btnCreateAndMail:
+        $("btnCreateAndMail"),
+
+      createMailTarget:
+        $("createMailTarget"),
 
       prefillBottomActions:
         $("prefillBottomActions"),
@@ -1499,9 +1554,14 @@ document.addEventListener(
         `${yyyy}-${mm}-${dd}`;
     }
 
-    els.btnCreateBottom?.addEventListener(
+    els.btnCreateNoMail?.addEventListener(
       "click",
-      createOrSaveInstance
+      () => createOrSaveInstance(false)
+    );
+
+    els.btnCreateAndMail?.addEventListener(
+      "click",
+      () => createOrSaveInstance(true)
     );
 
     els.btnFillFromUniconta?.addEventListener(
@@ -1569,3 +1629,4 @@ document.addEventListener(
     }
   }
 );
+
