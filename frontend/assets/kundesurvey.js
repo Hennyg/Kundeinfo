@@ -159,15 +159,49 @@ function buildInput(it, value) {
   const name = `q_${it.questionId}_${it.repeatIndex}_${FORM_INSTANCE_TOKEN}`;
   const isAddressField = ADDRESS_FIELD_NUMBERS.includes(String(it.number || ""));
 
-  let el;
+  // Ja/Nej vises som to knapper (radio-knapper stylet som knapper) i stedet
+  // for en dropdown – hurtigere at bruge. Et påkrævet felt med en
+  // prefill-værdi ("Vores info") betragtes som udfyldt, selv hvis kunden
+  // ikke selv har valgt noget, derfor sættes required kun hvis der IKKE er
+  // en prefill-tekst at falde tilbage på (samme regel som før).
   if (inputType === "yesno") {
-    el = document.createElement("select");
-    el.innerHTML = `
-      <option value="">Vælg…</option>
-      <option value="Ja"  ${value === "Ja"  ? "selected" : ""}>Ja</option>
-      <option value="Nej" ${value === "Nej" ? "selected" : ""}>Nej</option>
-    `;
-  } else if (inputType === "number") {
+    const isRequired = !!(it.required && !it.prefillText);
+    const container = document.createElement("div");
+    container.className = "yesno-group";
+    container.dataset.yesnoGroup = "1";
+
+    [["Ja", "ja"], ["Nej", "nej"]].forEach(([label, suffix]) => {
+      const id = `${name}_${suffix}`;
+
+      const radio = document.createElement("input");
+      radio.type = "radio";
+      radio.name = name;
+      radio.id = id;
+      radio.value = label;
+      radio.className = "yesno-radio";
+      radio.checked = value === label;
+      radio.autocomplete = "off";
+      if (isRequired) radio.required = true;
+      radio.dataset.questionid = it.questionId;
+      radio.dataset.groupid = it.groupId;
+      radio.dataset.repeatindex = String(it.repeatIndex);
+      radio.dataset.number = String(it.number || "");
+      radio.dataset.prefill = it.prefillText || "";
+
+      const lbl = document.createElement("label");
+      lbl.htmlFor = id;
+      lbl.className = "yesno-btn";
+      lbl.textContent = label;
+
+      container.appendChild(radio);
+      container.appendChild(lbl);
+    });
+
+    return container;
+  }
+
+  let el;
+  if (inputType === "number") {
     el = document.createElement("input");
     el.type = "number";
     el.value = value ?? "";
@@ -387,10 +421,20 @@ function renderQuestions() {
 
         const input = buildInput(it, value);
         if (isMarked) input.classList.add("changed");
-        if (isReadOnly() || isRemoved) input.disabled = true;
-        input.addEventListener("blur", () => autosaveOnBlur());
-        if (it.number === LEVERINGSADRESSE_LINJE1_NR || it.number === LEVERINGSADRESSE_LINJE2_NR) {
-          input.addEventListener("input", () => refreshAddressSuggestions());
+
+        if (input.dataset.yesnoGroup) {
+          // Ja/Nej-knapper: disabled/autosave sættes på de underliggende
+          // radio-knapper, ikke på selve containeren.
+          input.querySelectorAll('input[type="radio"]').forEach(radio => {
+            if (isReadOnly() || isRemoved) radio.disabled = true;
+            radio.addEventListener("change", () => autosaveOnBlur());
+          });
+        } else {
+          if (isReadOnly() || isRemoved) input.disabled = true;
+          input.addEventListener("blur", () => autosaveOnBlur());
+          if (it.number === LEVERINGSADRESSE_LINJE1_NR || it.number === LEVERINGSADRESSE_LINJE2_NR) {
+            input.addEventListener("input", () => refreshAddressSuggestions());
+          }
         }
         wrap.appendChild(input);
 
@@ -509,23 +553,40 @@ function autosaveOnBlur() {
 
 function collectAnswers() {
   const inputs = ui.form.querySelectorAll("[data-questionid]");
-  const answers = [];
+  // Ja/Nej-knapperne er nu to radio-inputs med samme data-questionid – de
+  // samles under samme nøgle, så vi kun sender ét svar pr. spørgsmål
+  // (den markerede radio vinder; hvis ingen er markeret, falder vi tilbage
+  // til prefill, ligesom den gamle dropdown gjorde).
+  const byKey = new Map();
 
   inputs.forEach(el => {
     if (el.closest(".repeat-block.removed")) return; // håndteres separat via collectRemoved()
 
     const questionId = (el.dataset.questionid || "").trim();
+    if (!questionId) return;
+
     const groupId = (el.dataset.groupid || "").trim();
     const repeatIndex = parseInt(el.dataset.repeatindex || "0", 10);
-    const typedValue = (el.value ?? "").trim();
     const prefillFallback = (el.dataset.prefill ?? "").trim();
-    const value = typedValue || prefillFallback;
+    const key = `${questionId}|${repeatIndex}`;
 
-    if (!questionId) return;
-    answers.push({ questionId, groupId, repeatIndex, value: value || null });
+    if (el.type === "radio") {
+      if (!el.checked) {
+        // Behold en tom placeholder for gruppen, hvis vi ikke allerede har
+        // fundet den markerede radio.
+        if (!byKey.has(key)) byKey.set(key, { questionId, groupId, repeatIndex, typedValue: "", prefillFallback });
+        return;
+      }
+    }
+
+    const typedValue = (el.value ?? "").trim();
+    byKey.set(key, { questionId, groupId, repeatIndex, typedValue, prefillFallback });
   });
 
-  return answers;
+  return [...byKey.values()].map(({ questionId, groupId, repeatIndex, typedValue, prefillFallback }) => ({
+    questionId, groupId, repeatIndex,
+    value: (typedValue || prefillFallback) || null
+  }));
 }
 
 function collectRemoved() {
