@@ -20,7 +20,16 @@ const ui = {
   changesModal: $("changesModal"),
   changesModalBody: $("changesModalBody"),
   changesModalClose: $("changesModalClose"),
+  navLinks: $("navLinks"),
 };
+
+// Denne side vises altid via et ?code=…-link (kunden selv, eller admins
+// "se/preview"-visning). Der skal aldrig være navigationslinks til interne
+// sider (Hjem, Uniconta debitorer) når der er en kode i URL'en – kunden skal
+// ikke kunne klikke sig videre ind i interne værktøjer.
+if (getCodeFromUrl()) {
+  ui.navLinks?.remove();
+}
 
 function isReadOnly() {
   const u = new URL(location.href);
