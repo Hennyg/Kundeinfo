@@ -991,7 +991,8 @@ async function sendAreaMail(system, entries, btn, toInput) {
       body: JSON.stringify({
         to,
         subject: `${subjectPrefix} – ${system}`,
-        html
+        html,
+        code: DATA?.code || ""
       })
     });
     if (btn) { btn.textContent = "Sendt ✔"; setTimeout(() => { btn.textContent = "Send mail"; btn.disabled = false; }, 2000); }
