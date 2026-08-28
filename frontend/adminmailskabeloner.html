@@ -133,6 +133,22 @@
           </div>
 
           <div class="row">
+            <label for="tpdf">Vedhæftet PDF</label>
+            <div>
+              <div id="currentPdfInfo" class="muted" style="margin-bottom:6px;"></div>
+              <input id="tpdf" type="file" accept="application/pdf" />
+              <button type="button" id="btnRemovePdf" class="hidden" style="margin-left:8px;">Fjern vedhæftning</button>
+            </div>
+          </div>
+          <div class="row">
+            <label></label>
+            <div class="muted" style="margin-top:-6px;">
+              Sendes automatisk med som vedhæftet fil på mails der bruger denne skabelon. Maks. ca.
+              700 KB. Vælger du en ny fil, erstatter den en evt. eksisterende vedhæftning.
+            </div>
+          </div>
+
+          <div class="row">
             <label for="taktiv">Aktiv?</label>
             <input id="taktiv" type="checkbox" checked />
           </div>
@@ -157,6 +173,7 @@
               <th>Nøgle</th>
               <th>Kategori</th>
               <th>Emne</th>
+              <th>PDF</th>
               <th>Aktiv</th>
               <th style="width:180px;">Handling</th>
             </tr>
@@ -184,3 +201,6 @@
   <script src="./assets/adminmailskabeloner.js" type="module"></script>
 </body>
 </html>
+
+
+

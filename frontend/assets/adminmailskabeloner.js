@@ -31,6 +31,10 @@ function getEls() {
     tbroedtekst: document.getElementById("tbroedtekst"),
     taktiv: document.getElementById("taktiv"),
 
+    tpdf: document.getElementById("tpdf"),
+    currentPdfInfo: document.getElementById("currentPdfInfo"),
+    btnRemovePdf: document.getElementById("btnRemovePdf"),
+
     placeholderList: document.getElementById("placeholderList"),
   };
 }
@@ -58,8 +62,50 @@ function showAuthedUI(me) {
   }
 }
 
+// Tilstand for PDF-uploadfeltet: "keep" (rør ikke ved en evt. eksisterende
+// vedhæftning), "replace" (der er valgt en ny fil, gemmes ved Gem), eller
+// "remove" (admin har trykket "Fjern vedhæftning"). Holdes uden for selve
+// formularen, fordi selve PDF-indholdet aldrig hentes tilbage fra serveren
+// (kun filnavnet) - vi kan derfor ikke bare læse det ud af et inputfelt.
+let pdfState = { action: "keep", base64: null, filename: null };
+
+const MAX_PDF_BYTES = 700 * 1024;
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      // reader.result er "data:application/pdf;base64,JVBERi0..." - vi vil
+      // kun have selve base64-delen, da det er det Graph's fileAttachment
+      // forventer i contentBytes.
+      const commaIdx = String(reader.result).indexOf(",");
+      resolve(commaIdx >= 0 ? reader.result.slice(commaIdx + 1) : reader.result);
+    };
+    reader.onerror = () => reject(reader.error || new Error("Kunne ikke læse filen"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function updateCurrentPdfInfo(existingFilename) {
+  if (!els.currentPdfInfo || !els.btnRemovePdf) return;
+
+  if (pdfState.action === "replace") {
+    els.currentPdfInfo.textContent = `Ny fil valgt: ${pdfState.filename} (gemmes når du trykker Gem)`;
+    els.btnRemovePdf.classList.remove("hidden");
+  } else if (pdfState.action === "remove") {
+    els.currentPdfInfo.textContent = "Vedhæftning fjernes når du trykker Gem";
+    els.btnRemovePdf.classList.add("hidden");
+  } else if (existingFilename) {
+    els.currentPdfInfo.textContent = `Nuværende vedhæftning: ${existingFilename}`;
+    els.btnRemovePdf.classList.remove("hidden");
+  } else {
+    els.currentPdfInfo.textContent = "Ingen vedhæftning";
+    els.btnRemovePdf.classList.add("hidden");
+  }
+}
+
 function readForm() {
-  return {
+  const payload = {
     id: (els.tid.value || "").trim() || null,
     navn: (els.tnavn.value || "").trim(),
     noegle: (els.tnoegle.value || "").trim(),
@@ -68,6 +114,19 @@ function readForm() {
     broedtekst: els.tbroedtekst.value || null,
     aktiv: !!els.taktiv.checked,
   };
+
+  // PDF-felterne sendes KUN med hvis admin aktivt har ændret noget - ellers
+  // rører vi ikke ved en evt. eksisterende vedhæftning (se
+  // mailskabeloner-patch/index.js).
+  if (pdfState.action === "replace") {
+    payload.vedhaeftetpdf = pdfState.base64;
+    payload.vedhaeftetpdfnavn = pdfState.filename;
+  } else if (pdfState.action === "remove") {
+    payload.vedhaeftetpdf = null;
+    payload.vedhaeftetpdfnavn = null;
+  }
+
+  return payload;
 }
 
 function fillForm(t) {
@@ -78,6 +137,10 @@ function fillForm(t) {
   els.temne.value = t.cr175_lch_emne || "";
   els.tbroedtekst.value = t.cr175_lch_broedtekst || "";
   els.taktiv.checked = (t.cr175_lch_aktiv ?? true) === true;
+
+  pdfState = { action: "keep", base64: null, filename: null };
+  if (els.tpdf) els.tpdf.value = "";
+  updateCurrentPdfInfo(t.cr175_lch_vedhaeftetpdfnavn || null);
 }
 
 function resetForm() {
@@ -85,6 +148,10 @@ function resetForm() {
   els.tid.value = "";
   els.status.textContent = "";
   els.taktiv.checked = true;
+
+  pdfState = { action: "keep", base64: null, filename: null };
+  if (els.tpdf) els.tpdf.value = "";
+  updateCurrentPdfInfo(null);
 }
 
 async function listTemplates() {
@@ -109,6 +176,7 @@ async function listTemplates() {
       <td><code>${escapeHtml(t.cr175_lch_noegle ?? '')}</code></td>
       <td>${escapeHtml(t.cr175_lch_kategori ?? '—')}</td>
       <td>${escapeHtml(t.cr175_lch_emne ?? '')}</td>
+      <td>${t.cr175_lch_vedhaeftetpdfnavn ? `Ja (${escapeHtml(t.cr175_lch_vedhaeftetpdfnavn)})` : '—'}</td>
       <td>${(t.cr175_lch_aktiv ?? true) ? 'Ja' : 'Nej'}</td>
       <td class="actions">
         <button data-act="edit" data-id="${t.cr175_lch_kundeinfo_mailskabelonid}">Redigér</button>
@@ -130,6 +198,7 @@ const AVAILABLE_PLACEHOLDERS = [
   { kode: "kundenavn", navn: "Kundenavn", beskrivelse: "Kundens navn, fx 'Enslev Agro I/S'" },
   { kode: "kode", navn: "Kode", beskrivelse: "Skemaets kode, fx '111965'" },
   { kode: "link", navn: "Link", beskrivelse: "Link til selve spørgeskemaet kunden skal udfylde" },
+  { kode: "afsendernavn", navn: "Afsendernavn", beskrivelse: "Navnet på den admin-bruger der sender mailen (til signatur)" },
   { kode: "kundeemail", navn: "Kundens e-mail", beskrivelse: "Fra Uniconta debitor-data" },
   { kode: "telefon", navn: "Telefon", beskrivelse: "Fra Uniconta debitor-data" },
   { kode: "mobil", navn: "Mobil", beskrivelse: "Fra Uniconta debitor-data" },
@@ -233,6 +302,34 @@ function wireEvents() {
       els.status.textContent = `Fejl: ${err.message}`;
     }
   });
+
+  els.tpdf?.addEventListener("change", async () => {
+    const file = els.tpdf.files?.[0];
+    if (!file) return;
+
+    if (file.size > MAX_PDF_BYTES) {
+      els.status.textContent = `Filen er for stor (maks. ca. ${Math.round(MAX_PDF_BYTES / 1024)} KB).`;
+      els.tpdf.value = "";
+      return;
+    }
+
+    try {
+      const base64 = await readFileAsBase64(file);
+      pdfState = { action: "replace", base64, filename: file.name };
+      updateCurrentPdfInfo(null);
+      els.status.textContent = "";
+    } catch (err) {
+      console.error(err);
+      els.status.textContent = `Kunne ikke læse filen: ${err.message}`;
+      els.tpdf.value = "";
+    }
+  });
+
+  els.btnRemovePdf?.addEventListener("click", () => {
+    pdfState = { action: "remove", base64: null, filename: null };
+    if (els.tpdf) els.tpdf.value = "";
+    updateCurrentPdfInfo(null);
+  });
 }
 
 async function init() {
@@ -248,3 +345,6 @@ async function init() {
 }
 
 document.addEventListener("DOMContentLoaded", init);
+
+
+

@@ -3,7 +3,11 @@ const { cdFetch: dvFetch } = require('../_coredata');
 
 const SELECT =
   'cr175_lch_kundeinfo_mailskabelonid,cr175_lch_navn,cr175_lch_noegle,' +
-  'cr175_lch_kategori,cr175_lch_emne,cr175_lch_broedtekst,cr175_lch_aktiv';
+  'cr175_lch_kategori,cr175_lch_emne,cr175_lch_broedtekst,cr175_lch_aktiv,' +
+  // Kun filNAVNET, aldrig selve PDF-indholdet (cr175_lch_vedhaeftetpdf) -
+  // det felt kan være stort (base64), og admin-UI'en har kun brug for at
+  // vide OM der er en vedhæftning, ikke selve indholdet.
+  'cr175_lch_vedhaeftetpdfnavn';
 
 function escODataString(s) {
   return String(s ?? '').replace(/'/g, "''");
@@ -41,3 +45,6 @@ module.exports = async function (context, req) {
     context.res = { status: 500, body: err.message };
   }
 };
+
+
+

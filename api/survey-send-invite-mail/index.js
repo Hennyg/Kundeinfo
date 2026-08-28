@@ -15,6 +15,13 @@
 // sender med. Det sikrer at mailen altid bruger de aktuelle Uniconta-data,
 // uanset hvad der evt. har ligget i browserens formular.
 //
+// {{afsendernavn}} hentes via Graph fra den indloggede admin-bruger, til
+// brug i mailens signatur.
+//
+// Findes der en PDF-vedhæftning på selve skabelonen (uploadet via
+// adminmailskabeloner.html, gemt som base64 i cr175_lch_vedhaeftetpdf),
+// sendes den automatisk med som vedhæftet fil.
+//
 // Efter mailen er sendt, gemmes tidspunktet på selve kundeundersøgelsen
 // (cr175_lch_mailsendttidspunkt), så adminoversigt.html kan vise en ægte
 // "Mail sendt"-kolonne adskilt fra "Skema oprettet".
@@ -72,6 +79,19 @@ async function loadUnicontaDebtorSafe(context, customerNumber) {
   }
 }
 
+// Henter afsenderens visningsnavn via Graph, til brug som {{afsendernavn}}
+// i mailens signatur. Fejler opslaget, falder vi tilbage til selve
+// mail-adressen frem for at lade mail-afsendelsen fejle af den grund.
+async function loadSenderDisplayName(context, fromMailbox) {
+  try {
+    const me = await graph("GET", `/users/${encodeURIComponent(fromMailbox)}?$select=displayName`);
+    return me?.displayName || fromMailbox;
+  } catch (e) {
+    context.log.error("survey-send-invite-mail: kunne ikke hente afsenders displayName:", e);
+    return fromMailbox;
+  }
+}
+
 const DEFAULT_TEMPLATE_KEY = "survey-invite";
 
 module.exports = async function (context, req) {
@@ -102,11 +122,11 @@ module.exports = async function (context, req) {
     }
 
     const debtor = await loadUnicontaDebtorSafe(context, customerNumber);
+    const afsenderNavn = await loadSenderDisplayName(context, fromMailbox);
 
-    // Hentes som rå skabelon-record (ikke bare renderTemplateByKey) fordi vi
-    // også skal bruge cr175_lch_navn til at gemme "hvilken skabelon blev
-    // sidst brugt" på selve kundeundersøgelsen (til status-boksen på
-    // kundesurvey.html i admin-visningen).
+    // Hentes som rå skabelon-record (ikke bare renderTemplateByKey), fordi
+    // vi også skal bruge en evt. vedhæftet PDF (cr175_lch_vedhaeftetpdf /
+    // -navn) på selve skabelonen.
     let template;
     try {
       template = await getTemplateByKey(templateKey);
@@ -130,6 +150,7 @@ module.exports = async function (context, req) {
       kundenavn: customerName || "(uden navn)",
       kode: code,
       link,
+      afsendernavn: afsenderNavn,
       kundeemail: debtor?.email || "",
       telefon: debtor?.phone || "",
       mobil: debtor?.mobile || "",
@@ -144,21 +165,31 @@ module.exports = async function (context, req) {
       html: substitutePlaceholders(template.cr175_lch_broedtekst, placeholderData)
     };
 
-    const templateNavn = template.cr175_lch_navn || templateKey;
+    // Vedhæftet PDF på selve skabelonen (gemt som base64 i
+    // cr175_lch_vedhaeftetpdf) - valgfri, sendes med hvis den findes.
+    const attachments = [];
+    if (template.cr175_lch_vedhaeftetpdf) {
+      attachments.push({
+        "@odata.type": "#microsoft.graph.fileAttachment",
+        name: template.cr175_lch_vedhaeftetpdfnavn || "vedhaeftning.pdf",
+        contentType: "application/pdf",
+        contentBytes: template.cr175_lch_vedhaeftetpdf
+      });
+    }
 
     await graph("POST", `/users/${encodeURIComponent(fromMailbox)}/sendMail`, {
       message: {
         subject: rendered.subject,
         body: { contentType: "HTML", content: rendered.html },
-        toRecipients: [{ emailAddress: { address: to } }]
+        toRecipients: [{ emailAddress: { address: to } }],
+        attachments
       },
       saveToSentItems: true
     });
 
-    // Registrér hvornår mailen blev sendt, og med hvilken skabelon, så
-    // adminoversigt.html og status-boksen på kundesurvey.html (ro=1) kan
-    // vise en ægte "Mail sendt"-status i stedet for bare at gætte ud fra
-    // oprettelsestidspunktet. Fejler denne opdatering, skal det IKKE gøre
+    // Registrér hvornår mailen blev sendt, så adminoversigt.html kan vise
+    // en ægte "Mail sendt"-kolonne (i stedet for bare at gætte ud fra
+    // oprettelsestidspunktet). Fejler denne opdatering, skal det IKKE gøre
     // hele kaldet til en fejl - mailen er jo allerede sendt.
     let mailTimestampSaved = false;
     if (instanceId) {
@@ -166,10 +197,7 @@ module.exports = async function (context, req) {
         await dvFetch(`cr175_lch_kundeinfo_kundeundersoegelses(${instanceId})`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", "If-Match": "*" },
-          body: JSON.stringify({
-            cr175_lch_mailsendttidspunkt: new Date().toISOString(),
-            cr175_lch_sidstsendtmailskabelon: templateNavn
-          })
+          body: JSON.stringify({ cr175_lch_mailsendttidspunkt: new Date().toISOString() })
         });
         mailTimestampSaved = true;
       } catch (e) {
@@ -182,7 +210,6 @@ module.exports = async function (context, req) {
       from: fromMailbox,
       to,
       templateKey,
-      templateNavn,
       unicontaDebtorFound: !!debtor,
       mailTimestampSaved
     });

@@ -9,7 +9,8 @@ const { cdFetch: dvFetch } = require("../_coredata");
 
 const SELECT =
   "cr175_lch_kundeinfo_mailskabelonid,cr175_lch_navn,cr175_lch_noegle," +
-  "cr175_lch_emne,cr175_lch_broedtekst,cr175_lch_aktiv";
+  "cr175_lch_emne,cr175_lch_broedtekst,cr175_lch_aktiv," +
+  "cr175_lch_vedhaeftetpdf,cr175_lch_vedhaeftetpdfnavn";
 
 function escODataString(s) {
   return String(s ?? "").replace(/'/g, "''");
@@ -55,3 +56,6 @@ async function renderTemplateByKey(noegle, data) {
 }
 
 module.exports = { getTemplateByKey, substitutePlaceholders, renderTemplateByKey };
+
+
+
