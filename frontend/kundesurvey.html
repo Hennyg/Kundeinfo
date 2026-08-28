@@ -248,7 +248,28 @@
     <div id="app" class="hidden">
       <div id="readonlyBanner" class="readonly-banner hidden">
         Dette skema vises kun til gennemsyn og kan ikke redigeres her.
-        <a id="openAsCustomerLink" href="#" target="_blank" rel="noopener" class="tag" style="margin-left:10px;">Åbn som kunden ser den</a>
+      </div>
+
+      <div id="adminStatusTile" class="card hidden" style="margin-bottom:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
+          <div>
+            <div style="font-weight:600; margin-bottom:4px;">Status</div>
+            <div id="statusMailInfo" class="muted">Indlæser…</div>
+          </div>
+          <div class="btnrow" style="gap:8px;">
+            <a id="openAsCustomerLink" href="#" target="_blank" rel="noopener" class="btn">Se skema som kunden ser den</a>
+            <a id="prefillLink" href="#" class="btn">Prefill</a>
+          </div>
+        </div>
+
+        <div style="margin-top:12px; padding-top:12px; border-top:1px solid #eee; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <label for="statusTemplateSelect" style="margin:0;">Send mail:</label>
+          <select id="statusTemplateSelect" style="max-width:280px;">
+            <option value="">Indlæser skabeloner…</option>
+          </select>
+          <button type="button" id="statusSendMailBtn" class="btn primary">Send mail til kunden</button>
+          <span id="statusSendMailStatus" class="muted"></span>
+        </div>
       </div>
 
       <div class="card">
@@ -291,3 +312,6 @@
   <script type="module" src="./assets/kundesurvey.js"></script>
 </body>
 </html>
+
+
+

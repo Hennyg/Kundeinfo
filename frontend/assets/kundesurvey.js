@@ -21,6 +21,13 @@ const ui = {
   changesModalBody: $("changesModalBody"),
   changesModalClose: $("changesModalClose"),
   navLinks: $("navLinks"),
+
+  adminStatusTile: $("adminStatusTile"),
+  statusMailInfo: $("statusMailInfo"),
+  prefillLink: $("prefillLink"),
+  statusTemplateSelect: $("statusTemplateSelect"),
+  statusSendMailBtn: $("statusSendMailBtn"),
+  statusSendMailStatus: $("statusSendMailStatus"),
 };
 
 // Denne side vises enten af kunden selv (rent ?code=…-link) eller af admin
@@ -555,11 +562,124 @@ async function loadSurvey() {
       customerUrl.searchParams.set("code", data?.code || code);
       ui.openAsCustomerLink.href = customerUrl.toString();
     }
+
+    initAdminStatusTile(data, customerLinkFor(data, code));
   }
 
   renderQuestions();
 
   return { code };
+}
+
+function customerLinkFor(data, code) {
+  const u = new URL(location.href);
+  u.searchParams.delete("ro");
+  u.searchParams.set("code", data?.code || code);
+  return u.toString();
+}
+
+function fmtDateTime(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("da-DK", {
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit"
+  });
+}
+
+// Status-boksen øverst i admin-visningen (ro=1): viser om/hvornår mailen er
+// sendt og med hvilken skabelon, samt giver mulighed for at sende (eller
+// sende igen) direkte herfra - herunder skemaer der oprindeligt blev
+// oprettet uden at sende mail.
+async function initAdminStatusTile(data, customerLink) {
+  if (!ui.adminStatusTile) return;
+  show(ui.adminStatusTile);
+
+  if (ui.prefillLink && data?.instanceId) {
+    ui.prefillLink.href = `./admincreate.html?instanceId=${encodeURIComponent(data.instanceId)}`;
+  }
+
+  if (ui.statusMailInfo) {
+    ui.statusMailInfo.textContent = data?.mailSentAt
+      ? `Mail sendt: Ja, den ${fmtDateTime(data.mailSentAt)}` +
+        (data.mailTemplateUsed ? ` med skabelonen "${data.mailTemplateUsed}"` : "")
+      : "Mail sendt: Nej – skemaet er oprettet, men endnu ikke sendt til kunden.";
+  }
+
+  await loadStatusTemplateOptions();
+
+  ui.statusSendMailBtn?.addEventListener("click", () => sendInviteMailFromStatusTile(data, customerLink));
+}
+
+async function loadStatusTemplateOptions() {
+  if (!ui.statusTemplateSelect) return;
+
+  try {
+    const templates = await fetchJson("/api/mailskabeloner-get?kategori=opret-skema&aktiv=1", { cache: "no-store" });
+    const rows = templates?.value || templates || [];
+
+    if (!rows.length) {
+      ui.statusTemplateSelect.innerHTML = `<option value="">Ingen skabeloner fundet</option>`;
+      ui.statusTemplateSelect.disabled = true;
+      if (ui.statusSendMailBtn) ui.statusSendMailBtn.disabled = true;
+      return;
+    }
+
+    ui.statusTemplateSelect.disabled = false;
+    ui.statusTemplateSelect.innerHTML = rows
+      .map(t => `<option value="${escapeHtml(t.cr175_lch_noegle || "")}">${escapeHtml(t.cr175_lch_navn || t.cr175_lch_noegle || "")}</option>`)
+      .join("");
+  } catch (e) {
+    console.error("Kunne ikke hente mailskabeloner:", e);
+    ui.statusTemplateSelect.innerHTML = `<option value="">Kunne ikke hente skabeloner</option>`;
+    ui.statusTemplateSelect.disabled = true;
+    if (ui.statusSendMailBtn) ui.statusSendMailBtn.disabled = true;
+  }
+}
+
+async function sendInviteMailFromStatusTile(data, customerLink) {
+  const templateKey = (ui.statusTemplateSelect?.value || "").trim();
+  if (!templateKey) {
+    if (ui.statusSendMailStatus) ui.statusSendMailStatus.textContent = "Vælg en skabelon først.";
+    return;
+  }
+
+  if (ui.statusSendMailBtn) ui.statusSendMailBtn.disabled = true;
+  if (ui.statusSendMailStatus) ui.statusSendMailStatus.textContent = "Sender…";
+
+  // TEST-FASE: sender altid til hng@lcherrup.dk lige nu, ligesom
+  // "Opret skema og send mail" på admincreate.html. Skift til kundens
+  // rigtige e-mail her, når det er klar til at gå i drift.
+  const testRecipient = "hng@lcherrup.dk";
+
+  try {
+    await fetchJson("/api/survey-send-invite-mail", {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({
+        code: data?.code,
+        link: customerLink,
+        customerName: data?.customerName || "",
+        customerNumber: data?.kundenummer || "",
+        instanceId: data?.instanceId || "",
+        to: testRecipient,
+        templateKey
+      })
+    });
+
+    if (ui.statusSendMailStatus) {
+      ui.statusSendMailStatus.textContent = `Mail sendt til ${testRecipient} ✔`;
+    }
+    if (ui.statusMailInfo) {
+      ui.statusMailInfo.textContent = `Mail sendt: Ja, lige nu`;
+    }
+  } catch (e) {
+    console.error("survey-send-invite-mail fejl:", e);
+    if (ui.statusSendMailStatus) ui.statusSendMailStatus.textContent = `Fejl: ${e.message}`;
+  } finally {
+    if (ui.statusSendMailBtn) ui.statusSendMailBtn.disabled = false;
+  }
 }
 
 function updateKundeAdresseOptions(adresser) {
@@ -1114,3 +1234,6 @@ async function showChangesSummary() {
 }
 
 document.addEventListener("DOMContentLoaded", init);
+
+
+

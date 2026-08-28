@@ -20,7 +20,7 @@
 // "Mail sendt"-kolonne adskilt fra "Skema oprettet".
 
 const { graph } = require("../_graph/graph");
-const { renderTemplateByKey } = require("../_mail/renderTemplate");
+const { getTemplateByKey, substitutePlaceholders } = require("../_mail/renderTemplate");
 const { unicontaFetch, normalizeDebtor } = require("../_uniconta");
 const { cdFetch: dvFetch } = require("../_coredata");
 
@@ -103,20 +103,13 @@ module.exports = async function (context, req) {
 
     const debtor = await loadUnicontaDebtorSafe(context, customerNumber);
 
-    let rendered;
+    // Hentes som rå skabelon-record (ikke bare renderTemplateByKey) fordi vi
+    // også skal bruge cr175_lch_navn til at gemme "hvilken skabelon blev
+    // sidst brugt" på selve kundeundersøgelsen (til status-boksen på
+    // kundesurvey.html i admin-visningen).
+    let template;
     try {
-      rendered = await renderTemplateByKey(templateKey, {
-        kundenavn: customerName || "(uden navn)",
-        kode: code,
-        link,
-        kundeemail: debtor?.email || "",
-        telefon: debtor?.phone || "",
-        mobil: debtor?.mobile || "",
-        cvr: debtor?.vatNumber || "",
-        adresse: [debtor?.address1, debtor?.address2].filter(Boolean).join(", "),
-        postnr_by: [debtor?.zipCode, debtor?.city].filter(Boolean).join(" "),
-        kontaktperson: debtor?.contactPerson || ""
-      });
+      template = await getTemplateByKey(templateKey);
     } catch (e) {
       return json(context, 500, {
         error: "template_fetch_failed",
@@ -124,7 +117,7 @@ module.exports = async function (context, req) {
       });
     }
 
-    if (!rendered) {
+    if (!template) {
       return json(context, 404, {
         error: "template_missing",
         message:
@@ -132,6 +125,26 @@ module.exports = async function (context, req) {
           `Opret/aktivér den under Admin → Mailskabeloner.`
       });
     }
+
+    const placeholderData = {
+      kundenavn: customerName || "(uden navn)",
+      kode: code,
+      link,
+      kundeemail: debtor?.email || "",
+      telefon: debtor?.phone || "",
+      mobil: debtor?.mobile || "",
+      cvr: debtor?.vatNumber || "",
+      adresse: [debtor?.address1, debtor?.address2].filter(Boolean).join(", "),
+      postnr_by: [debtor?.zipCode, debtor?.city].filter(Boolean).join(" "),
+      kontaktperson: debtor?.contactPerson || ""
+    };
+
+    const rendered = {
+      subject: substitutePlaceholders(template.cr175_lch_emne, placeholderData),
+      html: substitutePlaceholders(template.cr175_lch_broedtekst, placeholderData)
+    };
+
+    const templateNavn = template.cr175_lch_navn || templateKey;
 
     await graph("POST", `/users/${encodeURIComponent(fromMailbox)}/sendMail`, {
       message: {
@@ -142,9 +155,10 @@ module.exports = async function (context, req) {
       saveToSentItems: true
     });
 
-    // Registrér hvornår mailen blev sendt, så adminoversigt.html kan vise
-    // en ægte "Mail sendt"-kolonne (i stedet for bare at gætte ud fra
-    // oprettelsestidspunktet). Fejler denne opdatering, skal det IKKE gøre
+    // Registrér hvornår mailen blev sendt, og med hvilken skabelon, så
+    // adminoversigt.html og status-boksen på kundesurvey.html (ro=1) kan
+    // vise en ægte "Mail sendt"-status i stedet for bare at gætte ud fra
+    // oprettelsestidspunktet. Fejler denne opdatering, skal det IKKE gøre
     // hele kaldet til en fejl - mailen er jo allerede sendt.
     let mailTimestampSaved = false;
     if (instanceId) {
@@ -152,7 +166,10 @@ module.exports = async function (context, req) {
         await dvFetch(`cr175_lch_kundeinfo_kundeundersoegelses(${instanceId})`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", "If-Match": "*" },
-          body: JSON.stringify({ cr175_lch_mailsendttidspunkt: new Date().toISOString() })
+          body: JSON.stringify({
+            cr175_lch_mailsendttidspunkt: new Date().toISOString(),
+            cr175_lch_sidstsendtmailskabelon: templateNavn
+          })
         });
         mailTimestampSaved = true;
       } catch (e) {
@@ -165,6 +182,7 @@ module.exports = async function (context, req) {
       from: fromMailbox,
       to,
       templateKey,
+      templateNavn,
       unicontaDebtorFound: !!debtor,
       mailTimestampSaved
     });
@@ -177,3 +195,6 @@ module.exports = async function (context, req) {
     });
   }
 };
+
+
+

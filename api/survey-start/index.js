@@ -140,7 +140,7 @@ module.exports = async function (context, req) {
     // 1) Find kundeundersøgelse på kode
     const instPath =
       `cr175_lch_kundeinfo_kundeundersoegelses` +
-      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kode,cr175_lch_kundenavn,cr175_lch_kundenummer,cr175_lch_udloebstidspunkt,cr175_lch_status` +
+      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kode,cr175_lch_kundenavn,cr175_lch_kundenummer,cr175_lch_udloebstidspunkt,cr175_lch_status,cr175_lch_mailsendttidspunkt,cr175_lch_sidstsendtmailskabelon` +
       `&$filter=${encodeURIComponent(`cr175_lch_kode eq '${escODataString(code)}'`)}` +
       `&$top=1`;
 
@@ -303,9 +303,27 @@ module.exports = async function (context, req) {
 
     const kundeAdresser = await fetchKundeAdresser(kundenr);
 
-    return json(context, 200, { code, customerName, groups, items, kundeAdresser, isFinished });
+    return json(context, 200, {
+      code,
+      customerName,
+      groups,
+      items,
+      kundeAdresser,
+      isFinished,
+      // Bruges kun af admin-visningen (ro=1) til status-boksen øverst på
+      // kundesurvey.html: instanceId (til Prefill-linket), kundenummer (til
+      // Uniconta-pladsholdere ved evt. senere afsendelse), og
+      // mailSentAt/mailTemplateUsed (til "Mail sendt: Ja/Nej"-teksten).
+      instanceId,
+      kundenummer: kundenr,
+      mailSentAt: inst.cr175_lch_mailsendttidspunkt || null,
+      mailTemplateUsed: inst.cr175_lch_sidstsendtmailskabelon || null
+    });
   } catch (err) {
     context.log.error(err);
     return json(context, 500, { error: "server_error", message: err.message || String(err) });
   }
 };
+
+
+
