@@ -1382,9 +1382,15 @@ async function createOrSaveInstance(sendMailAfter) {
       }
     );
 
+    // Serveren bygger selv et link ud fra x-forwarded-host-headeren, men den
+    // header er ikke altid tilstede/pålidelig afhængig af hvordan kaldet
+    // ruter igennem. Vi kender altid vores eget domæne herfra i browseren,
+    // så vi bygger linket selv som fallback, hvis serveren ikke gjorde det.
+    const link = res.link || `${location.origin}/kundesurvey.html?code=${encodeURIComponent(res.code)}`;
+
     showResult({
       code: res.code,
-      link: res.link,
+      link,
 
       instanceId:
         res.instanceId ||
@@ -1408,7 +1414,7 @@ async function createOrSaveInstance(sendMailAfter) {
           headers: { "Content-Type": "application/json; charset=utf-8" },
           body: JSON.stringify({
             code: res.code,
-            link: res.link,
+            link,
             customerName,
             customerNumber,
             instanceId: res.instanceId || res.id,
@@ -1682,4 +1688,3 @@ document.addEventListener(
     }
   }
 );
-
