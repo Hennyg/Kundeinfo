@@ -197,11 +197,16 @@ module.exports = async function (context, req) {
         await dvFetch(`cr175_lch_kundeinfo_kundeundersoegelses(${instanceId})`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", "If-Match": "*" },
-          body: JSON.stringify({ cr175_lch_mailsendttidspunkt: new Date().toISOString() })
+          body: JSON.stringify({
+            cr175_lch_mailsendttidspunkt: new Date().toISOString(),
+            // Gemmer skabelonens visningsnavn (falder tilbage til nøglen,
+            // hvis navnet af en eller anden grund mangler på skabelonen).
+            lch_sidstsendtmailskabelon: template.cr175_lch_navn || templateKey
+          })
         });
         mailTimestampSaved = true;
       } catch (e) {
-        context.log.error("survey-send-invite-mail: kunne ikke gemme mailsendttidspunkt:", e);
+        context.log.error("survey-send-invite-mail: kunne ikke gemme mailsendttidspunkt/skabelon:", e);
       }
     }
 
@@ -216,12 +221,3 @@ module.exports = async function (context, req) {
 
   } catch (err) {
     context.log.error("survey-send-invite-mail failed:", err);
-    return json(context, 500, {
-      error: "server_error",
-      message: err.message || String(err)
-    });
-  }
-};
-
-
-
