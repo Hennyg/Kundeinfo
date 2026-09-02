@@ -622,6 +622,11 @@ function fmtDateTime(value) {
   });
 }
 
+// TEST-FASE: sender altid til hng@lcherrup.dk lige nu, både her og på
+// admincreate.html/"Opret skema og send mail". Skift til kundens rigtige
+// e-mail her, når det er klar til at gå i drift.
+const TEST_RECIPIENT = "hng@lcherrup.dk";
+
 // Status-boksen øverst i admin-visningen (ro=1): viser om/hvornår mailen er
 // sendt og med hvilken skabelon, samt giver mulighed for at sende (eller
 // sende igen) direkte herfra - herunder skemaer der oprindeligt blev
@@ -639,6 +644,12 @@ async function initAdminStatusTile(data, customerLink) {
       ? `Mail sendt: Ja, den ${fmtDateTime(data.mailSentAt)}` +
         (data.mailTemplateUsed ? ` med skabelonen "${data.mailTemplateUsed}"` : "")
       : "Mail sendt: Nej – skemaet er oprettet, men endnu ikke sendt til kunden.";
+  }
+
+  // Vis hvilken adresse mailen rent faktisk sendes til, direkte på knappen
+  // (ligesom "Opret skema og send mail til: ..." på admincreate.html).
+  if (ui.statusSendMailBtn) {
+    ui.statusSendMailBtn.textContent = `Send mail til: ${TEST_RECIPIENT}`;
   }
 
   await loadStatusTemplateOptions();
@@ -682,11 +693,6 @@ async function sendInviteMailFromStatusTile(data, customerLink) {
   if (ui.statusSendMailBtn) ui.statusSendMailBtn.disabled = true;
   if (ui.statusSendMailStatus) ui.statusSendMailStatus.textContent = "Sender…";
 
-  // TEST-FASE: sender altid til hng@lcherrup.dk lige nu, ligesom
-  // "Opret skema og send mail" på admincreate.html. Skift til kundens
-  // rigtige e-mail her, når det er klar til at gå i drift.
-  const testRecipient = "hng@lcherrup.dk";
-
   try {
     await fetchJson("/api/survey-send-invite-mail", {
       method: "POST",
@@ -697,13 +703,13 @@ async function sendInviteMailFromStatusTile(data, customerLink) {
         customerName: data?.customerName || "",
         customerNumber: data?.kundenummer || "",
         instanceId: data?.instanceId || "",
-        to: testRecipient,
+        to: TEST_RECIPIENT,
         templateKey
       })
     });
 
     if (ui.statusSendMailStatus) {
-      ui.statusSendMailStatus.textContent = `Mail sendt til ${testRecipient} ✔`;
+      ui.statusSendMailStatus.textContent = `Mail sendt til ${TEST_RECIPIENT} ✔`;
     }
     if (ui.statusMailInfo) {
       ui.statusMailInfo.textContent = `Mail sendt: Ja, lige nu`;
