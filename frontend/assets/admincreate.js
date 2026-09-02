@@ -1771,3 +1771,5 @@ document.addEventListener(
     if (instanceIdFromUrl) {
       await loadInstanceForEdit(instanceIdFromUrl);
     }
+  }
+);
