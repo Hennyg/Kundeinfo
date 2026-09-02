@@ -30,6 +30,7 @@ const { graph } = require("../_graph/graph");
 const { getTemplateByKey, substitutePlaceholders } = require("../_mail/renderTemplate");
 const { unicontaFetch, normalizeDebtor } = require("../_uniconta");
 const { cdFetch: dvFetch } = require("../_coredata");
+const { STATUS, advanceStatus } = require("../_surveyStatus");
 
 function json(context, status, body) {
   context.res = {
@@ -207,6 +208,15 @@ module.exports = async function (context, req) {
         mailTimestampSaved = true;
       } catch (e) {
         context.log.error("survey-send-invite-mail: kunne ikke gemme mailsendttidspunkt/skabelon:", e);
+      }
+
+      // Rykker status til "Afventer" - men kun hvis den ikke allerede er
+      // kommet længere (fx ved en manuel gensendt mail, efter kunden
+      // allerede har åbnet linket eller svaret på noget).
+      try {
+        await advanceStatus(instanceId, STATUS.AFVENTER);
+      } catch (e) {
+        context.log.error("survey-send-invite-mail: kunne ikke opdatere status:", e);
       }
     }
 
