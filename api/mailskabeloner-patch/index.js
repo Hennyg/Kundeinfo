@@ -17,7 +17,6 @@ module.exports = async function (context, req) {
 
     const body = {
       cr175_lch_navn: p.navn,
-      cr175_lch_noegle: p.noegle,
       cr175_lch_kategori: p.kategori ?? null,
       cr175_lch_emne: p.emne ?? null,
       cr175_lch_broedtekst: p.broedtekst ?? null,
@@ -48,6 +47,3 @@ module.exports = async function (context, req) {
     context.res = { status: 500, body: err.message };
   }
 };
-
-
-
