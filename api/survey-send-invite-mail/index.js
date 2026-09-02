@@ -3,9 +3,10 @@
 // Sender "opret skema"-invitationsmailen til kunden, når admin opretter et
 // nyt spørgeskema på admincreate.html og vælger "Opret skema og send mail".
 // Skabelonen vælges via dropdown på admincreate.html (kategori
-// "opret-skema" i mailskabeloner) og sendes med som `templateKey`. Falder
-// tilbage til "survey-invite" hvis intet er valgt, af hensyn til ældre
-// opkald der endnu ikke sender templateKey med.
+// "opret-skema" i mailskabeloner) og sendes med som `templateId` - selve
+// Dataverse-id'et på skabelonen, IKKE en fritekst-nøgle (den findes ikke
+// længere - to skabeloner kunne tidligere ende med samme nøgle ved en
+// fejl, og opslaget ramte så den forkerte). `templateId` er påkrævet.
 // Afsenderen er den admin-bruger der er logget ind (samme mønster som
 // survey-send-summary-mail).
 //
@@ -27,7 +28,7 @@
 // "Mail sendt"-kolonne adskilt fra "Skema oprettet".
 
 const { graph } = require("../_graph/graph");
-const { getTemplateByKey, substitutePlaceholders } = require("../_mail/renderTemplate");
+const { getTemplateById, substitutePlaceholders } = require("../_mail/renderTemplate");
 const { unicontaFetch, normalizeDebtor } = require("../_uniconta");
 const { cdFetch: dvFetch } = require("../_coredata");
 const { STATUS, advanceStatus } = require("../_surveyStatus");
@@ -93,8 +94,6 @@ async function loadSenderDisplayName(context, fromMailbox) {
   }
 }
 
-const DEFAULT_TEMPLATE_KEY = "survey-invite";
-
 module.exports = async function (context, req) {
   try {
     const principal = getClientPrincipal(req);
@@ -113,7 +112,7 @@ module.exports = async function (context, req) {
     const customerNumber = String(req?.body?.customerNumber || "").trim();
     const instanceId = String(req?.body?.instanceId || "").trim();
     const to = String(req?.body?.to || "").trim();
-    const templateKey = String(req?.body?.templateKey || "").trim() || DEFAULT_TEMPLATE_KEY;
+    const templateId = String(req?.body?.templateId || "").trim();
 
     if (!code || !link || !to) {
       return json(context, 400, {
@@ -122,15 +121,22 @@ module.exports = async function (context, req) {
       });
     }
 
+    if (!templateId) {
+      return json(context, 400, {
+        error: "missing_template",
+        message: "Mangler templateId - vælg en mailskabelon."
+      });
+    }
+
     const debtor = await loadUnicontaDebtorSafe(context, customerNumber);
     const afsenderNavn = await loadSenderDisplayName(context, fromMailbox);
 
-    // Hentes som rå skabelon-record (ikke bare renderTemplateByKey), fordi
+    // Hentes som rå skabelon-record (ikke bare renderTemplateById), fordi
     // vi også skal bruge en evt. vedhæftet PDF (cr175_lch_vedhaeftetpdf /
     // -navn) på selve skabelonen.
     let template;
     try {
-      template = await getTemplateByKey(templateKey);
+      template = await getTemplateById(templateId);
     } catch (e) {
       return json(context, 500, {
         error: "template_fetch_failed",
@@ -142,7 +148,7 @@ module.exports = async function (context, req) {
       return json(context, 404, {
         error: "template_missing",
         message:
-          `Mail-skabelonen "${templateKey}" findes ikke eller er ikke aktiv. ` +
+          `Den valgte mail-skabelon findes ikke eller er ikke aktiv. ` +
           `Opret/aktivér den under Admin → Mailskabeloner.`
       });
     }
@@ -202,7 +208,7 @@ module.exports = async function (context, req) {
             cr175_lch_mailsendttidspunkt: new Date().toISOString(),
             // Gemmer skabelonens visningsnavn (falder tilbage til nøglen,
             // hvis navnet af en eller anden grund mangler på skabelonen).
-            cr175_lch_sidstsendtmailskabelon: template.cr175_lch_navn || templateKey
+            cr175_lch_sidstsendtmailskabelon: template.cr175_lch_navn || templateId
           })
         });
         mailTimestampSaved = true;
@@ -224,7 +230,7 @@ module.exports = async function (context, req) {
       ok: true,
       from: fromMailbox,
       to,
-      templateKey,
+      templateId,
       unicontaDebtorFound: !!debtor,
       mailTimestampSaved
     });
