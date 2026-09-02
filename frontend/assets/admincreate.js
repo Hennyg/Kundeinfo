@@ -76,6 +76,9 @@ let currentDebtor = null;
 let currentOwners = [];
 let currentEmployees = [];
 let editInstanceId = null;
+let editCode = "";
+let editCustomerNumber = "";
+let editCustomerNameFull = "";
 let kundeAdresserList = [];      // adresser fra /api/kunde-adresser (Uniconta/Dataverse)
 let contactAddressList = [];     // adresser fra kontaktpersoner (Entra ID, primaerAdresse)
 
@@ -1215,6 +1218,10 @@ async function loadInstanceForEdit(instanceId) {
     els.customerName.disabled = true;
     els.customerName.dataset.kundenavn = data.customerName || "";
 
+    editCode = data.code || "";
+    editCustomerNumber = data.customerNumber || "";
+    editCustomerNameFull = data.customerName || "";
+
     for (const it of (data.items || [])) {
       setPrefillValueByQuestionRepeat(it.questionId, it.repeatIndex, it.prefillText);
     }
@@ -1222,13 +1229,81 @@ async function loadInstanceForEdit(instanceId) {
     if (els.btnCreateNoMail) {
       els.btnCreateNoMail.textContent = "Gem ændringer";
     }
+    // "Opret skema og send mail"-knappen hører kun til opret-flowet (den er
+    // bundet op på currentDebtor/Uniconta-opslaget, som ikke køres her) -
+    // den skal altid være skjult i redigeringstilstand.
     els.btnCreateAndMail?.classList.add("hidden");
-    document.getElementById("mailTemplateRow")?.classList.add("hidden");
 
-    setStatus(`Redigerer eksisterende skema (kode: ${data.code || "—"})`);
+    if (data.mailSentAt) {
+      // Mailen er allerede sendt engang - skal den sendes igen, gøres det
+      // fra "Se skema"-siden (kundesurvey.html?ro=1), ikke herfra.
+      document.getElementById("mailTemplateRow")?.classList.add("hidden");
+      els.editSendMailRow?.classList.add("hidden");
+    } else {
+      // Skemaet er oprettet, men aldrig sendt til kunden - tilbyd at
+      // vælge skabelon og sende det direkte herfra.
+      document.getElementById("mailTemplateRow")?.classList.remove("hidden");
+      els.editSendMailRow?.classList.remove("hidden");
+    }
+
+    setStatus(
+      `Redigerer eksisterende skema (kode: ${data.code || "—"})` +
+      (data.mailSentAt ? "" : " – bemærk: skemaet er endnu ikke sendt til kunden.")
+    );
   } catch (e) {
     console.error("survey-instance-get fejl:", e);
     setStatus(`Kunne ikke indlæse skema til redigering: ${e.message}`);
+  }
+}
+
+// Sender invitations-mailen for et EKSISTERENDE skema (redigeringstilstand
+// på admincreate.html?instanceId=...), når skemaet endnu ikke er sendt.
+// Bruger samme /api/survey-send-invite-mail-endpoint som opret-flowet og
+// "Se skema"-sidens statusboks.
+async function sendInviteMailForEditInstance() {
+  const templateKey = (els.mailTemplateSelect?.value || "").trim();
+  if (!templateKey) {
+    if (els.editSendMailStatus) els.editSendMailStatus.textContent = "Vælg en mailskabelon først.";
+    return;
+  }
+
+  const link = `${location.origin}/kundesurvey.html?code=${encodeURIComponent(editCode)}`;
+
+  // TEST-FASE: sender altid til hng@lcherrup.dk lige nu, ligesom resten af
+  // appen (se createOrSaveInstance / sendInviteMailFromStatusTile). Skift
+  // til kundens rigtige e-mail her, når det er klar til at gå i drift.
+  const testRecipient = "hng@lcherrup.dk";
+
+  if (els.btnSendInviteMailEdit) els.btnSendInviteMailEdit.disabled = true;
+  if (els.editSendMailStatus) els.editSendMailStatus.textContent = "Sender…";
+
+  try {
+    await fetchJson("/api/survey-send-invite-mail", {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({
+        code: editCode,
+        link,
+        customerName: editCustomerNameFull,
+        customerNumber: editCustomerNumber,
+        instanceId: editInstanceId,
+        to: testRecipient,
+        templateKey
+      })
+    });
+
+    if (els.editSendMailStatus) els.editSendMailStatus.textContent = `Mail sendt til ${testRecipient} ✔`;
+
+    // Skjul tilbuddet igen, så man ikke kommer til at sende den flere
+    // gange ved en fejl - ligesom på "Se skema"-siden opdateres status
+    // først ved næste indlæsning, men her er det tydeligt nok med det samme.
+    document.getElementById("mailTemplateRow")?.classList.add("hidden");
+    els.editSendMailRow?.classList.add("hidden");
+  } catch (e) {
+    console.error("survey-send-invite-mail fejl:", e);
+    if (els.editSendMailStatus) els.editSendMailStatus.textContent = `Fejl: ${e.message}`;
+  } finally {
+    if (els.btnSendInviteMailEdit) els.btnSendInviteMailEdit.disabled = false;
   }
 }
 
@@ -1480,6 +1555,15 @@ document.addEventListener(
       mailTemplateSelect:
         $("mailTemplateSelect"),
 
+      editSendMailRow:
+        $("editSendMailRow"),
+
+      btnSendInviteMailEdit:
+        $("btnSendInviteMailEdit"),
+
+      editSendMailStatus:
+        $("editSendMailStatus"),
+
       prefillBottomActions:
         $("prefillBottomActions"),
 
@@ -1678,6 +1762,7 @@ document.addEventListener(
     clearEntraCustomerContacts();
 
     els.mailTemplateSelect?.addEventListener("change", updateCreateMailTarget);
+    els.btnSendInviteMailEdit?.addEventListener("click", sendInviteMailForEditInstance);
     await loadMailTemplates();
 
     await loadQuestionnaire();
@@ -1686,5 +1771,3 @@ document.addEventListener(
     if (instanceIdFromUrl) {
       await loadInstanceForEdit(instanceIdFromUrl);
     }
-  }
-);
