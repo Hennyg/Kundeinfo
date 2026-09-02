@@ -5,7 +5,7 @@
 // admin har forudfyldt.
 
 const { cdFetch: dvFetch } = require("../_coredata");
-const { getStatusValues } = require("../_kundeundersoegelseStatus");
+const { STATUS } = require("../_surveyStatus");
 const crypto = require("crypto");
 
 function json(context, status, body) {
@@ -55,7 +55,8 @@ function normalizePrefillItems(p) {
     .map(x => ({
       questionId: String(x?.questionId || "").trim(),
       repeatIndex: Math.max(0, Number.parseInt(x?.repeatIndex ?? 0, 10) || 0),
-      prefillText: (x?.prefillText ?? "").toString().trim() || null
+      prefillText: (x?.prefillText ?? "").toString().trim() || null,
+      addedByAdmin: !!x?.addedByAdmin
     }))
     .filter(x => x.questionId);
 }
@@ -79,14 +80,14 @@ module.exports = async function (context, req) {
 
     const code = await generateUniqueCode();
 
-    const status = await getStatusValues().catch(() => ({ AFVENTER: null }));
-
     const instanceBody = {
       cr175_lch_kode: code,
       cr175_lch_kundenavn: customerName,
-      cr175_lch_kundenummer: customerNumber
+      cr175_lch_kundenummer: customerNumber,
+      // Altid "Kladde" ved selve oprettelsen - bliver til "Afventer" af
+      // survey-send-invite-mail, hvis/når mailen rent faktisk sendes.
+      cr175_lch_nystatus: STATUS.KLADDE
     };
-    if (status.AFVENTER != null) instanceBody.cr175_lch_status = status.AFVENTER;
     if (expiresAt) instanceBody.cr175_lch_udloebstidspunkt = expiresAt;
 
     const rCreate = await dvFetch("cr175_lch_kundeinfo_kundeundersoegelses", {
@@ -105,7 +106,11 @@ module.exports = async function (context, req) {
       const item = prefillItems[i];
 
       const rowBody = {
-        cr175_lch_unik: `SVAR-${code}-${i + 1}`,
+        // "-ADMIN-" markerer at DEN DER OPRETTER SKEMAET selv har tilføjet
+        // denne gentagelse (fx en ekstra leveringsadresse/kontakt) i Prefill,
+        // ud over det Uniconta/Entra allerede kendte - bruges af survey-start
+        // til at vise en anden farve/badge end kundens egne rettelser.
+        cr175_lch_unik: `SVAR-${code}-${i + 1}${item.addedByAdmin ? "-ADMIN-" : ""}`,
         cr175_lch_gentagelsesindeks: item.repeatIndex,
         cr175_lch_prefillvaerdi: item.prefillText,
         "cr175_lch_kundeundersoegelse@odata.bind": `/cr175_lch_kundeinfo_kundeundersoegelses(${instanceId})`,
