@@ -52,17 +52,20 @@ function showResult({ code, link, instanceId }) {
 function getPrefillItems() {
   return [...els.prefillArea.querySelectorAll("tr[data-qid]")]
     .filter(tr => !tr.closest(".prefillGroup")?.classList.contains("excluded"))
+    .filter(tr => !tr.closest(".prefillRepeatBlock")?.classList.contains("removed"))
     .map(tr => {
       const questionId = tr.dataset.qid || "";
       const groupId = tr.dataset.groupId || "";
       const repeatIndex = Number.parseInt(tr.dataset.repeatIndex || "0", 10) || 0;
       const prefillText = tr.querySelector("[data-prefill]")?.value?.trim() || "";
+      const addedByAdmin = tr.closest(".prefillRepeatBlock")?.dataset.addedByAdmin === "1";
 
       return {
         questionId,
         groupId,
         repeatIndex,
-        prefillText: prefillText || null
+        prefillText: prefillText || null,
+        addedByAdmin
       };
     });
 }
@@ -728,6 +731,14 @@ function ensureRepeatBlocks(groupId, repeatIndex) {
     addBtn.click();
     count = list.querySelectorAll(".prefillRepeatBlock").length;
   }
+
+  // Blokke der udfyldes automatisk fra en kendt kilde (Uniconta-adresser
+  // eller Entra-kontakter via fillPrefillForContact, som altid kalder denne
+  // funktion) er IKKE "tilføjet af admin" i den forstand vi viser i
+  // opsummeringen bagefter - de kommer fra kendt data, ikke fra at nogen
+  // manuelt har valgt at tilføje ekstra info ud over det kendte.
+  const block = list.querySelector(`.prefillRepeatBlock[data-repeat-index="${repeatIndex}"]`);
+  if (block) delete block.dataset.addedByAdmin;
 }
 
 function fillPrefillForContact(numberMap, repeatIndex) {
@@ -1089,16 +1100,25 @@ function rowsHtml(group, repeatIndex) {
   }).join("");
   }
 
-  function repeatBlockHtml(group, repeatIndex) {
+  function repeatBlockHtml(group, repeatIndex, removed = false) {
     const heading = (group.repeatable && repeatIndex > 0)
       ? `<div class="prefillRepeatHeading">
            <span>${escapeHtml(group.name)} – ${repeatIndex + 1}</span>
-           <button type="button" class="prefillRemoveButton" data-remove-repeat="1" title="Fjern denne gentagelse" aria-label="Fjern denne gentagelse">×</button>
+           <div style="display:flex; align-items:center; gap:8px;">
+             ${removed ? `<span class="removed-badge">Slettet</span>` : ""}
+             <button
+               type="button"
+               class="prefillRemoveButton"
+               data-toggle-remove-repeat="1"
+               title="${removed ? "Fortryd sletning" : "Fjern denne gentagelse"}"
+               aria-label="${removed ? "Fortryd sletning" : "Fjern denne gentagelse"}"
+             >${removed ? "↺" : "×"}</button>
+           </div>
          </div>`
       : "";
 
     return `
-      <div class="prefillRepeatBlock" data-repeat-index="${repeatIndex}">
+      <div class="prefillRepeatBlock${removed ? " removed" : ""}" data-repeat-index="${repeatIndex}">
         ${heading}
         <table class="prefillTable">
           <thead>
@@ -1156,12 +1176,43 @@ function rowsHtml(group, repeatIndex) {
         : 0;
 
       list.insertAdjacentHTML("beforeend", repeatBlockHtml(group, nextIndex));
+
+      // Denne blok er oprettet ved at admin selv trykkede "+" - markér den
+      // som tilføjet ved oprettelse, medmindre en efterfølgende
+      // auto-udfyldning (kundeliste-adresse/Entra-kontakt) fjerner
+      // markeringen igen, jf. ensureRepeatBlocks() nedenfor.
+      const newBlock = list.querySelector(`.prefillRepeatBlock[data-repeat-index="${nextIndex}"]`);
+      if (newBlock) newBlock.dataset.addedByAdmin = "1";
     });
 
     tile.addEventListener("click", event => {
-      const removeButton = event.target.closest("[data-remove-repeat]");
-      if (!removeButton) return;
-      removeButton.closest(".prefillRepeatBlock")?.remove();
+      const toggleButton = event.target.closest("[data-toggle-remove-repeat]");
+      if (!toggleButton) return;
+
+      const block = toggleButton.closest(".prefillRepeatBlock");
+      if (!block) return;
+
+      const isNowRemoved = block.classList.toggle("removed");
+
+      toggleButton.textContent = isNowRemoved ? "↺" : "×";
+      toggleButton.title = isNowRemoved ? "Fortryd sletning" : "Fjern denne gentagelse";
+      toggleButton.setAttribute("aria-label", toggleButton.title);
+
+      block.querySelectorAll("[data-prefill]").forEach(input => {
+        input.disabled = isNowRemoved;
+      });
+
+      let badge = block.querySelector(".removed-badge");
+      if (isNowRemoved) {
+        if (!badge) {
+          badge = document.createElement("span");
+          badge.className = "removed-badge";
+          badge.textContent = "Slettet";
+          toggleButton.parentElement?.insertBefore(badge, toggleButton);
+        }
+      } else {
+        badge?.remove();
+      }
     });
 
     els.prefillArea.appendChild(tile);

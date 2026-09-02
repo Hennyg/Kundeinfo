@@ -8,6 +8,27 @@ function escapeHtml(s) {
     .replace(/'/g, "&#039;");
 }
 
+// Konverterer almindelig tekst til pæn, mail-venlig HTML: en tom linje
+// (dobbelt linjeskift) starter et nyt afsnit (<p>), et enkelt linjeskift
+// inden i et afsnit bliver til <br>. {{pladsholdere}} går uændret igennem,
+// da de hverken indeholder &, < eller >.
+function plainTextToHtml(text) {
+  const paragraphs = String(text ?? "")
+    .replace(/\r\n/g, "\n")
+    .split(/\n\s*\n/)
+    .map(p => p.trim())
+    .filter(Boolean);
+
+  if (!paragraphs.length) return "";
+
+  return paragraphs
+    .map(p => {
+      const withBreaks = escapeHtml(p).replace(/\n/g, "<br>");
+      return `<p style="margin:0 0 16px; font-family:Arial, sans-serif; font-size:14px; line-height:1.5; color:#222;">${withBreaks}</p>`;
+    })
+    .join("\n");
+}
+
 function getEls() {
   return {
     loading: document.getElementById("loading"),
@@ -36,6 +57,11 @@ function getEls() {
     btnRemovePdf: document.getElementById("btnRemovePdf"),
 
     placeholderList: document.getElementById("placeholderList"),
+
+    plainTextInput: document.getElementById("plainTextInput"),
+    htmlOutput: document.getElementById("htmlOutput"),
+    btnUseHtmlInBody: document.getElementById("btnUseHtmlInBody"),
+    btnCopyHtml: document.getElementById("btnCopyHtml"),
   };
 }
 
@@ -330,6 +356,32 @@ function wireEvents() {
     if (els.tpdf) els.tpdf.value = "";
     updateCurrentPdfInfo(null);
   });
+
+  // Hjælpeværktøj: skriv/indsæt almindelig tekst, se den som HTML-kode ved
+  // siden af, og overfør den evt. direkte til selve Brødtekst-feltet.
+  els.plainTextInput?.addEventListener("input", () => {
+    if (els.htmlOutput) {
+      els.htmlOutput.value = plainTextToHtml(els.plainTextInput.value);
+    }
+  });
+
+  els.btnUseHtmlInBody?.addEventListener("click", () => {
+    if (!els.htmlOutput || !els.tbroedtekst) return;
+    els.tbroedtekst.value = els.htmlOutput.value;
+  });
+
+  els.btnCopyHtml?.addEventListener("click", async () => {
+    if (!els.htmlOutput) return;
+    try {
+      await navigator.clipboard.writeText(els.htmlOutput.value);
+      const original = els.btnCopyHtml.textContent;
+      els.btnCopyHtml.textContent = "Kopieret ✔";
+      setTimeout(() => { els.btnCopyHtml.textContent = original; }, 1500);
+    } catch (err) {
+      console.error("Kunne ikke kopiere til udklipsholder:", err);
+      els.htmlOutput.select();
+    }
+  });
 }
 
 async function init() {
@@ -345,6 +397,3 @@ async function init() {
 }
 
 document.addEventListener("DOMContentLoaded", init);
-
-
-

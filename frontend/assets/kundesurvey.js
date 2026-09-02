@@ -78,7 +78,7 @@ function resolveInputType(answertypeLabel) {
 
 /* ---------- State ---------- */
 let DATA = null;                     // { code, customerName, groups, items }
-let lastChangeSummary = { changes: [], additions: [], allItems: [] }; // til opsummeringsdialog ved gennemsyn
+let lastChangeSummary = { changes: [], additions: [], adminAdditions: [], allItems: [] }; // til opsummeringsdialog ved gennemsyn
 const repeatCounters = {};           // groupId -> højeste synlige repeatIndex
 const removedRepeats = new Set();    // `${groupId}:${repeatIndex}`
 
@@ -245,9 +245,20 @@ function buildInput(it, value) {
     el = document.createElement("input");
     el.type = "text";
     el.value = value ?? "";
-    if (isAddressField) {
+
+    // Dropdown/forslag med kendte adresser giver kun mening for den
+    // oprindelige leveringsadresse (repeatIndex 0, som kommer fra Uniconta).
+    // Tilføjer kunden selv en ny leveringsadresse ("+ Tilføj flere"), er det
+    // pr. definition en ny adresse, der ikke findes i forvejen - så her skal
+    // feltet bare være almindelig fritekst uden dropdown.
+    const isNewLeveringsadresseBlock =
+      String(it.number || "") === LEVERINGSADRESSE_LINJE1_NR && it.repeatIndex > 0;
+
+    if (isAddressField && !isNewLeveringsadresseBlock) {
       el.setAttribute("list", "kundeAdresseOptions");
       el.placeholder = "Vælg eller skriv en adresse";
+    } else if (isNewLeveringsadresseBlock) {
+      el.placeholder = "Indtast ny leveringsadresse";
     }
   }
 
@@ -268,7 +279,7 @@ function buildInput(it, value) {
 
 function renderQuestions() {
   ui.questions.innerHTML = "";
-  lastChangeSummary = { changes: [], additions: [], allItems: [] };
+  lastChangeSummary = { changes: [], additions: [], adminAdditions: [], allItems: [] };
 
   const produktMap = produkterByAddressText();
   const groups = [...(DATA.groups || [])].sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
@@ -282,11 +293,15 @@ function renderQuestions() {
   const prefillMap = new Map();
   // Er feltet tilføjet af kunden selv (ny gentagelse/blok, ingen admin-prefill)?
   const addedMap = new Map();
+  // Er feltet tilføjet af DEN DER OPRETTER SKEMAET (ekstra adresse/kontakt
+  // ud over det Uniconta/Entra kendte), jf. admincreate.js's "+"-knap?
+  const addedByAdminMap = new Map();
 
   for (const it of (DATA.items || [])) {
     valueMap.set(`${it.questionId}|${it.repeatIndex}`, it.savedValue || "");
     prefillMap.set(`${it.questionId}|${it.repeatIndex}`, it.prefillText || "");
     addedMap.set(`${it.questionId}|${it.repeatIndex}`, !!it.addedByCustomer);
+    addedByAdminMap.set(`${it.questionId}|${it.repeatIndex}`, !!it.addedByAdmin);
 
     if (it.repeatIndex === 0) {
       if (!baseByGroup.has(it.groupId)) {
@@ -347,6 +362,11 @@ function renderQuestions() {
         return !!val && (addedMap.get(`${bq.questionId}|${ri}`) || false);
       });
 
+      // Hele blokken er tilføjet af DEN DER OPRETTER SKEMAET, hvis mindst ét
+      // af dens felter er markeret sådan (jf. admincreate.js's "+"-knap i
+      // Prefill, adskilt fra kundens egne tilføjelser ovenfor).
+      const isAddedByAdminBlock = baseQs.some(bq => addedByAdminMap.get(`${bq.questionId}|${ri}`));
+
       const block = document.createElement("div");
       block.className = g.repeatable ? "repeat-block" : "";
       if (isRemoved) block.classList.add("removed");
@@ -375,6 +395,11 @@ function renderQuestions() {
           const badge = document.createElement("span");
           badge.className = "added-badge";
           badge.textContent = "Tilføjet af kunden";
+          right.appendChild(badge);
+        } else if (isAddedByAdminBlock) {
+          const badge = document.createElement("span");
+          badge.className = "admin-added-badge";
+          badge.textContent = "Tilføjet ved oprettelse";
           right.appendChild(badge);
         }
 
@@ -406,7 +431,8 @@ function renderQuestions() {
           answertype: bq.answertype,
           explanation: bq.explanation,
           prefillText: prefillMap.get(`${bq.questionId}|${ri}`) || "",
-          addedByCustomer: addedMap.get(`${bq.questionId}|${ri}`) || false
+          addedByCustomer: addedMap.get(`${bq.questionId}|${ri}`) || false,
+          addedByAdmin: addedByAdminMap.get(`${bq.questionId}|${ri}`) || false
         };
 
         const value = valueMap.get(`${it.questionId}|${ri}`) || "";
@@ -428,6 +454,14 @@ function renderQuestions() {
           lastChangeSummary.additions.push({
             group: g, groupId: g.id, repeatIndex: ri, number: it.number,
             question: it.text || "", value
+          });
+        } else if (it.addedByAdmin && (value || it.prefillText)) {
+          // Felt fra en blok DEN DER OPRETTER SKEMAET selv tilføjede i
+          // Prefill (fx en ekstra adresse/kontakt) - vises i opsummeringen
+          // med en anden (ikke-rød) farve end kundens egne rettelser.
+          lastChangeSummary.adminAdditions.push({
+            group: g, groupId: g.id, repeatIndex: ri, number: it.number,
+            question: it.text || "", value: value || it.prefillText || ""
           });
         }
 
@@ -989,16 +1023,22 @@ function buildAreaSummary(system, entries) {
   const lineFor = (e) => {
     if (e.kind === "changed") return `${e.question}: "${e.before}" → "${e.after}"`;
     if (e.kind === "full") return `${e.question}: ${e.value || "(ikke udfyldt)"}`;
+    if (e.kind === "admin-added") return `${e.question} – tilføjet ved oprettelse: "${e.value}"`;
     return `${e.question} – tilføjet: "${e.value}"`;
   };
 
   const liFor = (e) => {
     if (e.kind === "changed") {
       return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong><br>` +
-        `"${escapeHtml(e.before)}" → "${escapeHtml(e.after)}"</li>`;
+        `<span style="color:#b3261e; font-weight:600;">"${escapeHtml(e.before)}" → "${escapeHtml(e.after)}"</span></li>`;
     }
     if (e.kind === "full") {
       return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong><br>${escapeHtml(e.value || "(ikke udfyldt)")}</li>`;
+    }
+    if (e.kind === "admin-added") {
+      return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong><br>` +
+        `<span style="color:#1f6c7a; font-weight:600;">${escapeHtml(e.value)}</span> ` +
+        `<span class="muted">(tilføjet ved oprettelse)</span></li>`;
     }
     return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> – tilføjet: "${escapeHtml(e.value)}"</li>`;
   };
@@ -1043,10 +1083,12 @@ function buildAreaEmailHtml(system, entries, subjectPrefix) {
 
   const rowFor = (e) => {
     const body = e.kind === "changed"
-      ? `<span style="color:#888;">"${escapeHtml(e.before)}"</span> → <strong>"${escapeHtml(e.after)}"</strong>`
+      ? `<span style="color:#888;">"${escapeHtml(e.before)}"</span> → <strong style="color:#b3261e;">"${escapeHtml(e.after)}"</strong>`
       : e.kind === "full"
         ? escapeHtml(e.value || "(ikke udfyldt)")
-        : `<strong>${escapeHtml(e.value)}</strong> <span style="color:#888;">(tilføjet)</span>`;
+        : e.kind === "admin-added"
+          ? `<strong style="color:#1f6c7a;">${escapeHtml(e.value)}</strong> <span style="color:#888;">(tilføjet ved oprettelse)</span>`
+          : `<strong>${escapeHtml(e.value)}</strong> <span style="color:#888;">(tilføjet)</span>`;
 
     return `
       <div style="padding:10px 0; border-bottom:1px solid #f0f0f0;">
@@ -1135,11 +1177,12 @@ async function showChangesSummary() {
 
   const defaultRecipient = await getCurrentUserEmail();
 
-  const { changes, additions, allItems } = lastChangeSummary;
+  const { changes, additions, adminAdditions, allItems } = lastChangeSummary;
 
   const diffEntries = mergeAddressLineEntries([
     ...changes.map(c => ({ ...c, kind: "changed" })),
-    ...additions.map(a => ({ ...a, kind: "added" }))
+    ...additions.map(a => ({ ...a, kind: "added" })),
+    ...adminAdditions.map(a => ({ ...a, kind: "admin-added" }))
   ]);
   const fullEntries = mergeAddressLineEntries(allItems.map(a => ({ ...a, kind: "full" })));
 
@@ -1226,6 +1269,17 @@ async function showChangesSummary() {
       await sendAreaMail(system, entries, btn, toInput);
     }
 
+    // Alle områdemails er sendt - dette er den sidste fase i status-forløbet.
+    try {
+      await fetchJson("/api/survey-status-complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: DATA?.code || "" })
+      });
+    } catch (err) {
+      console.error("Kunne ikke sætte status til Afsluttet:", err);
+    }
+
     allBtn.textContent = "Alle sendt ✔";
     setTimeout(() => { allBtn.textContent = original; allBtn.disabled = false; }, 2000);
   });
@@ -1234,6 +1288,3 @@ async function showChangesSummary() {
 }
 
 document.addEventListener("DOMContentLoaded", init);
-
-
-

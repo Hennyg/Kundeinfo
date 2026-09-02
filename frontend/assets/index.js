@@ -1,14 +1,48 @@
-console.log("index.js loaded (v2)");
+console.log("index.js loaded (v5)");
 
-async function checkAuthAndMaybeRedirect() {
-  // Tillader at se kundeforsiden selv når man er logget ind som
-  // lcherrup.dk-bruger, fx via "Kundeindgang"-linket i admin's navbar.
-  const skipRedirect = new URLSearchParams(location.search).has("preview");
-  console.log("checkAuthAndMaybeRedirect: url =", location.href, "| skipRedirect =", skipRedirect);
+function hideAllPanels() {
+  document.getElementById("checkingAuth")?.classList.add("hidden");
+  document.getElementById("internalChoice")?.classList.add("hidden");
+  document.getElementById("app")?.classList.add("hidden");
+}
 
-  if (skipRedirect) {
-    console.log("preview=1 fundet - viser kundevisning uden at tjekke login.");
-    return false;
+function showCustomerPanel() {
+  hideAllPanels();
+  document.getElementById("app")?.classList.remove("hidden");
+}
+
+function showInternalChoice() {
+  hideAllPanels();
+  document.getElementById("internalChoice")?.classList.remove("hidden");
+}
+
+// Afgør om vi skal vise "internt valg" (Se kundeindgang / Admin) eller
+// kundens kode-login direkte.
+//
+// Prioritet:
+// 1. ?preview=1  -> tving kundevisning, uanset alt andet (bruges af
+//    "Se kundeindgang"-knappen og evt. direkte links).
+// 2. ?internal=1 -> tving internt valg. Sættes på linket fra Herrup
+//    Portalen, da et opkald derfra i sig selv er nok bevis for at det er
+//    en intern bruger - vi behøver ikke vente på en evt. SWA-login-session,
+//    som typisk IKKE findes endnu på dette tidspunkt.
+// 3. Fallback: tjek /.auth/me for en eksisterende login-session (dækker
+//    fx et gemt bogmærke eller direkte besøg fra en allerede logget-ind bruger).
+//
+// Selve sikkerheden ligger IKKE her - admin.html er stadig beskyttet af
+// staticwebapp.config.json (allowedRoles: authenticated), så et gættet
+// ?internal=1 udefra giver ikke reel adgang, kun UI-visningen.
+async function resolveMode() {
+  const params = new URLSearchParams(location.search);
+
+  if (params.has("preview")) {
+    console.log("preview=1 fundet - viser kundevisning.");
+    return "customer";
+  }
+
+  if (params.has("internal")) {
+    console.log("internal=1 fundet - viser internt valg (fra Herrup Portalen).");
+    return "internal";
   }
 
   try {
@@ -16,27 +50,21 @@ async function checkAuthAndMaybeRedirect() {
     const data = await r.json();
     const principal = data?.clientPrincipal;
     console.log("Login-status:", principal ? `logget ind som ${principal.userDetails}` : "ikke logget ind");
-
-    if (principal) {
-      // Allerede logget ind som lcherrup.dk-bruger - spring kundevisningen
-      // over og gå direkte til admin. Dette tjek fremtvinger IKKE login -
-      // det kigger bare på en evt. eksisterende session.
-      console.log("Sender videre til admin.html…");
-      location.replace("./admin.html");
-      return true;
-    }
+    return principal ? "internal" : "customer";
   } catch (e) {
     console.warn("Kunne ikke slå login-status op, viser kundevisning som fallback:", e);
+    return "customer";
   }
-  return false;
 }
 
 async function init() {
-  const redirected = await checkAuthAndMaybeRedirect();
-  if (redirected) return;
+  const mode = await resolveMode();
 
-  document.getElementById("checkingAuth")?.classList.add("hidden");
-  document.getElementById("app")?.classList.remove("hidden");
+  if (mode === "internal") {
+    showInternalChoice();
+  } else {
+    showCustomerPanel();
+  }
 
   const btn = document.getElementById("continueBtn");
   const input = document.getElementById("customerCode");
@@ -56,6 +84,14 @@ async function init() {
   btn.addEventListener("click", goToSurvey);
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") goToSurvey();
+  });
+
+  document.getElementById("goCustomerBtn")?.addEventListener("click", () => {
+    showCustomerPanel();
+  });
+
+  document.getElementById("goAdminBtn")?.addEventListener("click", () => {
+    location.href = "./admin.html";
   });
 }
 
