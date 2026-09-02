@@ -798,8 +798,6 @@ async function submitSurvey(code, finalize, opts = {}) {
   if (!silent) {
     ui.status.textContent = finalize ? "Afslutter…" : "Gemmer…";
     ui.btnSubmit.disabled = true;
-  } else {
-    ui.status.textContent = "Gemmer automatisk…";
   }
 
   try {
@@ -816,11 +814,11 @@ async function submitSurvey(code, finalize, opts = {}) {
       ui.status.textContent = "Tak! Besvarelsen er sendt ✔";
       ui.form.querySelectorAll("input,textarea,select,button").forEach(x => x.disabled = true);
       show(ui.finishModal);
-    } else {
+    } else if (!silent) {
+      // Autosave (silent) skal være usynlig for kunden - viser kun "Gemt ✔"
+      // ved et rigtigt manuelt tryk på "Gem" (hvis den findes). Selve
+      // btnSubmit gen-aktiveres i finally-blokken nedenfor.
       ui.status.textContent = "Gemt ✔";
-      if (!silent) {
-        ui.btnSubmit.disabled = false;
-      }
     }
 
     return result;
