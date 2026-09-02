@@ -23,7 +23,7 @@ module.exports = async function (context, req) {
 
     const instRes = await dvFetch(
       `cr175_lch_kundeinfo_kundeundersoegelses(${id})` +
-      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kundenavn,cr175_lch_kundenummer,cr175_lch_kode,cr175_lch_status,cr175_lch_udloebstidspunkt`
+      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kundenavn,cr175_lch_kundenummer,cr175_lch_kode,cr175_lch_status,cr175_lch_udloebstidspunkt,cr175_lch_mailsendttidspunkt,cr175_lch_sidstsendtmailskabelon`
     );
     const inst = await instRes.json();
 
@@ -48,6 +48,8 @@ module.exports = async function (context, req) {
       customerNumber: inst.cr175_lch_kundenummer || "",
       status: inst.cr175_lch_status,
       expiresAt: inst.cr175_lch_udloebstidspunkt || null,
+      mailSentAt: inst.cr175_lch_mailsendttidspunkt || null,
+      mailTemplateUsed: inst.cr175_lch_sidstsendtmailskabelon || null,
       items
     });
   } catch (err) {
