@@ -519,25 +519,30 @@ async function loadUnicontaDebtor(kundenr) {
 
 /* ---------- Kundeliste: navn, kundenr og adresser ---------- */
 
+// Fælles gengivelse af produkt-pills - bruges både af Kundeliste-tile'et
+// (kundeAdresseRowHtml) og af selve Leveringsadresse-blokkene i Prefill,
+// så det er præcis den samme info begge steder.
+function produkterPillsHtml(produkter) {
+  const list = Array.isArray(produkter) ? produkter : [];
+  return list.length
+    ? `<div class="kundeAdresseProdukter">` +
+      list
+        .map(p => `<span class="produktPill">${escapeHtml(p.produkt)} × ${p.antal}</span>`)
+        .join("") +
+      `</div>`
+    : `<div class="muted">Ingen aktive produkter registreret.</div>`;
+}
+
 function kundeAdresseRowHtml(a) {
   const cityLine = [a.postnr, a.by].filter(Boolean).join(" ");
   const metaParts = [cityLine, a.omraade].filter(Boolean);
   const inaktivTag = a.aktiv === false ? ` <span class="muted">(inaktiv)</span>` : "";
 
-  const produkter = Array.isArray(a.produkter) ? a.produkter : [];
-  const produkterHtml = produkter.length
-    ? `<div class="kundeAdresseProdukter">` +
-      produkter
-        .map(p => `<span class="produktPill">${escapeHtml(p.produkt)} × ${p.antal}</span>`)
-        .join("") +
-      `</div>`
-    : `<div class="muted">Ingen aktive produkter registreret.</div>`;
-
   return `
     <div class="kundeAdresseItem">
       <div class="kundeAdresseLine">${escapeHtml(a.adresse || "—")}${inaktivTag}</div>
       ${metaParts.length ? `<div class="muted">${escapeHtml(metaParts.join(" · "))}</div>` : ""}
-      ${produkterHtml}
+      ${produkterPillsHtml(a.produkter)}
     </div>
   `;
 }
@@ -573,6 +578,14 @@ function syncLeveringsadresseFromKundeliste() {
         [LEVERINGSADRESSE_ADRESSE_NR]: a.adresse || "",
         [LEVERINGSADRESSE_POSTBY_NR]: cityLine
       }, ri);
+
+      const block = list?.querySelector(`.prefillRepeatBlock[data-repeat-index="${ri}"]`);
+      const produktInfo = block?.querySelector("[data-produkt-info]");
+      if (produktInfo) {
+        produktInfo.innerHTML =
+          `<div class="muted" style="font-size:12px; font-weight:600; margin-bottom:4px;">Produkter på denne adresse</div>` +
+          produkterPillsHtml(a.produkter);
+      }
     });
   } else {
     // Ingen adresser fundet – ryd evt. autoudfyldte værdier fra en tidligere kunde
@@ -581,6 +594,14 @@ function syncLeveringsadresseFromKundeliste() {
       [LEVERINGSADRESSE_ADRESSE_NR]: "",
       [LEVERINGSADRESSE_POSTBY_NR]: ""
     }, 0);
+
+    const block = list?.querySelector(`.prefillRepeatBlock[data-repeat-index="0"]`);
+    const produktInfo = block?.querySelector("[data-produkt-info]");
+    if (produktInfo) {
+      produktInfo.innerHTML =
+        `<div class="muted" style="font-size:12px; font-weight:600; margin-bottom:4px;">Produkter på denne adresse</div>` +
+        `<div class="muted">Vælg en kunde for at se produkter.</div>`;
+    }
   }
 
   // Fjern overskydende blokke, hvis den forrige kunde havde flere adresser
@@ -1117,6 +1138,9 @@ function rowsHtml(group, repeatIndex) {
          </div>`
       : "";
 
+    const isLeveringsadresseGroup =
+      String(group.name || "").trim().toLowerCase() === LEVERINGSADRESSE_TITEL;
+
     return `
       <div class="prefillRepeatBlock${removed ? " removed" : ""}" data-repeat-index="${repeatIndex}">
         ${heading}
@@ -1131,6 +1155,12 @@ function rowsHtml(group, repeatIndex) {
           </thead>
           <tbody>${rowsHtml(group, repeatIndex)}</tbody>
         </table>
+        ${isLeveringsadresseGroup
+          ? `<div class="prefillProduktInfo" data-produkt-info style="padding:10px 12px; border-top:1px solid #eee;">
+               <div class="muted" style="font-size:12px; font-weight:600; margin-bottom:4px;">Produkter på denne adresse</div>
+               <div class="muted">Vælg en kunde for at se produkter.</div>
+             </div>`
+          : ""}
       </div>
     `;
   }
