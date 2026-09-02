@@ -201,7 +201,7 @@ module.exports = async function (context, req) {
             cr175_lch_mailsendttidspunkt: new Date().toISOString(),
             // Gemmer skabelonens visningsnavn (falder tilbage til nøglen,
             // hvis navnet af en eller anden grund mangler på skabelonen).
-            lch_sidstsendtmailskabelon: template.cr175_lch_navn || templateKey
+            cr175_lch_sidstsendtmailskabelon: template.cr175_lch_navn || templateKey
           })
         });
         mailTimestampSaved = true;
