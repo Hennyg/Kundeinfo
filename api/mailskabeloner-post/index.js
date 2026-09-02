@@ -11,7 +11,6 @@ module.exports = async function (context, req) {
     const p = req.body || {};
 
     if (!p.navn) return (context.res = { status: 400, body: 'Missing navn' });
-    if (!p.noegle) return (context.res = { status: 400, body: 'Missing noegle' });
 
     if (p.vedhaeftetpdf && String(p.vedhaeftetpdf).length > MAX_PDF_BASE64_LENGTH) {
       return (context.res = { status: 400, body: 'Vedhæftet PDF er for stor (maks. ca. 700 KB).' });
@@ -19,7 +18,6 @@ module.exports = async function (context, req) {
 
     const body = {
       cr175_lch_navn: p.navn,
-      cr175_lch_noegle: p.noegle,
       cr175_lch_kategori: p.kategori ?? null,
       cr175_lch_emne: p.emne ?? null,
       cr175_lch_broedtekst: p.broedtekst ?? null,
@@ -45,6 +43,3 @@ module.exports = async function (context, req) {
     context.res = { status: 500, body: err.message };
   }
 };
-
-
-
