@@ -140,7 +140,7 @@ module.exports = async function (context, req) {
     // 1) Find kundeundersøgelse på kode
     const instPath =
       `cr175_lch_kundeinfo_kundeundersoegelses` +
-      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kode,cr175_lch_kundenavn,cr175_lch_kundenummer,cr175_lch_udloebstidspunkt,cr175_lch_status,cr175_lch_mailsendttidspunkt,lch_sidstsendtmailskabelon` +
+      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kode,cr175_lch_kundenavn,cr175_lch_kundenummer,cr175_lch_udloebstidspunkt,cr175_lch_status,cr175_lch_mailsendttidspunkt,cr175_lch_sidstsendtmailskabelon` +
       `&$filter=${encodeURIComponent(`cr175_lch_kode eq '${escODataString(code)}'`)}` +
       `&$top=1`;
 
@@ -317,7 +317,7 @@ module.exports = async function (context, req) {
       instanceId,
       kundenummer: kundenr,
       mailSentAt: inst.cr175_lch_mailsendttidspunkt || null,
-      mailTemplateUsed: inst.lch_sidstsendtmailskabelon || null
+      mailTemplateUsed: inst.cr175_lch_sidstsendtmailskabelon || null
     });
   } catch (err) {
     context.log.error(err);
