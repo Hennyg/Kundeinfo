@@ -6,7 +6,7 @@
 // (kunden har selv tilføjet en gentagelse), oprettes den.
 
 const { cdFetch: dvFetch } = require("../_coredata");
-const { getStatusValues } = require("../_kundeundersoegelseStatus");
+const { STATUS, advanceStatus } = require("../_surveyStatus");
 const { graph } = require("../_graph/graph");
 const { loadSurveyItems } = require("../_survey/loadSurveyItems");
 const { buildSurveyPdf } = require("../_pdf/buildSurveyPdf");
@@ -228,15 +228,14 @@ module.exports = async function (context, req) {
 
     // --- Markér survey som gennemført/startet ---
     const finalize = !!req?.body?.finalize;
-    const status = await getStatusValues().catch(() => ({ AFSLUTTET: null, STARTET: null }));
-
-    const nextStatus = finalize ? status.AFSLUTTET : status.STARTET;
-    if (nextStatus != null) {
-      await dvFetch(`cr175_lch_kundeinfo_kundeundersoegelses(${instanceId})`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cr175_lch_status: nextStatus })
-      });
+    try {
+      // Autosave (finalize=false) -> "Igang" (kunden er i gang med at svare).
+      // "Gem og afslut" (finalize=true) -> "Udfyldt". Rykker aldrig baglæns,
+      // så gentagne autosaves efter "Udfyldt" (fx admin retter noget bagefter)
+      // rykker ikke status tilbage til "Igang".
+      await advanceStatus(instanceId, finalize ? STATUS.UDFYLDT : STATUS.IGANG);
+    } catch (e) {
+      context.log.error("survey-submit: kunne ikke opdatere status:", e);
     }
 
     let mailResult = null;
