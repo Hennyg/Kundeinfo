@@ -371,9 +371,9 @@ async function loadMailTemplates() {
     els.mailTemplateSelect.disabled = false;
     els.mailTemplateSelect.innerHTML = rows
       .map(t => {
-        const key = t.cr175_lch_noegle || "";
-        const label = t.cr175_lch_navn || key;
-        return `<option value="${escapeHtml(key)}">${escapeHtml(label)}</option>`;
+        const id = t.cr175_lch_kundeinfo_mailskabelonid || "";
+        const label = t.cr175_lch_navn || "(uden navn)";
+        return `<option value="${escapeHtml(id)}">${escapeHtml(label)}</option>`;
       })
       .join("");
 
@@ -1312,8 +1312,8 @@ async function loadInstanceForEdit(instanceId) {
 // Bruger samme /api/survey-send-invite-mail-endpoint som opret-flowet og
 // "Se skema"-sidens statusboks.
 async function sendInviteMailForEditInstance() {
-  const templateKey = (els.mailTemplateSelect?.value || "").trim();
-  if (!templateKey) {
+  const templateId = (els.mailTemplateSelect?.value || "").trim();
+  if (!templateId) {
     if (els.editSendMailStatus) els.editSendMailStatus.textContent = "Vælg en mailskabelon først.";
     return;
   }
@@ -1339,7 +1339,7 @@ async function sendInviteMailForEditInstance() {
         customerNumber: editCustomerNumber,
         instanceId: editInstanceId,
         to: testRecipient,
-        templateKey
+        templateId
       })
     });
 
@@ -1532,7 +1532,7 @@ async function createOrSaveInstance(sendMailAfter) {
       // e-mail knappen viste. Skift til `currentDebtor?.email` her, når det
       // er klar til at gå i drift med rigtige kundemails.
       const testRecipient = "hng@lcherrup.dk";
-      const templateKey = (els.mailTemplateSelect?.value || "").trim();
+      const templateId = (els.mailTemplateSelect?.value || "").trim();
 
       try {
         await fetchJson("/api/survey-send-invite-mail", {
@@ -1545,7 +1545,7 @@ async function createOrSaveInstance(sendMailAfter) {
             customerNumber,
             instanceId: res.instanceId || res.id,
             to: testRecipient,
-            templateKey
+            templateId
           })
         });
 

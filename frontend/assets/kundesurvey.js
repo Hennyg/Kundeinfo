@@ -673,7 +673,7 @@ async function loadStatusTemplateOptions() {
 
     ui.statusTemplateSelect.disabled = false;
     ui.statusTemplateSelect.innerHTML = rows
-      .map(t => `<option value="${escapeHtml(t.cr175_lch_noegle || "")}">${escapeHtml(t.cr175_lch_navn || t.cr175_lch_noegle || "")}</option>`)
+      .map(t => `<option value="${escapeHtml(t.cr175_lch_kundeinfo_mailskabelonid || "")}">${escapeHtml(t.cr175_lch_navn || "(uden navn)")}</option>`)
       .join("");
   } catch (e) {
     console.error("Kunne ikke hente mailskabeloner:", e);
@@ -684,8 +684,8 @@ async function loadStatusTemplateOptions() {
 }
 
 async function sendInviteMailFromStatusTile(data, customerLink) {
-  const templateKey = (ui.statusTemplateSelect?.value || "").trim();
-  if (!templateKey) {
+  const templateId = (ui.statusTemplateSelect?.value || "").trim();
+  if (!templateId) {
     if (ui.statusSendMailStatus) ui.statusSendMailStatus.textContent = "Vælg en skabelon først.";
     return;
   }
@@ -704,7 +704,7 @@ async function sendInviteMailFromStatusTile(data, customerLink) {
         customerNumber: data?.kundenummer || "",
         instanceId: data?.instanceId || "",
         to: TEST_RECIPIENT,
-        templateKey
+        templateId
       })
     });
 

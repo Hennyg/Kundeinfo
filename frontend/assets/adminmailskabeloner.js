@@ -46,7 +46,6 @@ function getEls() {
 
     tid: document.getElementById("tid"),
     tnavn: document.getElementById("tnavn"),
-    tnoegle: document.getElementById("tnoegle"),
     tkategori: document.getElementById("tkategori"),
     temne: document.getElementById("temne"),
     tbroedtekst: document.getElementById("tbroedtekst"),
@@ -134,7 +133,6 @@ function readForm() {
   const payload = {
     id: (els.tid.value || "").trim() || null,
     navn: (els.tnavn.value || "").trim(),
-    noegle: (els.tnoegle.value || "").trim(),
     kategori: (els.tkategori.value || "").trim() || null,
     emne: (els.temne.value || "").trim() || null,
     broedtekst: els.tbroedtekst.value || null,
@@ -158,7 +156,6 @@ function readForm() {
 function fillForm(t) {
   els.tid.value = t.cr175_lch_kundeinfo_mailskabelonid || "";
   els.tnavn.value = t.cr175_lch_navn || "";
-  els.tnoegle.value = t.cr175_lch_noegle || "";
   els.tkategori.value = t.cr175_lch_kategori || "";
   els.temne.value = t.cr175_lch_emne || "";
   els.tbroedtekst.value = t.cr175_lch_broedtekst || "";
@@ -199,7 +196,6 @@ async function listTemplates() {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${escapeHtml(t.cr175_lch_navn ?? '')}</td>
-      <td><code>${escapeHtml(t.cr175_lch_noegle ?? '')}</code></td>
       <td>${escapeHtml(t.cr175_lch_kategori ?? '—')}</td>
       <td>${escapeHtml(t.cr175_lch_emne ?? '')}</td>
       <td>${t.cr175_lch_vedhaeftetpdfnavn ? `Ja (${escapeHtml(t.cr175_lch_vedhaeftetpdfnavn)})` : '—'}</td>
@@ -253,7 +249,6 @@ async function upsertTemplate(payload) {
   els.status.textContent = isNew ? "Opretter…" : "Opdaterer…";
 
   if (!payload.navn) throw new Error("Navn mangler");
-  if (!payload.noegle) throw new Error("Nøgle mangler");
 
   const url = isNew
     ? "/api/mailskabeloner-post"
