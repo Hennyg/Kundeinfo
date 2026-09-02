@@ -42,6 +42,49 @@
       font-size: 13px;
     }
     tr.noResults td { text-align:center; color:#666; padding:20px; }
+
+    /* Hover-forklaring på "Status"-kolonnens overskrift */
+    .statusHeaderTooltip {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      cursor: help;
+    }
+    .statusHeaderTooltip .tooltipIcon {
+      font-size: 12px;
+      color: #888;
+      border: 1px solid #bbb;
+      border-radius: 50%;
+      width: 14px;
+      height: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+    .statusHeaderTooltip .tooltipBox {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      z-index: 20;
+      margin-top: 6px;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 10px 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,.15);
+      font-size: 12px;
+      font-weight: normal;
+      line-height: 1.7;
+      white-space: nowrap;
+      color: #333;
+    }
+    .statusHeaderTooltip .tooltipBox dt { font-weight: 700; }
+    .statusHeaderTooltip .tooltipBox dd { margin: 0 0 4px; color: #555; }
+    .statusHeaderTooltip:hover .tooltipBox,
+    .statusHeaderTooltip:focus .tooltipBox { display: block; }
   </style>
 </head>
 
@@ -95,7 +138,26 @@
             <th><input type="checkbox" id="checkAll" /></th>
             <th>Kundenavn</th>
             <th>Kode</th>
-            <th>Status</th>
+            <th>
+              <span class="statusHeaderTooltip" tabindex="0">
+                Status
+                <span class="tooltipIcon">i</span>
+                <dl class="tooltipBox">
+                  <dt>Kladde</dt>
+                  <dd>Skema oprettet, men mail er ikke sendt endnu</dd>
+                  <dt>Afventer</dt>
+                  <dd>Mail sendt, kunden har ikke åbnet linket endnu</dd>
+                  <dt>Set</dt>
+                  <dd>Kunden har åbnet linket, men ikke skrevet noget endnu</dd>
+                  <dt>Igang</dt>
+                  <dd>Kunden har gemt mindst ét svar (autosave)</dd>
+                  <dt>Udfyldt</dt>
+                  <dd>Kunden har trykket "Gem og afslut"</dd>
+                  <dt>Afsluttet</dt>
+                  <dd>Internt: "Send alle" er trykket på "Se skema"-siden</dd>
+                </dl>
+              </span>
+            </th>
             <th>Skema oprettet</th>
             <th>Mail sendt</th>
             <th>Skema udfyldt</th>
