@@ -13,6 +13,23 @@
     .row { display:grid; grid-template-columns: 1fr 2fr; gap:10px; margin-bottom:10px; align-items:center; }
     input[type="text"], input[type="number"], textarea, select { width:100%; padding:.5rem; box-sizing:border-box; margin-top:8px; }
     textarea { min-height: 80px; }
+
+    /* Giver plads over feltet, når browseren selv scroller hen til et
+       udfyldt/påkrævet felt (fx ved "Gem og afslut" med manglende info) -
+       ellers lander feltet helt oppe i kanten af skærmen, uden at
+       spørgsmålsteksten lige over det er synlig. */
+    input, textarea, select { scroll-margin-top: 110px; }
+
+    /* Skjuler op/ned-pilene på taltal-felter ("Tal"-svartype) - de er ikke
+       ønsket her, kun selve indtastningsfeltet. */
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type="number"] {
+      -moz-appearance: textfield;
+    }
     .qtitle { font-weight:600; margin:0 0 6px 0; }
     .qhelp { margin:0 0 10px 0; color:#666; font-size: 13px; }
     .btnrow { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
