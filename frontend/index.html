@@ -58,11 +58,25 @@
       font-size: 1rem;
       cursor: pointer;
     }
+    .btn.primary { background:#1f6c7a; color:#fff; border-color:#1f6c7a; }
 
     /* Små “info rows” */
     .info-list { margin: 0; padding-left: 18px; }
     .info-list li { margin: 6px 0; }
     .divider { height:1px; background:#eee; margin:14px 0; }
+
+    /* Internt valg (logget-ind bruger) */
+    .choice-card {
+      max-width: 420px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .choice-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 16px;
+    }
   </style>
 </head>
 
@@ -91,6 +105,20 @@
 
     <div id="checkingAuth" class="page-wrap">
       <p class="muted">Tjekker…</p>
+    </div>
+
+    <!-- Vises hvis man allerede er logget ind som lcherrup.dk-bruger -->
+    <div id="internalChoice" class="page-wrap hidden">
+      <div class="card choice-card">
+        <h2>Velkommen</h2>
+        <p class="muted" style="margin-top:0;">
+          Du er logget ind som intern bruger. Vælg hvor du vil hen:
+        </p>
+        <div class="choice-buttons">
+          <button id="goCustomerBtn" class="btn btn-wide">Se kundeindgang</button>
+          <button id="goAdminBtn" class="btn primary btn-wide">Admin</button>
+        </div>
+      </div>
     </div>
 
     <div id="app" class="page-wrap hidden">
@@ -158,6 +186,6 @@
   </div>
 
   <!-- Login-logik -->
-  <script type="module" src="./assets/index.js?v=3"></script>
+  <script type="module" src="./assets/index.js?v=4"></script>
 </body>
 </html>

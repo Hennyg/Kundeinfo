@@ -133,6 +133,41 @@
           </div>
 
           <div class="row">
+            <label></label>
+            <div style="border:1px solid #e3e3e3; border-radius:8px; padding:14px; background:#fafafa;">
+              <div style="font-weight:600; margin-bottom:4px;">Hjælpeværktøj: Tekst → HTML</div>
+              <p class="muted" style="margin:0 0 10px;">
+                Skriv eller indsæt almindelig tekst i venstre boks. Højre boks viser den samme
+                tekst som HTML-kode (tomme linjer bliver til nye afsnit). Tryk "Brug denne HTML i
+                Brødtekst" for at overføre den til feltet ovenfor.
+              </p>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div>
+                  <label for="plainTextInput" style="display:block; margin-bottom:4px; font-size:13px; font-weight:600;">
+                    Almindelig tekst
+                  </label>
+                  <textarea id="plainTextInput" rows="10" placeholder="Hej {{kundenavn}},
+
+Udfyld venligst spørgeskemaet her: {{link}}
+
+Med venlig hilsen
+{{afsendernavn}}"></textarea>
+                </div>
+                <div>
+                  <label for="htmlOutput" style="display:block; margin-bottom:4px; font-size:13px; font-weight:600;">
+                    HTML-kode
+                  </label>
+                  <textarea id="htmlOutput" rows="10" readonly style="background:#fff;"></textarea>
+                </div>
+              </div>
+              <div class="btnrow" style="margin-top:10px;">
+                <button type="button" id="btnUseHtmlInBody">Brug denne HTML i Brødtekst</button>
+                <button type="button" id="btnCopyHtml">Kopiér HTML</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
             <label for="tpdf">Vedhæftet PDF</label>
             <div>
               <div id="currentPdfInfo" class="muted" style="margin-bottom:6px;"></div>
@@ -201,6 +236,3 @@
   <script src="./assets/adminmailskabeloner.js" type="module"></script>
 </body>
 </html>
-
-
-
