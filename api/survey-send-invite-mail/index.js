@@ -221,3 +221,9 @@ module.exports = async function (context, req) {
 
   } catch (err) {
     context.log.error("survey-send-invite-mail failed:", err);
+    return json(context, 500, {
+      error: "server_error",
+      message: err.message || String(err)
+    });
+  }
+};
