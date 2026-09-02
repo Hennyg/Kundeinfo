@@ -16,16 +16,13 @@ function escapeHtml(s) {
 }
 
 function getStatusLabel(row) {
-  return (
-    row["cr175_lch_status@OData.Community.Display.V1.FormattedValue"] ||
-    (row.cr175_lch_status != null ? String(row.cr175_lch_status) : "—")
-  );
+  return row.cr175_lch_nystatus || "—";
 }
 
 function statusPillHtml(row) {
   const label = getStatusLabel(row);
-  // "afsluttet/gennemført" grønnes, resten neutral
-  const cls = /afslut|gennemf/i.test(label) ? "active" : "";
+  // "Udfyldt/Afsluttet" grønnes, resten neutral
+  const cls = /udfyldt|afslut/i.test(label) ? "active" : "";
   return `<span class="pill ${cls}">${escapeHtml(label)}</span>`;
 }
 
@@ -58,6 +55,13 @@ function rowHtml(row) {
     ? ` <span class="pill expired">Udløbet</span>`
     : "";
 
+  // "Skema udfyldt": kun relevant når status faktisk er nået dertil - viser
+  // "Sidst rettet"-tidspunktet i så fald (vi har ikke et dedikeret
+  // udfyldt-tidspunkt-felt), ellers "—".
+  const statusLabel = getStatusLabel(row);
+  const isUdfyldtOrLater = /udfyldt|afslut/i.test(statusLabel);
+  const udfyldtAt = isUdfyldtOrLater ? fmtDateTime(row.sidstRettet) : "—";
+
   const seSkemaLink = code ? `./kundesurvey.html?code=${encodeURIComponent(code)}&ro=1` : "#";
   const prefillLink = id ? `./admincreate.html?instanceId=${encodeURIComponent(id)}` : "#";
   const customerLink = code ? `${window.location.origin}/kundesurvey.html?code=${encodeURIComponent(code)}` : "";
@@ -68,9 +72,10 @@ function rowHtml(row) {
       <td>${escapeHtml(customerName)}</td>
       <td>${escapeHtml(code)}</td>
       <td>${statusPillHtml(row)}</td>
-      <td>${fmtDateTime(expiresAt)}${expiredTag}</td>
       <td>${fmtDateTime(row.createdon)}</td>
       <td>${fmtDateTime(row.cr175_lch_mailsendttidspunkt)}</td>
+      <td>${udfyldtAt}</td>
+      <td>${fmtDateTime(expiresAt)}${expiredTag}</td>
       <td>${fmtDateTime(row.sidstRettet)}</td>
       <td>
         <a class="tag" href="${seSkemaLink}">Se skema</a>
@@ -169,9 +174,10 @@ function getFilterValues() {
     kundenavn: ($("filterKundenavn")?.value || "").trim().toLowerCase(),
     kode: ($("filterKode")?.value || "").trim().toLowerCase(),
     status: $("filterStatus")?.value || "",
-    udloeber: ($("filterUdloeber")?.value || "").trim().toLowerCase(),
     oprettet: ($("filterOprettet")?.value || "").trim().toLowerCase(),
     mailSendt: ($("filterMailSendt")?.value || "").trim().toLowerCase(),
+    udfyldt: ($("filterUdfyldt")?.value || "").trim().toLowerCase(),
+    udloeber: ($("filterUdloeber")?.value || "").trim().toLowerCase(),
     sidstRettet: ($("filterSidstRettet")?.value || "").trim().toLowerCase()
   };
 }
@@ -180,18 +186,21 @@ function rowMatchesFilters(row, f) {
   const kundenavn = String(row.cr175_lch_kundenavn || "(uden navn)").toLowerCase();
   const kode = String(row.cr175_lch_kode || "").toLowerCase();
   const statusLabel = getStatusLabel(row);
-  const udloeber = fmtDateTime(row.cr175_lch_udloebstidspunkt).toLowerCase();
   const oprettet = fmtDateTime(row.createdon).toLowerCase();
   const mailSendt = fmtDateTime(row.cr175_lch_mailsendttidspunkt).toLowerCase();
+  const isUdfyldtOrLater = /udfyldt|afslut/i.test(statusLabel);
+  const udfyldt = (isUdfyldtOrLater ? fmtDateTime(row.sidstRettet) : "—").toLowerCase();
+  const udloeber = fmtDateTime(row.cr175_lch_udloebstidspunkt).toLowerCase();
   const sidstRettet = fmtDateTime(row.sidstRettet).toLowerCase();
 
   if (f.search && !(kundenavn.includes(f.search) || kode.includes(f.search))) return false;
   if (f.kundenavn && !kundenavn.includes(f.kundenavn)) return false;
   if (f.kode && !kode.includes(f.kode)) return false;
   if (f.status && statusLabel !== f.status) return false;
-  if (f.udloeber && !udloeber.includes(f.udloeber)) return false;
   if (f.oprettet && !oprettet.includes(f.oprettet)) return false;
   if (f.mailSendt && !mailSendt.includes(f.mailSendt)) return false;
+  if (f.udfyldt && !udfyldt.includes(f.udfyldt)) return false;
+  if (f.udloeber && !udloeber.includes(f.udloeber)) return false;
   if (f.sidstRettet && !sidstRettet.includes(f.sidstRettet)) return false;
 
   return true;
@@ -217,7 +226,7 @@ function renderTable(rows) {
 
   tbody.innerHTML = rows.length
     ? rows.map(rowHtml).join("")
-    : `<tr class="noResults"><td colspan="9">Ingen kundesurveys matcher filtrene.</td></tr>`;
+    : `<tr class="noResults"><td colspan="10">Ingen kundesurveys matcher filtrene.</td></tr>`;
 
   tbody.querySelectorAll(".rowCheck").forEach(cb => {
     cb.addEventListener("change", updateSelectionUi);
@@ -252,7 +261,7 @@ function applyFilters() {
 function clearFilters() {
   const searchInput = $("searchInput");
   if (searchInput) searchInput.value = "";
-  ["filterKundenavn", "filterKode", "filterUdloeber", "filterOprettet", "filterMailSendt", "filterSidstRettet"].forEach(id => {
+  ["filterKundenavn", "filterKode", "filterOprettet", "filterMailSendt", "filterUdfyldt", "filterUdloeber", "filterSidstRettet"].forEach(id => {
     const el = $(id);
     if (el) el.value = "";
   });
@@ -304,7 +313,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("btnDeleteSelected")?.addEventListener("click", deleteSelected);
 
-  ["searchInput", "filterKundenavn", "filterKode", "filterUdloeber", "filterOprettet", "filterMailSendt", "filterSidstRettet"]
+  ["searchInput", "filterKundenavn", "filterKode", "filterOprettet", "filterMailSendt", "filterUdfyldt", "filterUdloeber", "filterSidstRettet"]
     .forEach(id => $(id)?.addEventListener("input", applyFilters));
   $("filterStatus")?.addEventListener("change", applyFilters);
   $("btnClearFilters")?.addEventListener("click", clearFilters);
