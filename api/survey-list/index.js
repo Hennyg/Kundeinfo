@@ -1,6 +1,6 @@
 // /api/survey-list/index.js
 const { cdFetch: dvFetch } = require('../_coredata');
-const { getStatusValues } = require('../_kundeundersoegelseStatus');
+const { STATUS } = require('../_surveyStatus');
 
 function json(context, status, body) {
   context.res = {
@@ -25,7 +25,7 @@ module.exports = async function (context, req) {
 
     const url =
       `cr175_lch_kundeinfo_kundeundersoegelses` +
-      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kundenavn,cr175_lch_kundenummer,cr175_lch_kode,cr175_lch_udloebstidspunkt,cr175_lch_status,cr175_lch_mailsendttidspunkt,createdon` +
+      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kundenavn,cr175_lch_kundenummer,cr175_lch_kode,cr175_lch_udloebstidspunkt,cr175_lch_nystatus,cr175_lch_mailsendttidspunkt,createdon` +
       `&$orderby=createdon desc` +
       filterPart +
       `&$top=${top}`;
@@ -54,10 +54,8 @@ module.exports = async function (context, req) {
       return json(context, 500, { error: "invalid_json_from_dv", detail: text });
     }
 
-    // Berig hver række med en simpel boolean "afsluttet", så frontend ikke
-    // selv skal kende de rå status-heltal (der afhænger af Dataverse-metadata).
-    const status = await getStatusValues().catch(() => ({ AFSLUTTET: null }));
-
+    // Berig hver række med en simpel boolean "afsluttet" - direkte ud fra
+    // tekststatussen nu, ingen grund til at slå Dataverse-metadata op mere.
     // "Sidst rettet" skal afspejle hvornår kunden sidst gemte et svar - det
     // ligger på selve svar-rækkerne (cr175_lch_kundeinfo_spoergeskemasvar),
     // IKKE på instansens egen modifiedon. Instansens modifiedon opdateres
@@ -102,9 +100,7 @@ module.exports = async function (context, req) {
     if (Array.isArray(data?.value)) {
       data.value = data.value.map(row => ({
         ...row,
-        afsluttet: status.AFSLUTTET != null
-          ? Number(row.cr175_lch_status) === status.AFSLUTTET
-          : null, // ukendt – status-metadata kunne ikke slås op
+        afsluttet: row.cr175_lch_nystatus === STATUS.AFSLUTTET,
         sidstRettet: lastAnsweredMap[row.cr175_lch_kundeinfo_kundeundersoegelseid] || null
       }));
     }
