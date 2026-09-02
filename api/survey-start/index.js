@@ -4,7 +4,7 @@
 // bygger den flade items/groups-struktur som kundesurvey.js forventer.
 
 const { cdFetch: dvFetch } = require("../_coredata");
-const { getStatusValues } = require("../_kundeundersoegelseStatus");
+const { STATUS, advanceStatus } = require("../_surveyStatus");
 
 function json(context, status, body) {
   context.res = {
@@ -140,7 +140,7 @@ module.exports = async function (context, req) {
     // 1) Find kundeundersøgelse på kode
     const instPath =
       `cr175_lch_kundeinfo_kundeundersoegelses` +
-      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kode,cr175_lch_kundenavn,cr175_lch_kundenummer,cr175_lch_udloebstidspunkt,cr175_lch_status,cr175_lch_mailsendttidspunkt,cr175_lch_sidstsendtmailskabelon` +
+      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kode,cr175_lch_kundenavn,cr175_lch_kundenummer,cr175_lch_udloebstidspunkt,cr175_lch_status,cr175_lch_mailsendttidspunkt,cr175_lch_sidstsendtmailskabelon,cr175_lch_nystatus` +
       `&$filter=${encodeURIComponent(`cr175_lch_kode eq '${escODataString(code)}'`)}` +
       `&$top=1`;
 
@@ -156,8 +156,7 @@ module.exports = async function (context, req) {
 
     // --- Check om survey allerede er gennemført (springes over ved gennemsyn/ro=1,
     //     hvor formålet netop er at kunne åbne og se et afsluttet skema) ---
-    const status = await getStatusValues().catch(() => ({ AFSLUTTET: null }));
-    const isFinished = status.AFSLUTTET != null && Number(inst.cr175_lch_status) === status.AFSLUTTET;
+    const isFinished = inst.cr175_lch_nystatus === STATUS.UDFYLDT || inst.cr175_lch_nystatus === STATUS.AFSLUTTET;
 
     if (!readOnly && isFinished) {
       return json(context, 409, {
@@ -169,6 +168,17 @@ module.exports = async function (context, req) {
     const instanceId = inst.cr175_lch_kundeinfo_kundeundersoegelseid;
     const customerName = inst.cr175_lch_kundenavn || "";
     const kundenr = inst.cr175_lch_kundenummer || "";
+
+    // Kunden (ikke admin's "Se skema"-visning) har nu åbnet linket - ryk
+    // status til "Set", men kun hvis den ikke allerede er kommet længere
+    // (fx hvis kunden allerede har nået at skrive noget).
+    if (!readOnly) {
+      try {
+        await advanceStatus(instanceId, STATUS.SET);
+      } catch (e) {
+        context.log.error("survey-start: kunne ikke opdatere status til Set:", e);
+      }
+    }
 
     // 2) Hent spørgeskemasvar for denne kundeundersøgelse + udvid spørgsmål + gruppe
     const rowsPath =
@@ -200,6 +210,11 @@ module.exports = async function (context, req) {
     const prefillByQuestionRepeat = new Map();
     const answerByQuestionRepeat = new Map();
     const addedByQuestionRepeat = new Map();
+    // Marker for felter/blokke som DEN DER OPRETTER SKEMAET selv har
+    // tilføjet i Prefill (fx en ekstra leveringsadresse eller kontakt ud
+    // over det Uniconta/Entra allerede kendte) - adskilt fra
+    // addedByQuestionRepeat, som dækker kundens egne tilføjelser.
+    const addedByAdminQuestionRepeat = new Map();
     const repeatIndexesByGroup = new Map();
 
     for (const row of rows) {
@@ -233,6 +248,7 @@ module.exports = async function (context, req) {
       prefillByQuestionRepeat.set(`${qid}|${ri}`, row.cr175_lch_prefillvaerdi || "");
       answerByQuestionRepeat.set(`${qid}|${ri}`, row.cr175_lch_svarvaerdi || "");
       addedByQuestionRepeat.set(`${qid}|${ri}`, /-NY-/.test(String(row.cr175_lch_unik || "")));
+      addedByAdminQuestionRepeat.set(`${qid}|${ri}`, /-ADMIN-/.test(String(row.cr175_lch_unik || "")));
 
       if (!repeatIndexesByGroup.has(groupId)) repeatIndexesByGroup.set(groupId, new Set());
       repeatIndexesByGroup.get(groupId).add(ri);
@@ -272,6 +288,7 @@ module.exports = async function (context, req) {
         const savedValue = answerByQuestionRepeat.get(`${bq.questionId}|${ri}`) ?? "";
         const prefillText = prefillByQuestionRepeat.get(`${bq.questionId}|${ri}`) || "";
         const addedByCustomer = addedByQuestionRepeat.get(`${bq.questionId}|${ri}`) || false;
+        const addedByAdmin = addedByAdminQuestionRepeat.get(`${bq.questionId}|${ri}`) || false;
 
         items.push({
           itemId: ri === 0 ? bq.itemId : null,
@@ -286,6 +303,7 @@ module.exports = async function (context, req) {
           prefillText,
           savedValue,
           addedByCustomer,
+          addedByAdmin,
           sortKey: bq.sortKey
         });
       }
@@ -317,7 +335,8 @@ module.exports = async function (context, req) {
       instanceId,
       kundenummer: kundenr,
       mailSentAt: inst.cr175_lch_mailsendttidspunkt || null,
-      mailTemplateUsed: inst.cr175_lch_sidstsendtmailskabelon || null
+      mailTemplateUsed: inst.cr175_lch_sidstsendtmailskabelon || null,
+      status: inst.cr175_lch_nystatus || null
     });
   } catch (err) {
     context.log.error(err);
