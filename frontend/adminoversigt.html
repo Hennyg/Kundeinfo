@@ -43,6 +43,43 @@
     }
     tr.noResults td { text-align:center; color:#666; padding:20px; }
 
+    .statusFilterDropdown { position: relative; }
+    .statusFilterBtn {
+      width: 100%;
+      text-align: left;
+      padding: 5px 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .statusFilterPanel {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      z-index: 30;
+      margin-top: 4px;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 8px 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,.15);
+      white-space: nowrap;
+      font-weight: normal;
+    }
+    .statusFilterPanel.hidden { display: none; }
+    .statusFilterPanel.open { display: block; }
+    .statusFilterPanel label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 0;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
     /* Hover-forklaring på "Status"-kolonnens overskrift */
     .statusHeaderTooltip {
       position: relative;
@@ -169,7 +206,12 @@
             <th></th>
             <th><input type="text" id="filterKundenavn" placeholder="Filtrér…" /></th>
             <th><input type="text" id="filterKode" placeholder="Filtrér…" /></th>
-            <th><select id="filterStatus"><option value="">Alle</option></select></th>
+            <th>
+              <div class="statusFilterDropdown">
+                <button type="button" id="filterStatusBtn" class="statusFilterBtn">Alle</button>
+                <div id="filterStatusPanel" class="statusFilterPanel hidden"></div>
+              </div>
+            </th>
             <th><input type="text" id="filterOprettet" placeholder="Filtrér…" /></th>
             <th><input type="text" id="filterMailSendt" placeholder="Filtrér…" /></th>
             <th><input type="text" id="filterUdfyldt" placeholder="Filtrér…" /></th>
