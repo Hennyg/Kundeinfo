@@ -75,7 +75,7 @@ module.exports = async function (context, req) {
       `&$filter=${encodeURIComponent(`_cr175_lch_kundeundersoegelse_value eq ${instanceId}`)}` +
       `&$expand=${encodeURIComponent(
         `cr175_lch_spoergsmaal($select=cr175_lch_kundeinfo_spoergsmaalid,cr175_lch_nummer,cr175_lch_spoergsmaalstekst,cr175_lch_forklaring,cr175_lch_svartype,cr175_lch_paakraevet,cr175_lch_sorteringsnummer;` +
-        `$expand=cr175_lch_spoergsmaalsgruppe($select=cr175_lch_kundeinfo_spoergsmaalsgruppeid,cr175_lch_titel,cr175_lch_description,cr175_lch_sorteringsnummer,cr175_lch_kangentages,cr175_lch_rapporterer_til))`
+        `$expand=cr175_lch_spoergsmaalsgruppe($select=cr175_lch_kundeinfo_spoergsmaalsgruppeid,cr175_lch_titel,cr175_lch_description,cr175_lch_sorteringsnummer,cr175_lch_kangentages,cr175_lch_rapporterer_til,cr175_lch_harnotefelt,cr175_lch_notefeltoverskrift,cr175_lch_notefelthjaelpetekst))`
       )}`;
 
     const rowsRes = await dvFetch(rowsPath, {
@@ -121,7 +121,10 @@ module.exports = async function (context, req) {
           repeatable: g ? !!g.cr175_lch_kangentages : false,
           rapporterTil: g
             ? (g["cr175_lch_rapporterer_til@OData.Community.Display.V1.FormattedValue"] || null)
-            : null
+            : null,
+          harNotefelt: g ? !!g.cr175_lch_harnotefelt : false,
+          notefeltOverskrift: g ? (g.cr175_lch_notefeltoverskrift || "Note") : "Note",
+          notefeltHjaelpetekst: g ? (g.cr175_lch_notefelthjaelpetekst || "") : ""
         });
       }
 
@@ -207,6 +210,26 @@ module.exports = async function (context, req) {
 
     const groups = [...groupsById.values()].sort((a, b) => a.sort - b.sort);
 
+    // Hent eksisterende noter (fra tidligere autosaves) for grupper med
+    // note-felt slået til. Fejler dette, skal resten af siden stadig virke -
+    // kunden mister i værste fald bare at se en tidligere gemt note igen.
+    let notes = [];
+    try {
+      const notesRes = await dvFetch(
+        `cr175_lch_kundeinfo_gruppenotes` +
+        `?$select=cr175_lch_kundeinfo_gruppenoteid,cr175_lch_gentagelsesindeks,cr175_lch_notetekst,_cr175_lch_spoergsmaalsgruppe_value` +
+        `&$filter=${encodeURIComponent(`_cr175_lch_kundeundersoegelse_value eq ${instanceId}`)}&$top=500`
+      );
+      const notesData = await notesRes.json();
+      notes = (notesData?.value || []).map(n => ({
+        groupId: n._cr175_lch_spoergsmaalsgruppe_value ? String(n._cr175_lch_spoergsmaalsgruppe_value) : "",
+        repeatIndex: Number(n.cr175_lch_gentagelsesindeks ?? 0),
+        notetekst: n.cr175_lch_notetekst || ""
+      }));
+    } catch (e) {
+      context.log.error("survey-start: kunne ikke hente gruppenoter:", e);
+    }
+
     // Adresser + produktinfo er kun "nice to have" på selve skemaet - fejler
     // opslaget (fx manglende app settings eller kunden findes ikke i
     // coredata), skal resten af siden stadig virke, bare uden produktinfo.
@@ -224,6 +247,7 @@ module.exports = async function (context, req) {
       groups,
       items,
       kundeAdresser,
+      notes,
       isFinished,
       // Bruges kun af admin-visningen (ro=1) til status-boksen øverst på
       // kundesurvey.html: instanceId (til Prefill-linket), kundenummer (til
