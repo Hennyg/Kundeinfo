@@ -5,6 +5,7 @@
 
 const { cdFetch: dvFetch } = require("../_coredata");
 const { STATUS, advanceStatus } = require("../_surveyStatus");
+const { getKundeAdresserMedProdukter } = require("../_kundeAdresser");
 
 function json(context, status, body) {
   context.res = {
@@ -16,119 +17,6 @@ function json(context, status, body) {
 
 function escODataString(s) {
   return String(s ?? "").replace(/'/g, "''");
-}
-
-// Selvstændigt token scopet til COREDATA_URL (Uniconta/kundeliste-miljøet).
-// NB: getCoredataToken() i _coredata.js scoper til HerrupPortal_URL (et andet
-// miljø/app-registrering) og kan derfor IKKE bruges til at kalde COREDATA_URL
-// – det giver et audience-mismatch og en fejlende (401) request, som fanges
-// af try/catch og stille returnerer en tom liste. Samme mønster som i
-// /api/kunde-adresser og /api/kunder-search.
-async function getUnicontaToken(resource) {
-  const tenant = process.env.DV_TENANT_ID;
-  const clientId = process.env.DV_CLIENT_ID;
-  const clientSecret = process.env.DV_CLIENT_SECRET;
-
-  if (!tenant || !clientId || !clientSecret || !resource) return null;
-
-  const body = new URLSearchParams({
-    grant_type: "client_credentials",
-    client_id: clientId,
-    client_secret: clientSecret,
-    scope: `${resource}/.default`
-  });
-
-  const r = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body
-  });
-
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) return null;
-  return j.access_token;
-}
-
-async function fetchKundeAdresser(kundenr) {
-  try {
-    if (!kundenr) return [];
-
-    const resource = process.env.COREDATA_URL;
-    const table = process.env.COREDATA_KUNDE_TABEL;
-    if (!resource || !table) return [];
-
-    const token = await getUnicontaToken(resource);
-    if (!token) return [];
-
-    const headers = {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-      "OData-MaxVersion": "4.0",
-      "OData-Version": "4.0"
-    };
-
-    const kundeUrl =
-      `${resource}/api/data/v9.2/${table}?$select=cr1eb_lch_kundeid,cr1eb_lch_kundenr&` +
-      `$filter=${encodeURIComponent(`cr1eb_lch_kundenr eq '${escODataString(kundenr)}'`)}&$top=1`;
-
-    const kundeRes = await fetch(kundeUrl, { headers });
-    if (!kundeRes.ok) return [];
-    const kundeData = await kundeRes.json();
-    const kunde = (kundeData.value || [])[0];
-    if (!kunde) return [];
-
-    const adresseUrl =
-      `${resource}/api/data/v9.2/cr1eb_lch_kundeadresses?` +
-      `$select=cr1eb_lch_adressekey,cr1eb_lch_adresse,cr1eb_lch_postnr,cr1eb_lch_by&` +
-      `$filter=${encodeURIComponent(`_cr1eb_lch_kunde_value eq '${kunde.cr1eb_lch_kundeid}'`)}&$top=50`;
-
-    const adresseRes = await fetch(adresseUrl, { headers });
-    if (!adresseRes.ok) return [];
-    const adresseData = await adresseRes.json();
-
-    // Produkter pr. adresse (samme kilde/logik som /api/kunde-adresser), så
-    // kundesurvey.js kan vise hvilke produkter der er registreret på hver
-    // leveringsadresse, ligesom på admincreate-siden.
-    const produktUrl =
-      `${resource}/api/data/v9.2/cr1eb_lch_kundeprodukts?` +
-      `$select=cr1eb_lch_adressekey,cr1eb_lch_produkt,cr1eb_lch_aktiv&` +
-      `$filter=${encodeURIComponent(`cr1eb_lch_kundenr eq '${escODataString(kunde.cr1eb_lch_kundenr || kundenr)}'`)}&$top=5000`;
-
-    const countsByAddressKey = {};
-    try {
-      const produktRes = await fetch(produktUrl, { headers });
-      if (produktRes.ok) {
-        const produktData = await produktRes.json();
-        for (const p of (produktData.value || [])) {
-          const aktiv = p.cr1eb_lch_aktiv ?? true;
-          if (!aktiv) continue;
-
-          const key = p.cr1eb_lch_adressekey || "";
-          const produkt = p.cr1eb_lch_produkt || "Ukendt";
-          if (!countsByAddressKey[key]) countsByAddressKey[key] = {};
-          countsByAddressKey[key][produkt] = (countsByAddressKey[key][produkt] || 0) + 1;
-        }
-      }
-    } catch {
-      // Produkter er kun til info – fejl her skal ikke blokere resten af siden.
-    }
-
-    return (adresseData.value || []).map(a => {
-      const counts = countsByAddressKey[a.cr1eb_lch_adressekey || ""] || {};
-      const produkter = Object.entries(counts)
-        .map(([produkt, antal]) => ({ produkt, antal }))
-        .sort((x, y) => y.antal - x.antal || x.produkt.localeCompare(y.produkt, "da"));
-
-      return {
-        adresse: a.cr1eb_lch_adresse || "",
-        postnr: a.cr1eb_lch_postnr || "",
-        by: a.cr1eb_lch_by || "",
-        produkter
-      };
-    });
-  } catch {
-    return [];
-  }
 }
 
 module.exports = async function (context, req) {
@@ -319,7 +207,16 @@ module.exports = async function (context, req) {
 
     const groups = [...groupsById.values()].sort((a, b) => a.sort - b.sort);
 
-    const kundeAdresser = await fetchKundeAdresser(kundenr);
+    // Adresser + produktinfo er kun "nice to have" på selve skemaet - fejler
+    // opslaget (fx manglende app settings eller kunden findes ikke i
+    // coredata), skal resten af siden stadig virke, bare uden produktinfo.
+    let kundeAdresser = [];
+    try {
+      const result = await getKundeAdresserMedProdukter(kundenr);
+      kundeAdresser = result.adresser || [];
+    } catch (e) {
+      context.log.error("survey-start: kunne ikke hente kundeadresser/produkter:", e);
+    }
 
     return json(context, 200, {
       code,
