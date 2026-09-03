@@ -23,7 +23,12 @@ module.exports = async function (context, req) {
       cr175_lch_kangentages: !!p.repeatable,
       // Hvilke(t) system(er) gruppens svar skal rapporteres til: 245500000=Kontakter,
       // 245500001=Kundeliste, 245500002=Uniconta (multi-select valgliste)
-      cr175_lch_rapporterer_til: rapporterTilValues || null
+      cr175_lch_rapporterer_til: rapporterTilValues || null,
+      // Note-felt: vises nederst på hver gentagelse af gruppen på
+      // kundesurvey.html, hvis slået til.
+      cr175_lch_harnotefelt: !!p.harnotefelt,
+      cr175_lch_notefeltoverskrift: p.harnotefelt ? (p.notefeltoverskrift ?? null) : null,
+      cr175_lch_notefelthjaelpetekst: p.harnotefelt ? (p.notefelthjaelpetekst ?? null) : null
     };
 
     await dvFetch(`cr175_lch_kundeinfo_spoergsmaalsgruppes(${id})`, {
