@@ -73,6 +73,10 @@ function normalizeDebtor(row) {
     currency: String(p("Currency", "CurrencyCode", "currency")),
     payment: String(p("Payment", "PaymentMethod", "payment")),
     blocked: Boolean(p("Blocked", "IsBlocked", "blocked")),
+    // EAN-feltet indeholder GLN-nummeret. Bruges til at afgøre om kunden har
+    // e-faktura (feltet udfyldt) og til selve GLN/EAN-teksten, jf.
+    // fillPrefillFromUniconta() i admincreate.js.
+    ean: String(p("EAN", "Ean")),
     raw: row,
     shownKeys: Array.from(used)
   };
