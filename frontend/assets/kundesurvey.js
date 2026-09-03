@@ -516,13 +516,17 @@ function renderQuestions() {
         // bevidst tomt (det skal kun indeholde kundens eget svar) - men den
         // "effektive" adresse lige nu er stadig "Vores info" (prefillText).
         // Falder derfor tilbage til prefill, præcis som resten af filen gør
-        // det andre steder (lastChangeSummary bruger samme mønster).
+        // det andre steder. prefillMap er nøglet på questionId (ikke
+        // feltnummer), så vi slår først questionId op for de to adressefelter.
+        const linje1QuestionId = baseQs.find(bq => bq.number === LEVERINGSADRESSE_LINJE1_NR)?.questionId;
+        const linje2QuestionId = baseQs.find(bq => bq.number === LEVERINGSADRESSE_LINJE2_NR)?.questionId;
+
         const linje1 =
           block.querySelector(`[data-number="${LEVERINGSADRESSE_LINJE1_NR}"]`)?.value?.trim() ||
-          prefillMap.get(`${LEVERINGSADRESSE_LINJE1_NR}|${ri}`) || "";
+          (linje1QuestionId ? prefillMap.get(`${linje1QuestionId}|${ri}`) : "") || "";
         const linje2 =
           block.querySelector(`[data-number="${LEVERINGSADRESSE_LINJE2_NR}"]`)?.value?.trim() ||
-          prefillMap.get(`${LEVERINGSADRESSE_LINJE2_NR}|${ri}`) || "";
+          (linje2QuestionId ? prefillMap.get(`${linje2QuestionId}|${ri}`) : "") || "";
         const fullAddress = [linje1, linje2].filter(Boolean).join(", ");
         const produkter = fullAddress ? produktMap.get(fullAddress) : null;
 
