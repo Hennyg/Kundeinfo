@@ -512,8 +512,17 @@ function renderQuestions() {
       // (samme info som ses på kundelisten i admincreate), hvis blokken har
       // begge adressefelter og adressen matcher en kendt kundeliste-adresse.
       if (!isRemoved) {
-        const linje1 = block.querySelector(`[data-number="${LEVERINGSADRESSE_LINJE1_NR}"]`)?.value?.trim() || "";
-        const linje2 = block.querySelector(`[data-number="${LEVERINGSADRESSE_LINJE2_NR}"]`)?.value?.trim() || "";
+        // Så længe kunden ikke selv har skrevet noget, er inputfeltet
+        // bevidst tomt (det skal kun indeholde kundens eget svar) - men den
+        // "effektive" adresse lige nu er stadig "Vores info" (prefillText).
+        // Falder derfor tilbage til prefill, præcis som resten af filen gør
+        // det andre steder (lastChangeSummary bruger samme mønster).
+        const linje1 =
+          block.querySelector(`[data-number="${LEVERINGSADRESSE_LINJE1_NR}"]`)?.value?.trim() ||
+          prefillMap.get(`${LEVERINGSADRESSE_LINJE1_NR}|${ri}`) || "";
+        const linje2 =
+          block.querySelector(`[data-number="${LEVERINGSADRESSE_LINJE2_NR}"]`)?.value?.trim() ||
+          prefillMap.get(`${LEVERINGSADRESSE_LINJE2_NR}|${ri}`) || "";
         const fullAddress = [linje1, linje2].filter(Boolean).join(", ");
         const produkter = fullAddress ? produktMap.get(fullAddress) : null;
 
