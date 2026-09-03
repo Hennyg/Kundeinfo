@@ -167,13 +167,14 @@ async function deleteSelected() {
 }
 
 let allRows = [];
+let selectedStatusFilters = new Set();
 
 function getFilterValues() {
   return {
     search: ($("searchInput")?.value || "").trim().toLowerCase(),
     kundenavn: ($("filterKundenavn")?.value || "").trim().toLowerCase(),
     kode: ($("filterKode")?.value || "").trim().toLowerCase(),
-    status: $("filterStatus")?.value || "",
+    status: selectedStatusFilters,
     oprettet: ($("filterOprettet")?.value || "").trim().toLowerCase(),
     mailSendt: ($("filterMailSendt")?.value || "").trim().toLowerCase(),
     udfyldt: ($("filterUdfyldt")?.value || "").trim().toLowerCase(),
@@ -196,7 +197,7 @@ function rowMatchesFilters(row, f) {
   if (f.search && !(kundenavn.includes(f.search) || kode.includes(f.search))) return false;
   if (f.kundenavn && !kundenavn.includes(f.kundenavn)) return false;
   if (f.kode && !kode.includes(f.kode)) return false;
-  if (f.status && statusLabel !== f.status) return false;
+  if (f.status.size && !f.status.has(statusLabel)) return false;
   if (f.oprettet && !oprettet.includes(f.oprettet)) return false;
   if (f.mailSendt && !mailSendt.includes(f.mailSendt)) return false;
   if (f.udfyldt && !udfyldt.includes(f.udfyldt)) return false;
@@ -206,18 +207,38 @@ function rowMatchesFilters(row, f) {
   return true;
 }
 
-function populateStatusFilterOptions(rows) {
-  const select = $("filterStatus");
-  if (!select) return;
+function updateStatusFilterButtonLabel() {
+  const btn = $("filterStatusBtn");
+  if (!btn) return;
 
-  const current = select.value;
+  if (!selectedStatusFilters.size) {
+    btn.textContent = "Alle";
+  } else if (selectedStatusFilters.size === 1) {
+    btn.textContent = [...selectedStatusFilters][0];
+  } else {
+    btn.textContent = `${selectedStatusFilters.size} valgt`;
+  }
+}
+
+function populateStatusFilterOptions(rows) {
+  const panel = $("filterStatusPanel");
+  if (!panel) return;
+
   const labels = [...new Set(rows.map(getStatusLabel))].sort((a, b) => a.localeCompare(b, "da"));
 
-  select.innerHTML =
-    `<option value="">Alle</option>` +
-    labels.map(l => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join("");
+  // Fjern valgte statusser der ikke længere findes i data (fx efter filtrering)
+  for (const s of [...selectedStatusFilters]) {
+    if (!labels.includes(s)) selectedStatusFilters.delete(s);
+  }
 
-  if (labels.includes(current)) select.value = current;
+  panel.innerHTML = labels.map(l => `
+    <label>
+      <input type="checkbox" value="${escapeHtml(l)}" ${selectedStatusFilters.has(l) ? "checked" : ""} />
+      ${escapeHtml(l)}
+    </label>
+  `).join("");
+
+  updateStatusFilterButtonLabel();
 }
 
 function renderTable(rows) {
@@ -265,8 +286,10 @@ function clearFilters() {
     const el = $(id);
     if (el) el.value = "";
   });
-  const statusFilter = $("filterStatus");
-  if (statusFilter) statusFilter.value = "";
+  selectedStatusFilters.clear();
+  const statusPanel = $("filterStatusPanel");
+  if (statusPanel) statusPanel.querySelectorAll("input[type=checkbox]").forEach(cb => { cb.checked = false; });
+  updateStatusFilterButtonLabel();
   applyFilters();
 }
 
@@ -315,6 +338,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
   ["searchInput", "filterKundenavn", "filterKode", "filterOprettet", "filterMailSendt", "filterUdfyldt", "filterUdloeber", "filterSidstRettet"]
     .forEach(id => $(id)?.addEventListener("input", applyFilters));
-  $("filterStatus")?.addEventListener("change", applyFilters);
+  $("filterStatusBtn")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    $("filterStatusPanel")?.classList.toggle("open");
+  });
+
+  $("filterStatusPanel")?.addEventListener("change", (e) => {
+    const cb = e.target.closest('input[type="checkbox"]');
+    if (!cb) return;
+
+    if (cb.checked) selectedStatusFilters.add(cb.value);
+    else selectedStatusFilters.delete(cb.value);
+
+    updateStatusFilterButtonLabel();
+    applyFilters();
+  });
+
+  document.addEventListener("click", (e) => {
+    const dropdown = $("filterStatusPanel")?.closest(".statusFilterDropdown");
+    if (dropdown && !dropdown.contains(e.target)) {
+      $("filterStatusPanel")?.classList.remove("open");
+    }
+  });
   $("btnClearFilters")?.addEventListener("click", clearFilters);
 });
