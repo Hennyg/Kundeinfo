@@ -30,6 +30,11 @@ function getEls() {
     gactive: document.getElementById("gactive"),
     grepeatable: document.getElementById("grepeatable"),
     grapportertil: document.getElementById("grapportertil"),
+
+    gharnotefelt: document.getElementById("gharnotefelt"),
+    gnotefeltRows: document.getElementById("gnotefeltRows"),
+    gnotefeltoverskrift: document.getElementById("gnotefeltoverskrift"),
+    gnotefelthjaelpetekst: document.getElementById("gnotefelthjaelpetekst"),
   };
 }
 
@@ -88,7 +93,15 @@ function readForm() {
     isactive: !!els.gactive.checked,
     repeatable: !!els.grepeatable.checked,
     rapporterTil: getRapporterTil(),
+    harnotefelt: !!els.gharnotefelt.checked,
+    notefeltoverskrift: (els.gnotefeltoverskrift.value || "").trim() || null,
+    notefelthjaelpetekst: (els.gnotefelthjaelpetekst.value || "").trim() || null,
   };
+}
+
+function updateNotefeltRowsVisibility() {
+  if (!els.gnotefeltRows) return;
+  els.gnotefeltRows.classList.toggle("hidden", !els.gharnotefelt.checked);
 }
 
 function fillForm(g) {
@@ -99,6 +112,10 @@ function fillForm(g) {
   els.gactive.checked = (g.cr175_lch_aktiv ?? true) === true;
   els.grepeatable.checked = (g.cr175_lch_kangentages ?? false) === true;
   setRapporterTil(g.cr175_lch_rapporterer_til ?? null);
+  els.gharnotefelt.checked = (g.cr175_lch_harnotefelt ?? false) === true;
+  els.gnotefeltoverskrift.value = g.cr175_lch_notefeltoverskrift || "";
+  els.gnotefelthjaelpetekst.value = g.cr175_lch_notefelthjaelpetekst || "";
+  updateNotefeltRowsVisibility();
 }
 
 function resetForm() {
@@ -106,6 +123,7 @@ function resetForm() {
   els.gid.value = "";
   els.status.textContent = "";
   setRapporterTil([]);
+  updateNotefeltRowsVisibility();
 }
 
 const RAPPORTER_TIL_LABELS = {
@@ -142,6 +160,7 @@ async function listGroups() {
       <td>${escapeHtml(g.cr175_lch_titel ?? '')}</td>
       <td>${(g.cr175_lch_aktiv ?? true) ? 'Ja' : 'Nej'}</td>
       <td>${g.cr175_lch_kangentages ? 'Ja' : 'Nej'}</td>
+      <td>${g.cr175_lch_harnotefelt ? 'Ja' : 'Nej'}</td>
       <td>${escapeHtml(rapporterTilLabel)}</td>
       <td class="actions">
         <button data-act="edit" data-id="${g.cr175_lch_kundeinfo_spoergsmaalsgruppeid}">Redigér</button>
@@ -210,6 +229,8 @@ function wireEvents() {
 
   els.btnReset.addEventListener("click", resetForm);
 
+  els.gharnotefelt?.addEventListener("change", updateNotefeltRowsVisibility);
+
   els.grapportertil?.addEventListener("click", (e) => {
     const btn = e.target.closest(".toggle3-btn");
     if (!btn) return;
@@ -249,6 +270,7 @@ async function init() {
   if (!me) return;
 
   wireEvents();
+  updateNotefeltRowsVisibility();
   await listGroups();
 }
 

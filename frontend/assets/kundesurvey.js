@@ -279,10 +279,16 @@ function buildInput(it, value) {
 
 function renderQuestions() {
   ui.questions.innerHTML = "";
-  lastChangeSummary = { changes: [], additions: [], adminAdditions: [], allItems: [] };
+  lastChangeSummary = { changes: [], additions: [], adminAdditions: [], notes: [], allItems: [] };
 
   const produktMap = produkterByAddressText();
   const groups = [...(DATA.groups || [])].sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
+
+  // Eksisterende gruppenoter fra tidligere autosaves: `${groupId}|${ri}` -> notetekst
+  const notesMap = new Map();
+  for (const n of (DATA.notes || [])) {
+    notesMap.set(`${n.groupId}|${n.repeatIndex}`, n.notetekst || "");
+  }
 
   // Basale spørgsmål (repeatIndex 0) pr. gruppe – bruges som skabelon for gentagelser
   const baseByGroup = new Map();
@@ -537,6 +543,57 @@ function renderQuestions() {
             `<span class="muted">Produkter på denne adresse:</span> ` +
             produkter.map(p => `<span class="produkt-pill">${escapeHtml(p.produkt)} × ${p.antal}</span>`).join("");
           block.appendChild(hint);
+        }
+      }
+
+      // Note-felt: kun for grupper hvor det er slået til (adminquestiongroup.html).
+      // Ét note-felt pr. gentagelse (fx pr. leveringsadresse), gemmes automatisk
+      // ligesom almindelige svar.
+      if (!isRemoved && g.harNotefelt) {
+        const savedNote = notesMap.get(`${g.id}|${ri}`) || "";
+
+        const noteWrap = document.createElement("div");
+        noteWrap.className = "group-note-wrap";
+        noteWrap.style.marginTop = "14px";
+        noteWrap.style.paddingTop = "14px";
+        noteWrap.style.borderTop = "1px solid #eee";
+
+        const noteLabel = document.createElement("div");
+        noteLabel.className = "qtitle";
+        noteLabel.textContent = g.notefeltOverskrift || "Note";
+        noteWrap.appendChild(noteLabel);
+
+        const noteTextarea = document.createElement("textarea");
+        noteTextarea.className = "group-note-textarea";
+        noteTextarea.dataset.groupNote = "1";
+        noteTextarea.dataset.groupId = g.id;
+        noteTextarea.dataset.repeatIndex = String(ri);
+        noteTextarea.value = savedNote;
+        if (isReadOnly()) noteTextarea.disabled = true;
+        noteWrap.appendChild(noteTextarea);
+
+        const noteHint = document.createElement("div");
+        noteHint.className = "qhelp group-note-hint";
+        noteHint.textContent = g.notefeltHjaelpetekst || "";
+        noteHint.style.display = (savedNote.trim() && g.notefeltHjaelpetekst) ? "block" : "none";
+        noteWrap.appendChild(noteHint);
+
+        if (!isReadOnly()) {
+          noteTextarea.addEventListener("input", () => {
+            if (g.notefeltHjaelpetekst) {
+              noteHint.style.display = noteTextarea.value.trim() ? "block" : "none";
+            }
+          });
+          noteTextarea.addEventListener("blur", () => autosaveOnBlur());
+        }
+
+        block.appendChild(noteWrap);
+
+        if (savedNote.trim()) {
+          lastChangeSummary.notes.push({
+            group: g, groupId: g.id, repeatIndex: ri,
+            question: g.notefeltOverskrift || "Note", value: savedNote
+          });
         }
       }
 
@@ -805,6 +862,23 @@ function collectRemoved() {
   return removed;
 }
 
+function collectNotes() {
+  const textareas = ui.form.querySelectorAll("[data-group-note]");
+  const notes = [];
+
+  textareas.forEach(el => {
+    if (el.closest(".repeat-block.removed")) return;
+
+    const groupId = (el.dataset.groupId || "").trim();
+    if (!groupId) return;
+
+    const repeatIndex = parseInt(el.dataset.repeatIndex || "0", 10);
+    notes.push({ groupId, repeatIndex, notetekst: el.value || "" });
+  });
+
+  return notes;
+}
+
 async function submitSurvey(code, finalize, opts = {}) {
   const silent = !!opts.silent;
 
@@ -816,11 +890,12 @@ async function submitSurvey(code, finalize, opts = {}) {
   try {
     const answers = collectAnswers();
     const removed = collectRemoved();
+    const notes = collectNotes();
 
     const result = await fetchJson("/api/survey-submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, answers, removed, finalize: !!finalize })
+      body: JSON.stringify({ code, answers, removed, notes, finalize: !!finalize })
     });
 
     if (finalize) {
@@ -1041,6 +1116,7 @@ function buildAreaSummary(system, entries) {
     if (e.kind === "changed") return `${e.question}: "${e.before}" → "${e.after}"`;
     if (e.kind === "full") return `${e.question}: ${e.value || "(ikke udfyldt)"}`;
     if (e.kind === "admin-added") return `${e.question} – tilføjet ved oprettelse: "${e.value}"`;
+    if (e.kind === "note") return `${e.question}: "${e.value}"`;
     return `${e.question} – tilføjet: "${e.value}"`;
   };
 
@@ -1056,6 +1132,9 @@ function buildAreaSummary(system, entries) {
       return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong><br>` +
         `<span style="color:#1f6c7a; font-weight:600;">${escapeHtml(e.value)}</span> ` +
         `<span class="muted">(tilføjet ved oprettelse)</span></li>`;
+    }
+    if (e.kind === "note") {
+      return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong><br>${escapeHtml(e.value)}</li>`;
     }
     return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> – tilføjet: "${escapeHtml(e.value)}"</li>`;
   };
@@ -1105,7 +1184,9 @@ function buildAreaEmailHtml(system, entries, subjectPrefix) {
         ? escapeHtml(e.value || "(ikke udfyldt)")
         : e.kind === "admin-added"
           ? `<strong style="color:#1f6c7a;">${escapeHtml(e.value)}</strong> <span style="color:#888;">(tilføjet ved oprettelse)</span>`
-          : `<strong>${escapeHtml(e.value)}</strong> <span style="color:#888;">(tilføjet)</span>`;
+          : e.kind === "note"
+            ? escapeHtml(e.value)
+            : `<strong>${escapeHtml(e.value)}</strong> <span style="color:#888;">(tilføjet)</span>`;
 
     return `
       <div style="padding:10px 0; border-bottom:1px solid #f0f0f0;">
@@ -1194,12 +1275,13 @@ async function showChangesSummary() {
 
   const defaultRecipient = await getCurrentUserEmail();
 
-  const { changes, additions, adminAdditions, allItems } = lastChangeSummary;
+  const { changes, additions, adminAdditions, notes, allItems } = lastChangeSummary;
 
   const diffEntries = mergeAddressLineEntries([
     ...changes.map(c => ({ ...c, kind: "changed" })),
     ...additions.map(a => ({ ...a, kind: "added" })),
-    ...adminAdditions.map(a => ({ ...a, kind: "admin-added" }))
+    ...adminAdditions.map(a => ({ ...a, kind: "admin-added" })),
+    ...notes.map(n => ({ ...n, kind: "note" }))
   ]);
   const fullEntries = mergeAddressLineEntries(allItems.map(a => ({ ...a, kind: "full" })));
 
