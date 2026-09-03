@@ -127,9 +127,10 @@ module.exports = async function (context, req) {
     const code = String(req?.body?.code || "").trim();
     const answers = Array.isArray(req?.body?.answers) ? req.body.answers : [];
     const removed = Array.isArray(req?.body?.removed) ? req.body.removed : [];
+    const notes = Array.isArray(req?.body?.notes) ? req.body.notes : [];
 
     if (!code) return json(context, 400, { error: "missing_code", message: "Mangler code." });
-    if (!answers.length && !removed.length) {
+    if (!answers.length && !removed.length && !notes.length) {
       return json(context, 400, { error: "missing_answers", message: "Ingen svar modtaget." });
     }
 
@@ -226,6 +227,61 @@ module.exports = async function (context, req) {
       }
     }
 
+    // 4) Gem/opdatér gruppenoter – match på (kundeundersoegelse, gruppe, gentagelsesindeks)
+    let notesSaved = 0;
+    for (const n of notes) {
+      const groupId = String(n.groupId || "").trim();
+      const repeatIndex = Number.isFinite(Number(n.repeatIndex)) ? Number(n.repeatIndex) : 0;
+      const notetekst = (n.notetekst ?? "").toString();
+
+      if (!groupId) continue;
+
+      const findNotePath =
+        `cr175_lch_kundeinfo_gruppenotes` +
+        `?$select=cr175_lch_kundeinfo_gruppenoteid` +
+        `&$filter=${encodeURIComponent(
+          `_cr175_lch_kundeundersoegelse_value eq ${instanceId} and _cr175_lch_spoergsmaalsgruppe_value eq ${groupId} and cr175_lch_gentagelsesindeks eq ${repeatIndex}`
+        )}` +
+        `&$top=1`;
+
+      let existingNoteId = null;
+      try {
+        const fr = await dvFetch(findNotePath);
+        const fd = await fr.json();
+        existingNoteId = (fd?.value || [])[0]?.cr175_lch_kundeinfo_gruppenoteid || null;
+      } catch (e) {
+        context.log.error("survey-submit: kunne ikke slå gruppenote op:", e);
+        continue;
+      }
+
+      try {
+        if (existingNoteId) {
+          await dvFetch(`cr175_lch_kundeinfo_gruppenotes(${existingNoteId})`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cr175_lch_notetekst: notetekst })
+          });
+        } else if (notetekst.trim()) {
+          // Opretter kun en ny note-række hvis der reelt er noget at gemme -
+          // ingen grund til at oprette tomme note-rækker for hver gentagelse.
+          await dvFetch(`cr175_lch_kundeinfo_gruppenotes`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              cr175_lch_key: `NOTE-${code}-${groupId.slice(0, 8)}-${repeatIndex}`,
+              cr175_lch_notetekst: notetekst,
+              cr175_lch_gentagelsesindeks: repeatIndex,
+              "cr175_lch_kundeundersoegelse@odata.bind": `/cr175_lch_kundeinfo_kundeundersoegelses(${instanceId})`,
+              "cr175_lch_spoergsmaalsgruppe@odata.bind": `/cr175_lch_kundeinfo_spoergsmaalsgruppes(${groupId})`
+            })
+          });
+        }
+        notesSaved++;
+      } catch (e) {
+        context.log.error("survey-submit: kunne ikke gemme gruppenote:", e);
+      }
+    }
+
     // --- Markér survey som gennemført/startet ---
     const finalize = !!req?.body?.finalize;
     try {
@@ -248,7 +304,7 @@ module.exports = async function (context, req) {
       });
     }
 
-    return json(context, 200, { ok: true, created, updated, deleted, skipped, finalize, mailResult });
+    return json(context, 200, { ok: true, created, updated, deleted, skipped, notesSaved, finalize, mailResult });
   } catch (err) {
     context.log.error(err);
     return json(context, 500, { error: "server_error", message: err.message || String(err) });
