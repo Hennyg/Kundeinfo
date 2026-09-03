@@ -3,7 +3,8 @@ const { cdFetch: dvFetch } = require('../_coredata');
 
 const SELECT =
   'cr175_lch_kundeinfo_spoergsmaalsgruppeid,cr175_lch_titel,cr175_lch_description,' +
-  'cr175_lch_sorteringsnummer,cr175_lch_aktiv,cr175_lch_kangentages,cr175_lch_rapporterer_til';
+  'cr175_lch_sorteringsnummer,cr175_lch_aktiv,cr175_lch_kangentages,cr175_lch_rapporterer_til,' +
+  'cr175_lch_harnotefelt,cr175_lch_notefeltoverskrift,cr175_lch_notefelthjaelpetekst';
 
 module.exports = async function (context, req) {
   try {
