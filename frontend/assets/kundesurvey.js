@@ -929,6 +929,28 @@ async function init() {
 
     ui.form.addEventListener("submit", (e) => {
       e.preventDefault();
+
+      // Egen validering (formen har novalidate) - så vi selv kan styre
+      // scrollet til HELE den berørte tile/gentagelse, ikke kun det tomme
+      // felt, som ellers kan være svært at se sammenhængen for.
+      if (!ui.form.checkValidity()) {
+        const firstInvalid = ui.form.querySelector(":invalid");
+        if (firstInvalid) {
+          const tile =
+            firstInvalid.closest(".repeat-block") ||
+            firstInvalid.closest(".card") ||
+            firstInvalid;
+
+          tile.scrollIntoView({ behavior: "smooth", block: "start" });
+
+          // Vent til scrollet er i gang/færdigt, før den native fejlboble
+          // vises - ellers ville boblen selv trigge et modstridende scroll
+          // direkte til feltet, og hele tile'et ville ikke være synligt.
+          setTimeout(() => firstInvalid.reportValidity(), 450);
+        }
+        return;
+      }
+
       submitSurvey(code, true); // afslut
     });
 
