@@ -125,6 +125,30 @@
             </div>
           </div>
 
+          <div class="row">
+            <label for="gharnotefelt">Tilføj et note felt</label>
+            <input id="gharnotefelt" type="checkbox" />
+          </div>
+          <div class="row">
+            <label></label>
+            <div class="muted" style="margin-top:-6px;">
+              Tilføjer et fritekstfelt nederst på hver gentagelse af gruppen på kundens
+              spørgeskema (fx en note pr. leveringsadresse). Gemmes automatisk og tages med
+              i opsummeringen og mailen, ligesom almindelige svar.
+            </div>
+          </div>
+
+          <div id="gnotefeltRows" class="hidden">
+            <div class="row">
+              <label for="gnotefeltoverskrift">Note-feltets overskrift</label>
+              <input id="gnotefeltoverskrift" placeholder="fx Bemærkning" />
+            </div>
+            <div class="row">
+              <label for="gnotefelthjaelpetekst">Hjælpetekst (vises når kunden begynder at skrive)</label>
+              <input id="gnotefelthjaelpetekst" placeholder="fx Tak, vi kigger på det." />
+            </div>
+          </div>
+
           <div>
             <button type="submit" id="btnSave">Gem</button>
             <button type="button" id="btnReset">Nulstil</button>
@@ -145,6 +169,7 @@
               <th>Titel</th>
               <th>Aktiv</th>
               <th>Gentages</th>
+              <th>Note-felt</th>
               <th>Rapporterer til</th>
               <th style="width:180px;">Handling</th>
             </tr>
