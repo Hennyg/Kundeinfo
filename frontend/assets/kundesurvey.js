@@ -472,12 +472,16 @@ function renderQuestions() {
         }
 
         // Fuld liste af alle spørgsmål + effektivt svar (kundens svar hvis
-        // givet, ellers prefill) – bruges af SalesForce-oversigten, som skal
-        // vise alt, ikke kun det der er ændret/tilføjet. Er der rettet af
-        // kunden, er det kun det endelige svar der medtages (ikke prefill).
+        // givet, ellers prefill) – bruges af "Alle data"-oversigten (tidl.
+        // SalesForce), som skal vise alt, ikke kun det der er ændret/
+        // tilføjet. `changed` bruges til at farve ændrede felter røde også
+        // her, og til at afgøre hvilke tiles der har en ændring i sig (for
+        // Kontakter/Kundeliste/Uniconta, som nu viser hele tile'et - se
+        // showChangesSummary).
         lastChangeSummary.allItems.push({
           group: g, groupId: g.id, repeatIndex: ri, number: it.number,
-          question: it.text || "", value: value || it.prefillText || ""
+          question: it.text || "", value: value || it.prefillText || "",
+          changed: isChangedFromPrefill
         });
 
         const wrap = document.createElement("div");
@@ -972,6 +976,15 @@ const SYSTEM_ICONS = {
   "Uniconta": "🏢",
   "SalesForce": "☁️"
 };
+// Kun visningsnavnet er ændret til "Alle data" - den interne nøgle "SalesForce"
+// er bevaret uændret, da den er koblet til "Rapporterer til"-valget på selve
+// spørgsmålsgrupperne i Dataverse.
+const SYSTEM_DISPLAY_NAMES = {
+  "SalesForce": "Alle data"
+};
+function displaySystemName(system) {
+  return SYSTEM_DISPLAY_NAMES[system] || system;
+}
 const UKENDT_SYSTEM = "Ikke tildelt endnu";
 
 // Afgør hvilke bagvedliggende systemer en gruppe rapporterer til. Bruger
@@ -1136,7 +1149,7 @@ function buildAreaSummary(system, entries) {
 
   const lineFor = (e) => {
     if (e.kind === "changed") return `${e.question}: "${e.before}" → "${e.after}"`;
-    if (e.kind === "full") return `${e.question}: ${e.value || "(ikke udfyldt)"}`;
+    if (e.kind === "full") return `${e.question}: ${e.value || "(ikke udfyldt)"}${e.changed ? " (ændret)" : ""}`;
     if (e.kind === "admin-added") return `${e.question} – tilføjet ved oprettelse: "${e.value}"`;
     if (e.kind === "note") return `${e.question}: "${e.value}"`;
     return `${e.question} – tilføjet: "${e.value}"`;
@@ -1148,7 +1161,12 @@ function buildAreaSummary(system, entries) {
         `<span style="color:#b3261e; font-weight:600;">"${escapeHtml(e.before)}" → "${escapeHtml(e.after)}"</span></li>`;
     }
     if (e.kind === "full") {
-      return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong><br>${escapeHtml(e.value || "(ikke udfyldt)")}</li>`;
+      const valueHtml = escapeHtml(e.value || "(ikke udfyldt)");
+      return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong><br>` +
+        (e.changed
+          ? `<span style="color:#b3261e; font-weight:600;">${valueHtml}</span>`
+          : valueHtml) +
+        `</li>`;
     }
     if (e.kind === "admin-added") {
       return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong><br>` +
@@ -1203,7 +1221,9 @@ function buildAreaEmailHtml(system, entries, subjectPrefix) {
     const body = e.kind === "changed"
       ? `<span style="color:#888;">"${escapeHtml(e.before)}"</span> → <strong style="color:#b3261e;">"${escapeHtml(e.after)}"</strong>`
       : e.kind === "full"
-        ? escapeHtml(e.value || "(ikke udfyldt)")
+        ? (e.changed
+            ? `<strong style="color:#b3261e;">${escapeHtml(e.value || "(ikke udfyldt)")}</strong>`
+            : escapeHtml(e.value || "(ikke udfyldt)"))
         : e.kind === "admin-added"
           ? `<strong style="color:#1f6c7a;">${escapeHtml(e.value)}</strong> <span style="color:#888;">(tilføjet ved oprettelse)</span>`
           : e.kind === "note"
@@ -1272,7 +1292,7 @@ async function sendAreaMail(system, entries, btn, toInput) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         to,
-        subject: `${subjectPrefix} – ${system}`,
+        subject: `${subjectPrefix} – ${displaySystemName(system)}`,
         html,
         code: DATA?.code || ""
       })
@@ -1306,18 +1326,38 @@ async function showChangesSummary() {
     ...notes.map(n => ({ ...n, kind: "note" }))
   ]);
   const fullEntries = mergeAddressLineEntries(allItems.map(a => ({ ...a, kind: "full" })));
+  const noteEntries = mergeAddressLineEntries(notes.map(n => ({ ...n, kind: "note" })));
+
+  // Kontakter/Kundeliste/Uniconta: vis hele tile'et (alle felter for den
+  // pågældende blok/gentagelse), ikke kun de(t) felt(er) der er ændret -
+  // ellers er det ikke til at se hvilken adresse/person en ændring hører
+  // til. Kun blokke der reelt har mindst én ændring/tilføjelse/note tages
+  // med; selve ændringen farves stadig rød (jf. "changed" på full-entries).
+  const changedBlockKeys = new Set(diffEntries.map(e => `${e.groupId}|${e.repeatIndex}`));
 
   const bySystemDiff = new Map();
-  for (const entry of diffEntries) {
+  for (const entry of fullEntries) {
+    const key = `${entry.groupId}|${entry.repeatIndex}`;
+    if (!changedBlockKeys.has(key)) continue;
+
     for (const system of sourceSystemsForGroup(entry.group)) {
-      if (system === "SalesForce") continue; // SalesForce bruger den fulde liste, ikke kun ændringer
+      if (system === "SalesForce") continue; // "Alle data" bruger den fulde liste uafhængigt af ændringer
       if (!bySystemDiff.has(system)) bySystemDiff.set(system, []);
       bySystemDiff.get(system).push(entry);
     }
   }
+  // Noter hører ikke til i "allItems" (de er ikke almindelige spørgsmål),
+  // så de tilføjes særskilt til de samme blokke/tiles.
+  for (const note of noteEntries) {
+    for (const system of sourceSystemsForGroup(note.group)) {
+      if (system === "SalesForce") continue;
+      if (!bySystemDiff.has(system)) bySystemDiff.set(system, []);
+      bySystemDiff.get(system).push(note);
+    }
+  }
 
   const bySystemFull = new Map();
-  for (const entry of fullEntries) {
+  for (const entry of [...fullEntries, ...noteEntries]) {
     if (!sourceSystemsForGroup(entry.group).includes("SalesForce")) continue;
     if (!bySystemFull.has("SalesForce")) bySystemFull.set("SalesForce", []);
     bySystemFull.get("SalesForce").push(entry);
@@ -1351,7 +1391,7 @@ async function showChangesSummary() {
     html += `
       <div class="summary-card">
         <div class="summary-card-header">
-          <h3 style="margin:0;">${icon} ${escapeHtml(system)}</h3>
+          <h3 style="margin:0;">${icon} ${escapeHtml(displaySystemName(system))}</h3>
           ${hasContent ? `
             <div style="display:flex; align-items:center; gap:8px;">
               <input type="email" id="${toInputId}" value="${escapeHtml(defaultRecipient)}"
