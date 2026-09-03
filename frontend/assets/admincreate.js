@@ -397,12 +397,19 @@ function fillPrefillFromUniconta() {
   // (fx "lb.mdr+10L") - små bogstaver skal IKKE matche.
   const harLeverandoerservice = /L$/.test(String(d.payment || "").trim());
 
+  // E-faktura/GLN: styres udelukkende af Unicontas EAN-felt (som indeholder
+  // selve GLN-nummeret). Tomt felt = ingen e-faktura; udfyldt = e-faktura
+  // med det pågældende GLN-nummer som svar.
+  const ean = String(d.ean || "").trim();
+
   fillPrefillFields({
     "0010": d.vatNumber || "",
     "0020": d.name || "",
     "0030": [d.address1, d.address2].filter(Boolean).join(", "),
     "0040": [d.zipCode, d.city].filter(Boolean).join(" "),
     "0050": d.email || "",
+    "0060": ean ? "Ja" : "Nej",
+    "0070": ean,
     "0080": harLeverandoerservice ? "Ja" : "Nej"
   });
 }
@@ -491,6 +498,7 @@ async function loadUnicontaDebtor(kundenr) {
           ${debtorRow("CVR-nr.", d.vatNumber)}
           ${debtorRow("Valuta", d.currency)}
           ${debtorRow("Spærret", d.blocked)}
+          ${debtorRow("EAN/GLN-nr.", d.ean || "(ingen)")}
         </div>
       </div>
     `;
