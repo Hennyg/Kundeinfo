@@ -231,12 +231,9 @@ function populateStatusFilterOptions(rows) {
     if (!labels.includes(s)) selectedStatusFilters.delete(s);
   }
 
-  panel.innerHTML = labels.map(l => `
-    <label>
-      <input type="checkbox" value="${escapeHtml(l)}" ${selectedStatusFilters.has(l) ? "checked" : ""} />
-      ${escapeHtml(l)}
-    </label>
-  `).join("");
+  panel.innerHTML = labels.map(l =>
+    `<label><input type="checkbox" value="${escapeHtml(l)}" ${selectedStatusFilters.has(l) ? "checked" : ""} /><span>${escapeHtml(l)}</span></label>`
+  ).join("");
 
   updateStatusFilterButtonLabel();
 }
