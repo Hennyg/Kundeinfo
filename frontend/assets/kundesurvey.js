@@ -14,6 +14,7 @@ const ui = {
   btnSubmit: $("btnSubmit"),
   readonlyBanner: $("readonlyBanner"),
   openAsCustomerLink: $("openAsCustomerLink"),
+  showChangesSummaryBtn: $("showChangesSummaryBtn"),
   kundeAdresseOptions: $("kundeAdresseOptions"),
   finishModal: $("finishModal"),
   finishModalClose: $("finishModalClose"),
@@ -711,6 +712,15 @@ async function initAdminStatusTile(data, customerLink) {
 
   if (ui.prefillLink && data?.instanceId) {
     ui.prefillLink.href = `./admincreate.html?instanceId=${encodeURIComponent(data.instanceId)}`;
+  }
+
+  if (ui.showChangesSummaryBtn) {
+    if (data?.isFinished) {
+      ui.showChangesSummaryBtn.classList.remove("hidden");
+      ui.showChangesSummaryBtn.addEventListener("click", () => showChangesSummary());
+    } else {
+      ui.showChangesSummaryBtn.classList.add("hidden");
+    }
   }
 
   if (ui.statusMailInfo) {
