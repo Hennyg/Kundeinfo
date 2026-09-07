@@ -78,11 +78,16 @@ function rowHtml(row) {
       <td>${fmtDateTime(expiresAt)}${expiredTag}</td>
       <td>${fmtDateTime(row.sidstRettet)}</td>
       <td>
-        <a class="tag" href="${seSkemaLink}">Se skema</a>
-        <a class="tag" href="${prefillLink}">Prefill</a>
-        ${customerLink
-          ? `<a class="tag copyLinkBtn" href="#" data-link="${escapeHtml(customerLink)}">Kopi link</a>`
-          : ""}
+        <div class="rowActions">
+          <a class="tag" href="${seSkemaLink}">Se skema</a>
+          ${customerLink
+            ? `<a class="tag" href="${escapeHtml(customerLink)}" target="_blank" rel="noopener">Som kunde</a>`
+            : ""}
+          <a class="tag" href="${prefillLink}">Prefill</a>
+          ${customerLink
+            ? `<a class="tag copyLinkBtn" href="#" data-link="${escapeHtml(customerLink)}">Kopier link</a>`
+            : ""}
+        </div>
       </td>
     </tr>
   `;
