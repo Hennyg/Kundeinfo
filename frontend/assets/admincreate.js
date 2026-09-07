@@ -1,7 +1,25 @@
 let els;
 
+// Kunde-vendte links (i mails og "kopiér link") skal altid pege på vores
+// eget domæne, uanset hvilket domæne admin selv sidder på lige nu
+// (fx *.azurestaticapps.net under test) - ellers ser mailen ikke ud til at
+// komme fra os. Ret KUN her, hvis domænet nogensinde skifter.
+const CUSTOMER_BASE_URL = "https://kundeinfo.lcherrup.dk";
+
+// Den indloggede admins egen mailadresse (fra /.auth/me), til
+// "Opret og send mail til: xx"-knappen. Sat af loadOwnEmail().
+let ownEmail = null;
+
 function $(id) {
   return document.getElementById(id);
+}
+
+// Simpelt @-tjek: /.auth/me->userDetails kan i teorien indeholde et
+// brugernavn/initialer i stedet for en mailadresse, afhængig af opsætning.
+// Vi vil kun tilbyde "send til mig selv"-knappen, når det rent faktisk
+// ligner en mailadresse.
+function looksLikeEmail(s) {
+  return typeof s === "string" && s.trim().includes("@");
 }
 
 function qs(name) {
@@ -344,6 +362,40 @@ function updateCreateMailTarget() {
 
   els.createMailTarget.textContent = email || "(ingen e-mail fundet)";
   els.btnCreateAndMail.disabled = !email || !hasTemplate;
+
+  updateCreateMailTargetSelf();
+}
+
+// Opdaterer "Opret og send mail til: xx"-knappen (venstre knap) med den
+// indloggede admins egen mailadresse, sat af loadOwnEmail(). Kræver også
+// en valgt mailskabelon. Bruges bl.a. til at teste en ny mailskabelon uden
+// at ramme kunden.
+function updateCreateMailTargetSelf() {
+  if (!els.createMailTargetSelf || !els.btnCreateAndMailSelf) return;
+
+  const hasTemplate = !!(els.mailTemplateSelect?.value || "").trim();
+
+  els.createMailTargetSelf.textContent = ownEmail || "(ingen mail fundet)";
+  els.btnCreateAndMailSelf.disabled = !ownEmail || !hasTemplate;
+}
+
+// Henter den indloggede admins egen mailadresse via /.auth/me, til
+// "Opret og send mail til: xx"-knappen. userDetails kan i teorien være
+// initialer/brugernavn i stedet for en mailadresse afhængig af
+// login-opsætningen, så vi tjekker for "@" før vi stoler på den.
+async function loadOwnEmail() {
+  try {
+    const r = await fetch("/.auth/me", { cache: "no-store" });
+    const data = await r.json();
+    const userDetails = data?.clientPrincipal?.userDetails || "";
+
+    ownEmail = looksLikeEmail(userDetails) ? userDetails.trim() : null;
+  } catch (e) {
+    console.error("Kunne ikke hente egen mailadresse:", e);
+    ownEmail = null;
+  } finally {
+    updateCreateMailTargetSelf();
+  }
 }
 
 // Henter mail-skabeloner i kategorien "opret-skema" (se
@@ -1318,10 +1370,12 @@ async function loadInstanceForEdit(instanceId) {
     if (els.btnCreateNoMail) {
       els.btnCreateNoMail.textContent = "Gem ændringer";
     }
-    // "Opret skema og send mail"-knappen hører kun til opret-flowet (den er
-    // bundet op på currentDebtor/Uniconta-opslaget, som ikke køres her) -
-    // den skal altid være skjult i redigeringstilstand.
+    // "Opret skema og send mail"- og "Opret og send mail til: xx"-knapperne
+    // hører kun til opret-flowet (den ene er bundet op på currentDebtor/
+    // Uniconta-opslaget, som ikke køres her) - de skal altid være skjulte i
+    // redigeringstilstand.
     els.btnCreateAndMail?.classList.add("hidden");
+    els.btnCreateAndMailSelf?.classList.add("hidden");
 
     if (data.mailSentAt) {
       // Mailen er allerede sendt engang - skal den sendes igen, gøres det
@@ -1356,11 +1410,12 @@ async function sendInviteMailForEditInstance() {
     return;
   }
 
-  const link = `${location.origin}/kundesurvey.html?code=${encodeURIComponent(editCode)}`;
+  const link = `${CUSTOMER_BASE_URL}/kundesurvey.html?code=${encodeURIComponent(editCode)}`;
 
-  // TEST-FASE: sender altid til hng@lcherrup.dk lige nu, ligesom resten af
-  // appen (se createOrSaveInstance / sendInviteMailFromStatusTile). Skift
-  // til kundens rigtige e-mail her, når det er klar til at gå i drift.
+  // TEST-FASE: sender stadig altid til hng@lcherrup.dk herfra (redigerings-
+  // tilstand kører ikke Uniconta-opslaget, så vi har ikke kundens rigtige
+  // mail til rådighed her endnu). Skift til kundens rigtige e-mail, når
+  // det er klar til at gå i drift.
   const testRecipient = "hng@lcherrup.dk";
 
   if (els.btnSendInviteMailEdit) els.btnSendInviteMailEdit.disabled = true;
@@ -1469,7 +1524,10 @@ async function warnIfExistingSurveyForCustomer(kundenummer) {
   return true;
 }
 
-async function createOrSaveInstance(sendMailAfter) {
+// recipientOverride: hvis sat, sendes mailen dertil i stedet for kundens
+// egen e-mail (bruges af "Opret og send mail til: xx"-knappen, som sender
+// til den indloggede admin selv, fx til test af en skabelon).
+async function createOrSaveInstance(sendMailAfter, recipientOverride) {
   if (editInstanceId) {
     return saveEditedInstance();
   }
@@ -1546,11 +1604,10 @@ async function createOrSaveInstance(sendMailAfter) {
       }
     );
 
-    // Serveren bygger selv et link ud fra x-forwarded-host-headeren, men den
-    // header er ikke altid tilstede/pålidelig afhængig af hvordan kaldet
-    // ruter igennem. Vi kender altid vores eget domæne herfra i browseren,
-    // så vi bygger linket selv som fallback, hvis serveren ikke gjorde det.
-    const link = res.link || `${location.origin}/kundesurvey.html?code=${encodeURIComponent(res.code)}`;
+    // Kundelinket skal altid pege på vores eget domæne (CUSTOMER_BASE_URL),
+    // uanset hvilket domæne admin selv sidder på lige nu, og uanset om
+    // serveren kunne bygge et link ud fra x-forwarded-host-headeren.
+    const link = `${CUSTOMER_BASE_URL}/kundesurvey.html?code=${encodeURIComponent(res.code)}`;
 
     showResult({
       code: res.code,
@@ -1566,35 +1623,40 @@ async function createOrSaveInstance(sendMailAfter) {
     if (sendMailAfter) {
       setStatus("Oprettet ✔ – sender invitations-mail…");
 
-      // TEST-FASE: sender altid til hng@lcherrup.dk lige nu, uanset hvilken
-      // e-mail knappen viste. Skift til `currentDebtor?.email` her, når det
-      // er klar til at gå i drift med rigtige kundemails.
-      const testRecipient = "hng@lcherrup.dk";
+      const to = (recipientOverride || currentDebtor?.email || "").trim();
       const templateId = (els.mailTemplateSelect?.value || "").trim();
 
-      try {
-        await fetchJson("/api/survey-send-invite-mail", {
-          method: "POST",
-          headers: { "Content-Type": "application/json; charset=utf-8" },
-          body: JSON.stringify({
-            code: res.code,
-            link,
-            customerName,
-            customerNumber,
-            instanceId: res.instanceId || res.id,
-            to: testRecipient,
-            templateId
-          })
-        });
-
-        setStatus(`Oprettet ✔ – mail sendt til ${testRecipient} – sender dig til listen…`);
-      } catch (mailErr) {
-        console.error("survey-send-invite-mail fejl:", mailErr);
+      if (!to) {
         mailFailed = true;
         setStatus(
-          `Oprettet ✔ – men mailen kunne ikke sendes: ${mailErr.message}. ` +
-          `Skemaet er stadig oprettet, du kan sende linket manuelt (se link ovenfor).`
+          "Oprettet ✔ – men der blev ikke fundet en modtager-mail. " +
+          "Skemaet er stadig oprettet, du kan sende linket manuelt (se link ovenfor)."
         );
+      } else {
+        try {
+          await fetchJson("/api/survey-send-invite-mail", {
+            method: "POST",
+            headers: { "Content-Type": "application/json; charset=utf-8" },
+            body: JSON.stringify({
+              code: res.code,
+              link,
+              customerName,
+              customerNumber,
+              instanceId: res.instanceId || res.id,
+              to,
+              templateId
+            })
+          });
+
+          setStatus(`Oprettet ✔ – mail sendt til ${to} – sender dig til listen…`);
+        } catch (mailErr) {
+          console.error("survey-send-invite-mail fejl:", mailErr);
+          mailFailed = true;
+          setStatus(
+            `Oprettet ✔ – men mailen kunne ikke sendes: ${mailErr.message}. ` +
+            `Skemaet er stadig oprettet, du kan sende linket manuelt (se link ovenfor).`
+          );
+        }
       }
     } else {
       setStatus(
@@ -1640,6 +1702,12 @@ document.addEventListener(
 
       createMailTarget:
         $("createMailTarget"),
+
+      btnCreateAndMailSelf:
+        $("btnCreateAndMailSelf"),
+
+      createMailTargetSelf:
+        $("createMailTargetSelf"),
 
       mailTemplateSelect:
         $("mailTemplateSelect"),
@@ -1793,6 +1861,11 @@ document.addEventListener(
       () => createOrSaveInstance(true)
     );
 
+    els.btnCreateAndMailSelf?.addEventListener(
+      "click",
+      () => createOrSaveInstance(true, ownEmail)
+    );
+
     els.btnFillFromUniconta?.addEventListener(
       "click",
       fillPrefillFromUniconta
@@ -1852,6 +1925,7 @@ document.addEventListener(
 
     els.mailTemplateSelect?.addEventListener("change", updateCreateMailTarget);
     els.btnSendInviteMailEdit?.addEventListener("click", sendInviteMailForEditInstance);
+    await loadOwnEmail();
     await loadMailTemplates();
 
     await loadQuestionnaire();
