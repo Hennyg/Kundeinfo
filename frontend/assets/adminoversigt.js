@@ -39,11 +39,8 @@ function fmtDateTime(value) {
   });
 }
 
-function isExpired(expiresAt) {
-  if (!expiresAt) return false;
-  const d = new Date(expiresAt);
-  if (Number.isNaN(d.getTime())) return false;
-  return d.getTime() < Date.now();
+function jaNejHtml(value) {
+  return value ? "Ja" : "Nej";
 }
 
 function rowHtml(row) {
@@ -51,9 +48,6 @@ function rowHtml(row) {
   const code = row.cr175_lch_kode || "";
   const customerName = row.cr175_lch_kundenavn || "(uden navn)";
   const expiresAt = row.cr175_lch_udloebstidspunkt || "";
-  const expiredTag = expiresAt && isExpired(expiresAt)
-    ? ` <span class="pill expired">Udløbet</span>`
-    : "";
 
   // "Skema udfyldt": kun relevant når status faktisk er nået dertil - viser
   // "Sidst rettet"-tidspunktet i så fald (vi har ikke et dedikeret
@@ -67,19 +61,18 @@ function rowHtml(row) {
   const customerLink = code ? `${window.location.origin}/kundesurvey.html?code=${encodeURIComponent(code)}` : "";
 
   return `
-    <tr>
+    <tr class="clickableRow" data-href="${escapeHtml(seSkemaLink)}">
       <td><input type="checkbox" class="rowCheck" data-id="${escapeHtml(id || "")}" /></td>
       <td>${escapeHtml(customerName)}</td>
       <td>${escapeHtml(code)}</td>
       <td>${statusPillHtml(row)}</td>
       <td>${fmtDateTime(row.createdon)}</td>
-      <td>${fmtDateTime(row.cr175_lch_mailsendttidspunkt)}</td>
+      <td>${jaNejHtml(row.cr175_lch_mailsendttidspunkt)}</td>
       <td>${udfyldtAt}</td>
-      <td>${fmtDateTime(expiresAt)}${expiredTag}</td>
+      <td>${jaNejHtml(expiresAt)}</td>
       <td>${fmtDateTime(row.sidstRettet)}</td>
       <td>
         <div class="rowActions">
-          <a class="tag" href="${seSkemaLink}">Se skema</a>
           ${customerLink
             ? `<a class="tag" href="${escapeHtml(customerLink)}" target="_blank" rel="noopener">Som kunde</a>`
             : ""}
@@ -193,10 +186,10 @@ function rowMatchesFilters(row, f) {
   const kode = String(row.cr175_lch_kode || "").toLowerCase();
   const statusLabel = getStatusLabel(row);
   const oprettet = fmtDateTime(row.createdon).toLowerCase();
-  const mailSendt = fmtDateTime(row.cr175_lch_mailsendttidspunkt).toLowerCase();
+  const mailSendt = jaNejHtml(row.cr175_lch_mailsendttidspunkt).toLowerCase();
   const isUdfyldtOrLater = /udfyldt|afslut/i.test(statusLabel);
   const udfyldt = (isUdfyldtOrLater ? fmtDateTime(row.sidstRettet) : "—").toLowerCase();
-  const udloeber = fmtDateTime(row.cr175_lch_udloebstidspunkt).toLowerCase();
+  const udloeber = jaNejHtml(row.cr175_lch_udloebstidspunkt).toLowerCase();
   const sidstRettet = fmtDateTime(row.sidstRettet).toLowerCase();
 
   if (f.search && !(kundenavn.includes(f.search) || kode.includes(f.search))) return false;
@@ -363,4 +356,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
   $("btnClearFilters")?.addEventListener("click", clearFilters);
+
+  // Klik et sted på en række (uden for checkbox/handlinger) åbner "Se skema".
+  $("surveyTable")?.querySelector("tbody")?.addEventListener("click", (e) => {
+    if (e.target.closest("input, a, button")) return;
+    const tr = e.target.closest("tr.clickableRow");
+    if (tr?.dataset.href) location.href = tr.dataset.href;
+  });
 });
+
+
+
