@@ -47,7 +47,6 @@ function rowHtml(row) {
   const id = row.cr175_lch_kundeinfo_kundeundersoegelseid;
   const code = row.cr175_lch_kode || "";
   const customerName = row.cr175_lch_kundenavn || "(uden navn)";
-  const expiresAt = row.cr175_lch_udloebstidspunkt || "";
 
   // "Skema udfyldt": kun relevant når status faktisk er nået dertil - viser
   // "Sidst rettet"-tidspunktet i så fald (vi har ikke et dedikeret
@@ -56,6 +55,12 @@ function rowHtml(row) {
   const isUdfyldtOrLater = /udfyldt|afslut/i.test(statusLabel);
   const udfyldtAt = isUdfyldtOrLater ? fmtDateTime(row.sidstRettet) : "—";
 
+  // cr175_lch_udloebstidspunkt er pt. en deadline til en kommende function
+  // app (send SMS hvis skemaet ikke er udfyldt inden datoen), ikke et reelt
+  // "SMS afsendt"-tidspunkt - feltet er altid udfyldt allerede fra
+  // oprettelsen, så "Ja/Nej ud fra dato" ville altid vise Ja. Viser derfor
+  // altid Nej her, indtil der findes et dedikeret "SMS sendt"-felt.
+  const smsSendtHtml = "Nej";
   const seSkemaLink = code ? `./kundesurvey.html?code=${encodeURIComponent(code)}&ro=1` : "#";
   const prefillLink = id ? `./admincreate.html?instanceId=${encodeURIComponent(id)}` : "#";
   const customerLink = code ? `${window.location.origin}/kundesurvey.html?code=${encodeURIComponent(code)}` : "";
@@ -69,7 +74,7 @@ function rowHtml(row) {
       <td>${fmtDateTime(row.createdon)}</td>
       <td>${jaNejHtml(row.cr175_lch_mailsendttidspunkt)}</td>
       <td>${udfyldtAt}</td>
-      <td>${jaNejHtml(expiresAt)}</td>
+      <td>${smsSendtHtml}</td>
       <td>${fmtDateTime(row.sidstRettet)}</td>
       <td>
         <div class="rowActions">
@@ -189,7 +194,7 @@ function rowMatchesFilters(row, f) {
   const mailSendt = jaNejHtml(row.cr175_lch_mailsendttidspunkt).toLowerCase();
   const isUdfyldtOrLater = /udfyldt|afslut/i.test(statusLabel);
   const udfyldt = (isUdfyldtOrLater ? fmtDateTime(row.sidstRettet) : "—").toLowerCase();
-  const udloeber = jaNejHtml(row.cr175_lch_udloebstidspunkt).toLowerCase();
+  const udloeber = "nej"; // se kommentar i rowHtml() om smsSendtHtml
   const sidstRettet = fmtDateTime(row.sidstRettet).toLowerCase();
 
   if (f.search && !(kundenavn.includes(f.search) || kode.includes(f.search))) return false;

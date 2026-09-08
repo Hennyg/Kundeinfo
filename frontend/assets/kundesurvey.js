@@ -25,6 +25,7 @@ const ui = {
 
   adminStatusTile: $("adminStatusTile"),
   statusMailInfo: $("statusMailInfo"),
+  statusSmsInfo: $("statusSmsInfo"),
   prefillLink: $("prefillLink"),
   statusTemplateSelect: $("statusTemplateSelect"),
   statusSendMailBtn: $("statusSendMailBtn"),
@@ -734,6 +735,15 @@ async function initAdminStatusTile(data, customerLink) {
       ? `Mail sendt: Ja, den ${fmtDateTime(data.mailSentAt)}` +
         (data.mailTemplateUsed ? ` med skabelonen "${data.mailTemplateUsed}"` : "")
       : "Mail sendt: Nej – skemaet er oprettet, men endnu ikke sendt til kunden.";
+  }
+
+  if (ui.statusSmsInfo) {
+    // Udløbstidspunkt-feltet er pt. en deadline til en kommende function app
+    // (send SMS hvis skemaet ikke er udfyldt inden datoen), ikke et reelt
+    // "SMS afsendt"-tidspunkt - samme situation som "SMS sendt"-kolonnen på
+    // adminoversigt.html. Så indtil der findes et dedikeret felt til det,
+    // viser vi altid Nej her.
+    ui.statusSmsInfo.textContent = "SMS sendt: Nej – afventer et dedikeret \"SMS sendt\"-felt fra Dataverse.";
   }
 
   // Vis hvilken adresse mailen rent faktisk sendes til, direkte på knappen
@@ -1465,3 +1475,6 @@ async function showChangesSummary() {
 }
 
 document.addEventListener("DOMContentLoaded", init);
+
+
+
