@@ -69,17 +69,27 @@ module.exports = async function (context, req) {
     const lastAnsweredMap = {};
     if (instanceIds.length) {
       try {
-        const svarUrl =
+        // Dataverse begrænser selv hver side til maks. 5000 rækker uanset
+        // $top - med mange kundesurveys (og gentagne adresse-/kontaktblokke)
+        // kan det samlede antal svar-rækker sagtens overstige det, så uden
+        // paginering via @odata.nextLink ville nogle instansers rækker
+        // simpelthen mangle, og deres "Skema udfyldt"-dato ville fejlagtigt
+        // stå tom. Derfor følges nextLink til alt er hentet.
+        let svarUrl =
           `cr175_lch_kundeinfo_spoergeskemasvars?$select=_cr175_lch_kundeundersoegelse_value,modifiedon` +
-          `&$filter=${encodeURIComponent(`_cr175_lch_kundeundersoegelse_value in (${instanceIds.join(",")})`)}` +
-          `&$top=5000`;
+          `&$filter=${encodeURIComponent(`_cr175_lch_kundeundersoegelse_value in (${instanceIds.join(",")})`)}`;
 
-        const svarRes = await dvFetch(svarUrl, {
-          method: "GET",
-          headers: { Accept: "application/json" }
-        });
+        while (svarUrl) {
+          const svarRes = await dvFetch(svarUrl, {
+            method: "GET",
+            headers: { Accept: "application/json" }
+          });
 
-        if (svarRes.ok) {
+          if (!svarRes.ok) {
+            context.log("survey-list: kunne ikke hente svar-tabellens modifiedon", svarRes.status);
+            break;
+          }
+
           const svarData = await svarRes.json();
           for (const row of (svarData.value || [])) {
             const key = row._cr175_lch_kundeundersoegelse_value;
@@ -89,8 +99,11 @@ module.exports = async function (context, req) {
               lastAnsweredMap[key] = modified;
             }
           }
-        } else {
-          context.log("survey-list: kunne ikke hente svar-tabellens modifiedon", svarRes.status);
+
+          const nextLink = svarData["@odata.nextLink"];
+          const marker = "/api/data/v9.2/";
+          const idx = nextLink ? nextLink.indexOf(marker) : -1;
+          svarUrl = idx !== -1 ? nextLink.slice(idx + marker.length) : null;
         }
       } catch (e) {
         context.log("survey-list: fejl ved opslag af sidst rettet:", e.message);
@@ -112,3 +125,6 @@ module.exports = async function (context, req) {
     return json(context, 500, { error: "server_error", detail: err.message, stack: String(err.stack || "") });
   }
 };
+
+
+
