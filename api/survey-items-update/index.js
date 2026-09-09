@@ -25,9 +25,26 @@ module.exports = async function (context, req) {
   try {
     const instanceId = String(req.body?.instanceId || "").trim();
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    const sendtTilRaw = req.body?.sendtTil;
+    const sendtTil = sendtTilRaw === undefined ? undefined : (String(sendtTilRaw || "").trim() || null);
 
-    if (!instanceId || !items.length) {
+    if (!instanceId || (!items.length && sendtTil === undefined)) {
       return json(context, 400, { error: "missing_data", message: "Mangler instanceId eller items." });
+    }
+
+    // "Brug email"-feltet (cr175_lch_sendttil) er ikke en spørgeskemasvar-
+    // række, men hører til selve kundeundersøgelse-instansen - opdateres
+    // derfor separat, kun hvis feltet reelt er sendt med.
+    if (sendtTil !== undefined) {
+      await dvFetch(`cr175_lch_kundeinfo_kundeundersoegelses(${instanceId})`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ cr175_lch_sendttil: sendtTil })
+      });
+    }
+
+    if (!items.length) {
+      return json(context, 200, { ok: true, updated: 0, created: 0 });
     }
 
     const existingRes = await dvFetch(
@@ -84,3 +101,6 @@ module.exports = async function (context, req) {
     return json(context, 500, { error: "server_error", message: err.message || String(err) });
   }
 };
+
+
+

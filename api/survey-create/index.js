@@ -69,6 +69,7 @@ module.exports = async function (context, req) {
     const customerNumber = (p.customerNumber ?? "").toString().trim() || null;
     const expiresAt = safeIsoOrNull(p.expiresAt);
     const oprettetAf = (p.oprettetAf ?? "").toString().trim() || null;
+    const sendtTil = (p.sendtTil ?? "").toString().trim() || null;
 
     if (!customerName) {
       return json(context, 400, { error: "missing_customerName", message: "Mangler customerName." });
@@ -91,6 +92,7 @@ module.exports = async function (context, req) {
     };
     if (expiresAt) instanceBody.cr175_lch_udloebstidspunkt = expiresAt;
     if (oprettetAf) instanceBody.cr175_lch_oprettetaf = oprettetAf;
+    if (sendtTil) instanceBody.cr175_lch_sendttil = sendtTil;
 
     const rCreate = await dvFetch("cr175_lch_kundeinfo_kundeundersoegelses", {
       method: "POST",

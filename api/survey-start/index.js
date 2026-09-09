@@ -28,7 +28,7 @@ module.exports = async function (context, req) {
     // 1) Find kundeundersøgelse på kode
     const instPath =
       `cr175_lch_kundeinfo_kundeundersoegelses` +
-      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kode,cr175_lch_kundenavn,cr175_lch_kundenummer,cr175_lch_udloebstidspunkt,cr175_lch_status,cr175_lch_mailsendttidspunkt,cr175_lch_sidstsendtmailskabelon,cr175_lch_nystatus,cr175_lch_oprettetaf` +
+      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kode,cr175_lch_kundenavn,cr175_lch_kundenummer,cr175_lch_udloebstidspunkt,cr175_lch_status,cr175_lch_mailsendttidspunkt,cr175_lch_sidstsendtmailskabelon,cr175_lch_nystatus,cr175_lch_oprettetaf,cr175_lch_sendttil` +
       `&$filter=${encodeURIComponent(`cr175_lch_kode eq '${escODataString(code)}'`)}` +
       `&$top=1`;
 
@@ -258,6 +258,7 @@ module.exports = async function (context, req) {
       mailSentAt: inst.cr175_lch_mailsendttidspunkt || null,
       mailTemplateUsed: inst.cr175_lch_sidstsendtmailskabelon || null,
       oprettetAf: inst.cr175_lch_oprettetaf || null,
+      sendtTil: inst.cr175_lch_sendttil || null,
       status: inst.cr175_lch_nystatus || null
     });
   } catch (err) {

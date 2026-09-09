@@ -29,6 +29,7 @@ const ui = {
   statusSmsInfo: $("statusSmsInfo"),
   prefillLink: $("prefillLink"),
   statusTemplateSelect: $("statusTemplateSelect"),
+  statusSendMailCustomerBtn: $("statusSendMailCustomerBtn"),
   statusSendMailBtn: $("statusSendMailBtn"),
   statusSendMailStatus: $("statusSendMailStatus"),
 };
@@ -753,15 +754,32 @@ async function initAdminStatusTile(data, customerLink) {
     ui.statusSmsInfo.textContent = "SMS sendt: Nej – afventer et dedikeret \"SMS sendt\"-felt fra Dataverse.";
   }
 
-  // Vis hvilken adresse mailen rent faktisk sendes til, direkte på knappen
-  // (ligesom "Opret skema og send mail til: ..." på admincreate.html).
+  // Vis hvilken adresse hver knap rent faktisk sender til, direkte på
+  // knappen (ligesom "Opret skema og send mail til: ..." på
+  // admincreate.html). Den rigtige kunde-adresse kommer fra "Brug
+  // email"-feltet (cr175_lch_sendttil, sat/rettet på admincreate.html) -
+  // er den ikke sat endnu, deaktiveres kunde-knappen indtil den er.
+  const customerEmail = (data?.sendtTil || "").trim();
+
+  if (ui.statusSendMailCustomerBtn) {
+    ui.statusSendMailCustomerBtn.textContent = customerEmail
+      ? `Send mail til kunden: ${customerEmail}`
+      : "Send mail til kunden (ingen adresse sat endnu)";
+    ui.statusSendMailCustomerBtn.disabled = !customerEmail;
+  }
+
   if (ui.statusSendMailBtn) {
-    ui.statusSendMailBtn.textContent = `Send mail til: ${TEST_RECIPIENT}`;
+    ui.statusSendMailBtn.textContent = `Send mail til mig (test): ${TEST_RECIPIENT}`;
   }
 
   await loadStatusTemplateOptions();
 
-  ui.statusSendMailBtn?.addEventListener("click", () => sendInviteMailFromStatusTile(data, customerLink));
+  ui.statusSendMailCustomerBtn?.addEventListener("click", () =>
+    sendInviteMailFromStatusTile(data, customerLink, customerEmail, ui.statusSendMailCustomerBtn)
+  );
+  ui.statusSendMailBtn?.addEventListener("click", () =>
+    sendInviteMailFromStatusTile(data, customerLink, TEST_RECIPIENT, ui.statusSendMailBtn)
+  );
 }
 
 async function loadStatusTemplateOptions() {
@@ -774,6 +792,7 @@ async function loadStatusTemplateOptions() {
     if (!rows.length) {
       ui.statusTemplateSelect.innerHTML = `<option value="">Ingen skabeloner fundet</option>`;
       ui.statusTemplateSelect.disabled = true;
+      if (ui.statusSendMailCustomerBtn) ui.statusSendMailCustomerBtn.disabled = true;
       if (ui.statusSendMailBtn) ui.statusSendMailBtn.disabled = true;
       return;
     }
@@ -786,17 +805,23 @@ async function loadStatusTemplateOptions() {
     console.error("Kunne ikke hente mailskabeloner:", e);
     ui.statusTemplateSelect.innerHTML = `<option value="">Kunne ikke hente skabeloner</option>`;
     ui.statusTemplateSelect.disabled = true;
+    if (ui.statusSendMailCustomerBtn) ui.statusSendMailCustomerBtn.disabled = true;
     if (ui.statusSendMailBtn) ui.statusSendMailBtn.disabled = true;
   }
 }
 
-async function sendInviteMailFromStatusTile(data, customerLink) {
+async function sendInviteMailFromStatusTile(data, customerLink, to, triggerBtn) {
   const templateId = (ui.statusTemplateSelect?.value || "").trim();
   if (!templateId) {
     if (ui.statusSendMailStatus) ui.statusSendMailStatus.textContent = "Vælg en skabelon først.";
     return;
   }
+  if (!to) {
+    if (ui.statusSendMailStatus) ui.statusSendMailStatus.textContent = "Mangler en modtager-adresse.";
+    return;
+  }
 
+  if (ui.statusSendMailCustomerBtn) ui.statusSendMailCustomerBtn.disabled = true;
   if (ui.statusSendMailBtn) ui.statusSendMailBtn.disabled = true;
   if (ui.statusSendMailStatus) ui.statusSendMailStatus.textContent = "Sender…";
 
@@ -810,13 +835,13 @@ async function sendInviteMailFromStatusTile(data, customerLink) {
         customerName: data?.customerName || "",
         customerNumber: data?.kundenummer || "",
         instanceId: data?.instanceId || "",
-        to: TEST_RECIPIENT,
+        to,
         templateId
       })
     });
 
     if (ui.statusSendMailStatus) {
-      ui.statusSendMailStatus.textContent = `Mail sendt til ${TEST_RECIPIENT} ✔`;
+      ui.statusSendMailStatus.textContent = `Mail sendt til ${to} ✔`;
     }
     if (ui.statusMailInfo) {
       ui.statusMailInfo.textContent = `Mail sendt: Ja, lige nu`;
@@ -825,6 +850,7 @@ async function sendInviteMailFromStatusTile(data, customerLink) {
     console.error("survey-send-invite-mail fejl:", e);
     if (ui.statusSendMailStatus) ui.statusSendMailStatus.textContent = `Fejl: ${e.message}`;
   } finally {
+    if (ui.statusSendMailCustomerBtn) ui.statusSendMailCustomerBtn.disabled = !(data?.sendtTil || "").trim();
     if (ui.statusSendMailBtn) ui.statusSendMailBtn.disabled = false;
   }
 }

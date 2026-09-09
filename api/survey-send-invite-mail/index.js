@@ -208,7 +208,12 @@ module.exports = async function (context, req) {
             cr175_lch_mailsendttidspunkt: new Date().toISOString(),
             // Gemmer skabelonens visningsnavn (falder tilbage til nøglen,
             // hvis navnet af en eller anden grund mangler på skabelonen).
-            cr175_lch_sidstsendtmailskabelon: template.cr175_lch_navn || templateId
+            cr175_lch_sidstsendtmailskabelon: template.cr175_lch_navn || templateId,
+            // Hold "Brug email"-feltet i sync med den adresse der reelt lige
+            // er sendt til - uanset om mailen blev sendt fra opret-flowet,
+            // redigerings-siden eller "Se skema"-statusboksen, og uanset om
+            // admin rettede adressen i sidste øjeblik.
+            cr175_lch_sendttil: to
           })
         });
         mailTimestampSaved = true;
@@ -243,3 +248,6 @@ module.exports = async function (context, req) {
     });
   }
 };
+
+
+

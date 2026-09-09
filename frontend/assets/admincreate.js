@@ -360,20 +360,20 @@ function debtorRow(label, value) {
 // updateCreateMailTarget() (fx skift af mailskabelon), så en admins egen
 // rettelse af adressen ikke bliver overskrevet undervejs.
 function syncCustomerEmailField() {
-  if (!els.customerEmail) return;
-  els.customerEmail.value = (currentDebtor?.email || "").trim();
+  if (!els.useEmail) return;
+  els.useEmail.value = (currentDebtor?.email || "").trim();
 }
 
 // Opdaterer "Opret skema og send mail til: xx"-knappen med den mailadresse
 // der reelt vil blive sendt til - dvs. indholdet af det redigerbare
-// customerEmail-felt (udfyldt fra Uniconta, men rettelig hvis den er
+// useEmail-felt (udfyldt fra Uniconta, men rettelig hvis den er
 // forkert), ikke direkte currentDebtor.email. Kræver samtidig at en
 // mailskabelon er valgt i dropdown'en øverst. Knappen deaktiveres hvis et
 // af delene mangler.
 function updateCreateMailTarget() {
   if (!els.createMailTarget || !els.btnCreateAndMail) return;
 
-  const email = (els.customerEmail?.value || "").trim();
+  const email = (els.useEmail?.value || "").trim();
   const hasTemplate = !!(els.mailTemplateSelect?.value || "").trim();
 
   els.createMailTarget.textContent = email || "(ingen e-mail fundet)";
@@ -1381,6 +1381,10 @@ async function loadInstanceForEdit(instanceId) {
     editCustomerNumber = data.customerNumber || "";
     editCustomerNameFull = data.customerName || "";
 
+    if (els.useEmail) {
+      els.useEmail.value = data.sendtTil || "";
+    }
+
     for (const it of (data.items || [])) {
       setPrefillValueByQuestionRepeat(it.questionId, it.repeatIndex, it.prefillText);
     }
@@ -1430,11 +1434,11 @@ async function sendInviteMailForEditInstance() {
 
   const link = `${CUSTOMER_BASE_URL}/kundesurvey.html?code=${encodeURIComponent(editCode)}`;
 
-  // TEST-FASE: sender stadig altid til hng@lcherrup.dk herfra (redigerings-
-  // tilstand kører ikke Uniconta-opslaget, så vi har ikke kundens rigtige
-  // mail til rådighed her endnu). Skift til kundens rigtige e-mail, når
-  // det er klar til at gå i drift.
-  const testRecipient = "hng@lcherrup.dk";
+  const to = (els.useEmail?.value || "").trim();
+  if (!to) {
+    if (els.editSendMailStatus) els.editSendMailStatus.textContent = "Udfyld \"Brug email\" nederst i indstillinger først.";
+    return;
+  }
 
   if (els.btnSendInviteMailEdit) els.btnSendInviteMailEdit.disabled = true;
   if (els.editSendMailStatus) els.editSendMailStatus.textContent = "Sender…";
@@ -1449,12 +1453,12 @@ async function sendInviteMailForEditInstance() {
         customerName: editCustomerNameFull,
         customerNumber: editCustomerNumber,
         instanceId: editInstanceId,
-        to: testRecipient,
+        to,
         templateId
       })
     });
 
-    if (els.editSendMailStatus) els.editSendMailStatus.textContent = `Mail sendt til ${testRecipient} ✔`;
+    if (els.editSendMailStatus) els.editSendMailStatus.textContent = `Mail sendt til ${to} ✔`;
 
     // Skjul tilbuddet igen, så man ikke kommer til at sende den flere
     // gange ved en fejl - ligesom på "Se skema"-siden opdateres status
@@ -1481,7 +1485,8 @@ async function saveEditedInstance() {
         questionId: p.questionId,
         repeatIndex: p.repeatIndex,
         prefillText: p.prefillText
-      }))
+      })),
+      sendtTil: (els.useEmail?.value || "").trim() || null
     };
 
     await fetchJson("/api/survey-items-update", {
@@ -1606,7 +1611,8 @@ async function createOrSaveInstance(sendMailAfter, recipientOverride) {
       expiresAt,
       note,
       prefillItems,
-      oprettetAf: ownEmail || null
+      oprettetAf: ownEmail || null,
+      sendtTil: (els.useEmail?.value || "").trim() || null
     };
 
     const res = await fetchJson(
@@ -1642,7 +1648,7 @@ async function createOrSaveInstance(sendMailAfter, recipientOverride) {
     if (sendMailAfter) {
       setStatus("Oprettet ✔ – sender invitations-mail…");
 
-      const to = (recipientOverride || els.customerEmail?.value || "").trim();
+      const to = (recipientOverride || els.useEmail?.value || "").trim();
       const templateId = (els.mailTemplateSelect?.value || "").trim();
 
       if (!to) {
@@ -1710,8 +1716,8 @@ document.addEventListener(
       customerSuggest:
         $("customerSuggest"),
 
-      customerEmail:
-        $("customerEmail"),
+      useEmail:
+        $("useEmail"),
 
       expiresAt:
         $("expiresAt"),
@@ -1946,7 +1952,7 @@ document.addEventListener(
     clearEntraCustomerContacts();
 
     els.mailTemplateSelect?.addEventListener("change", updateCreateMailTarget);
-    els.customerEmail?.addEventListener("input", updateCreateMailTarget);
+    els.useEmail?.addEventListener("input", updateCreateMailTarget);
     els.btnSendInviteMailEdit?.addEventListener("click", sendInviteMailForEditInstance);
     await loadOwnEmail();
     await loadMailTemplates();
@@ -1959,3 +1965,6 @@ document.addEventListener(
     }
   }
 );
+
+
+
