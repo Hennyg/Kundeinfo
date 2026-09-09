@@ -4,7 +4,11 @@ let els;
 // eget domæne, uanset hvilket domæne admin selv sidder på lige nu
 // (fx *.azurestaticapps.net under test) - ellers ser mailen ikke ud til at
 // komme fra os. Ret KUN her, hvis domænet nogensinde skifter.
-const CUSTOMER_BASE_URL = "https://kundeinfo.lcherrup.dk";
+// MIDLERTIDIGT (test i dag) - DNS/custom domain for kundeinfo.lcherrup.dk
+// virker ikke lige nu, så peger midlertidigt på SWA'ens eget azurestaticapps.net-
+// hostnavn i stedet. Husk at sætte den tilbage til
+// "https://kundeinfo.lcherrup.dk" igen, når DNS'en er på plads.
+const CUSTOMER_BASE_URL = "https://yellow-meadow-08815f003.2.azurestaticapps.net";
 
 // Den indloggede admins egen mailadresse (fra /.auth/me), til
 // "Opret og send mail til: xx"-knappen. Sat af loadOwnEmail().
@@ -1955,6 +1959,3 @@ document.addEventListener(
     }
   }
 );
-
-
-
