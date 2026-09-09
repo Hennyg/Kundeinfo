@@ -24,6 +24,7 @@ const ui = {
   navLinks: $("navLinks"),
 
   adminStatusTile: $("adminStatusTile"),
+  statusOprettetAfInfo: $("statusOprettetAfInfo"),
   statusMailInfo: $("statusMailInfo"),
   statusSmsInfo: $("statusSmsInfo"),
   prefillLink: $("prefillLink"),
@@ -728,6 +729,12 @@ async function initAdminStatusTile(data, customerLink) {
       ui.openAsCustomerLink?.classList.remove("hidden");
       ui.showChangesSummaryBtn.classList.add("hidden");
     }
+  }
+
+  if (ui.statusOprettetAfInfo) {
+    ui.statusOprettetAfInfo.textContent = data?.oprettetAf
+      ? `Oprettet af: ${data.oprettetAf}`
+      : "Oprettet af: (ukendt – skemaet blev oprettet før vi begyndte at gemme det).";
   }
 
   if (ui.statusMailInfo) {

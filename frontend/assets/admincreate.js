@@ -351,13 +351,25 @@ function debtorRow(label, value) {
   );
 }
 
-// Opdaterer "Opret skema og send mail til: xx"-knappen med kundens e-mail
-// fra Uniconta debitor-data, og kræver samtidig at en mailskabelon er
-// valgt i dropdown'en øverst. Knappen deaktiveres hvis et af delene mangler.
+// Fylder det redigerbare mailfelt med kundens Uniconta-mail, hver gang en
+// (ny) debitor hentes/ryddes - men IKKE ved andre kald af
+// updateCreateMailTarget() (fx skift af mailskabelon), så en admins egen
+// rettelse af adressen ikke bliver overskrevet undervejs.
+function syncCustomerEmailField() {
+  if (!els.customerEmail) return;
+  els.customerEmail.value = (currentDebtor?.email || "").trim();
+}
+
+// Opdaterer "Opret skema og send mail til: xx"-knappen med den mailadresse
+// der reelt vil blive sendt til - dvs. indholdet af det redigerbare
+// customerEmail-felt (udfyldt fra Uniconta, men rettelig hvis den er
+// forkert), ikke direkte currentDebtor.email. Kræver samtidig at en
+// mailskabelon er valgt i dropdown'en øverst. Knappen deaktiveres hvis et
+// af delene mangler.
 function updateCreateMailTarget() {
   if (!els.createMailTarget || !els.btnCreateAndMail) return;
 
-  const email = (currentDebtor?.email || "").trim();
+  const email = (els.customerEmail?.value || "").trim();
   const hasTemplate = !!(els.mailTemplateSelect?.value || "").trim();
 
   els.createMailTarget.textContent = email || "(ingen e-mail fundet)";
@@ -468,6 +480,7 @@ function fillPrefillFromUniconta() {
 
 function clearUnicontaDebtor() {
   currentDebtor = null;
+  syncCustomerEmailField();
   updateCreateMailTarget();
   els.unicontaDebtorCard.classList.add(
     "hidden"
@@ -523,6 +536,7 @@ async function loadUnicontaDebtor(kundenr) {
 
     const d = data?.debtor;
     currentDebtor = d;
+    syncCustomerEmailField();
     updateCreateMailTarget();
 
     if (!d) {
@@ -1587,7 +1601,8 @@ async function createOrSaveInstance(sendMailAfter, recipientOverride) {
       customerNumber,
       expiresAt,
       note,
-      prefillItems
+      prefillItems,
+      oprettetAf: ownEmail || null
     };
 
     const res = await fetchJson(
@@ -1623,7 +1638,7 @@ async function createOrSaveInstance(sendMailAfter, recipientOverride) {
     if (sendMailAfter) {
       setStatus("Oprettet ✔ – sender invitations-mail…");
 
-      const to = (recipientOverride || currentDebtor?.email || "").trim();
+      const to = (recipientOverride || els.customerEmail?.value || "").trim();
       const templateId = (els.mailTemplateSelect?.value || "").trim();
 
       if (!to) {
@@ -1690,6 +1705,9 @@ document.addEventListener(
 
       customerSuggest:
         $("customerSuggest"),
+
+      customerEmail:
+        $("customerEmail"),
 
       expiresAt:
         $("expiresAt"),
@@ -1924,6 +1942,7 @@ document.addEventListener(
     clearEntraCustomerContacts();
 
     els.mailTemplateSelect?.addEventListener("change", updateCreateMailTarget);
+    els.customerEmail?.addEventListener("input", updateCreateMailTarget);
     els.btnSendInviteMailEdit?.addEventListener("click", sendInviteMailForEditInstance);
     await loadOwnEmail();
     await loadMailTemplates();
@@ -1936,3 +1955,6 @@ document.addEventListener(
     }
   }
 );
+
+
+
