@@ -1,5 +1,37 @@
 {
   "routes": [
-    { "route": "/api/*", "allowedRoles": ["anonymous"] }
-  ]
+    { "route": "/unicontadebitor.html",       "allowedRoles": ["authenticated"] },
+    { "route": "/admin.html",            "allowedRoles": ["authenticated"] },
+    { "route": "/adminedit.html",        "allowedRoles": ["authenticated"] },
+    { "route": "/adminsurvey.html",      "allowedRoles": ["authenticated"] },
+    { "route": "/adminoversigt.html",    "allowedRoles": ["authenticated"] },
+    { "route": "/admincreate.html",      "allowedRoles": ["authenticated"] },
+    { "route": "/adminprefill.html",     "allowedRoles": ["authenticated"] },
+    { "route": "/adminquestiongroup.html", "allowedRoles": ["authenticated"] },
+    { "route": "/admintemplatebuilder.html", "allowedRoles": ["authenticated"] },
+    { "route": "/admintemplates.html",   "allowedRoles": ["authenticated"] },
+
+    { "route": "/kundesurvey.html", "allowedRoles": ["anonymous", "authenticated"] },
+    { "route": "/api/survey-start",  "allowedRoles": ["anonymous", "authenticated"] },
+    { "route": "/api/survey-submit", "allowedRoles": ["anonymous", "authenticated"] },
+    { "route": "/api/*", "allowedRoles": ["authenticated"] },
+    { "route": "/survey/*", "allowedRoles": ["anonymous", "authenticated"] }
+  ],
+  "responseOverrides": {
+    "401": { "redirect": "/.auth/login/aad?post_login_redirect_uri=/admin.html", "statusCode": 302 },
+    "403": { "redirect": "/.auth/login/aad?post_login_redirect_uri=/admin.html", "statusCode": 302 }
+  },
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": [
+      "/assets/*", "/api/*", "/unicontadebitor.html", "/admin.html", "/adminedit.html",
+      "/adminsurvey.html", "/adminoversigt.html", "/admincreate.html", "/adminprefill.html",
+      "/adminquestiongroup.html", "/admintemplatebuilder.html", "/admintemplates.html",
+      "/kundesurvey.html", "/survey/*", "/.auth/*"
+    ]
+  },
+  "globalHeaders": { "Cache-Control": "no-store" }
 }
+
+
+
