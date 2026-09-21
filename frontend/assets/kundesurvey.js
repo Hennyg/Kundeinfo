@@ -82,7 +82,7 @@ function resolveInputType(answertypeLabel) {
 
 /* ---------- State ---------- */
 let DATA = null;                     // { code, customerName, groups, items }
-let lastChangeSummary = { changes: [], additions: [], adminAdditions: [], allItems: [] }; // til opsummeringsdialog ved gennemsyn
+let lastChangeSummary = { changes: [], additions: [], adminAdditions: [], removed: [], allItems: [] }; // til opsummeringsdialog ved gennemsyn
 const repeatCounters = {};           // groupId -> højeste synlige repeatIndex
 const removedRepeats = new Set();    // `${groupId}:${repeatIndex}`
 
@@ -283,7 +283,7 @@ function buildInput(it, value) {
 
 function renderQuestions() {
   ui.questions.innerHTML = "";
-  lastChangeSummary = { changes: [], additions: [], adminAdditions: [], notes: [], allItems: [] };
+  lastChangeSummary = { changes: [], additions: [], adminAdditions: [], removed: [], notes: [], allItems: [] };
 
   const produktMap = produkterByAddressText();
   const groups = [...(DATA.groups || [])].sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
@@ -455,7 +455,19 @@ function renderQuestions() {
         const isAddedByCustomer = !it.prefillText && it.addedByCustomer && !!value;
         const isMarked = isChangedFromPrefill || isAddedByCustomer;
 
-        if (isChangedFromPrefill) {
+        if (isRemoved) {
+          // Hele blokken er slettet af kunden - det skal fremgå tydeligt i
+          // opsummeringen (i stedet for enten at forsvinde helt, eller ved
+          // en fejl blive vist som en almindelig "rettelse"). Vises kun
+          // hvis der reelt var noget at slette.
+          const removedValue = value || it.prefillText || "";
+          if (removedValue) {
+            lastChangeSummary.removed.push({
+              group: g, groupId: g.id, repeatIndex: ri, number: it.number,
+              question: it.text || "", value: removedValue
+            });
+          }
+        } else if (isChangedFromPrefill) {
           lastChangeSummary.changes.push({
             group: g, groupId: g.id, repeatIndex: ri, number: it.number,
             question: it.text || "", before: it.prefillText, after: value
@@ -476,17 +488,18 @@ function renderQuestions() {
         }
 
         // Fuld liste af alle spørgsmål + effektivt svar (kundens svar hvis
-        // givet, ellers prefill) – bruges af "Alle data"-oversigten (tidl.
-        // SalesForce), som skal vise alt, ikke kun det der er ændret/
-        // tilføjet. `changed` bruges til at farve ændrede felter røde også
-        // her, og til at afgøre hvilke tiles der har en ændring i sig (for
-        // Kontakter/Kundeliste/Uniconta, som nu viser hele tile'et - se
-        // showChangesSummary).
-        lastChangeSummary.allItems.push({
-          group: g, groupId: g.id, repeatIndex: ri, number: it.number,
-          question: it.text || "", value: value || it.prefillText || "",
-          changed: isChangedFromPrefill
-        });
+        // givet, ellers prefill) – bruges af "Opsummering"-oversigten (tidl.
+        // "Alle data"/SalesForce), som skal vise alt, ikke kun det der er
+        // ændret/tilføjet. `changed` bruges til at farve ændrede felter
+        // røde her, og `removed` til at vise en slettet blok med
+        // overstrygning i stedet for at lade den se uændret ud.
+        if (!isRemoved) {
+          lastChangeSummary.allItems.push({
+            group: g, groupId: g.id, repeatIndex: ri, number: it.number,
+            question: it.text || "", value: value || it.prefillText || "",
+            changed: isChangedFromPrefill
+          });
+        }
 
         const wrap = document.createElement("div");
         wrap.style.padding = "18px 0";
@@ -1033,19 +1046,25 @@ const SYSTEM_ICONS = {
   "Kontakter": "👤",
   "Kundeliste": "📋",
   "Uniconta": "🏢",
-  "SalesForce": "☁️"
+  "SalesForce": "🧾"
 };
-// Kun visningsnavnet er ændret til "Alle data" - den interne nøgle "SalesForce"
-// er bevaret uændret, da den er koblet til "Rapporterer til"-valget på selve
-// spørgsmålsgrupperne i Dataverse.
+// Kun visningsnavnet er ændret til "Opsummering" - den interne nøgle
+// "SalesForce" er bevaret uændret, da den er koblet til "Rapporterer
+// til"-valget på selve spørgsmålsgrupperne i Dataverse (selvom det felt
+// ikke længere bruges til at opdele mails - se showChangesSummary).
 const SYSTEM_DISPLAY_NAMES = {
-  "SalesForce": "Alle data"
+  "SalesForce": "Opsummering"
 };
 function displaySystemName(system) {
   return SYSTEM_DISPLAY_NAMES[system] || system;
 }
 const UKENDT_SYSTEM = "Ikke tildelt endnu";
 
+// PT IKKE I BRUG i showChangesSummary() - opsummeringen sender nu kun ÉN
+// samlet mail med alt data, uafhængigt af "Rapporterer til" pr. gruppe.
+// Fundet/funktionen er bevaret i tilfælde af at den opdelte visning pr.
+// system skal tages i brug igen senere.
+//
 // Afgør hvilke bagvedliggende systemer en gruppe rapporterer til. Bruger
 // primært det admin har sat på gruppen (cr175_lch_rapporterer_til er en
 // multi-select valgliste, så en gruppe kan godt rapportere til flere
@@ -1179,6 +1198,7 @@ function groupAndSplitEntries(entries) {
   return groups.sort((a, b) => a.sort - b.sort);
 }
 
+// PT IKKE I BRUG i showChangesSummary() - se kommentar ved sourceSystemsForGroup().
 const SYSTEM_ORDER = ["Kontakter", "Kundeliste", "Uniconta", "SalesForce"];
 
 let currentUserEmailCache = null;
@@ -1207,6 +1227,7 @@ function buildAreaSummary(system, entries) {
   }
 
   const lineFor = (e) => {
+    if (e.kind === "removed") return `${e.question} – slettet af kunden (var: "${e.value}")`;
     if (e.kind === "changed") return `${e.question}: "${e.before}" → "${e.after}"`;
     if (e.kind === "full") return `${e.question}: ${e.value || "(ikke udfyldt)"}${e.changed ? " (ændret)" : ""}`;
     if (e.kind === "admin-added") return `${e.question} – tilføjet ved oprettelse: "${e.value}"`;
@@ -1215,6 +1236,11 @@ function buildAreaSummary(system, entries) {
   };
 
   const liFor = (e) => {
+    if (e.kind === "removed") {
+      return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong><br>` +
+        `<span style="color:#b3261e; font-weight:600; text-decoration:line-through;">${escapeHtml(e.value)}</span> ` +
+        `<span style="color:#b3261e; font-weight:600;">(slettet af kunden)</span></li>`;
+    }
     if (e.kind === "changed") {
       return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong><br>` +
         `<span style="color:#b3261e; font-weight:600;">"${escapeHtml(e.before)}" → "${escapeHtml(e.after)}"</span></li>`;
@@ -1245,8 +1271,10 @@ function buildAreaSummary(system, entries) {
       ? `<ul style="margin:0 0 6px;padding-left:18px;">${g.constantEntries.map(liFor).join("")}</ul>`
       : "";
     const blocksHtml = g.blocks.map((block, idx) => {
-      const label = g.blocks.length > 1
-        ? `<div class="muted" style="font-weight:600; margin:8px 0 2px;">${idx + 1}.</div>`
+      const isRemovedBlock = block.entries.length > 0 && block.entries.every(e => e.kind === "removed");
+      const numberLabel = g.blocks.length > 1 ? `${idx + 1}. ` : "";
+      const label = (isRemovedBlock || g.blocks.length > 1)
+        ? `<div style="font-weight:600; margin:8px 0 2px; ${isRemovedBlock ? "color:#b3261e;" : "color:inherit;"}" class="${isRemovedBlock ? "" : "muted"}">${numberLabel}${isRemovedBlock ? "🗑 Slettet af kunden" : ""}</div>`
         : "";
       return `${label}<ul style="margin:0;padding-left:18px;">${block.entries.map(liFor).join("")}</ul>`;
     }).join("");
@@ -1277,7 +1305,9 @@ function buildAreaEmailHtml(system, entries, subjectPrefix) {
   const groups = groupAndSplitEntries(entries);
 
   const rowFor = (e) => {
-    const body = e.kind === "changed"
+    const body = e.kind === "removed"
+      ? `<span style="color:#b3261e; text-decoration:line-through;">${escapeHtml(e.value)}</span> <strong style="color:#b3261e;">(slettet af kunden)</strong>`
+      : e.kind === "changed"
       ? `<span style="color:#888;">"${escapeHtml(e.before)}"</span> → <strong style="color:#b3261e;">"${escapeHtml(e.after)}"</strong>`
       : e.kind === "full"
         ? (e.changed
@@ -1301,8 +1331,10 @@ function buildAreaEmailHtml(system, entries, subjectPrefix) {
     ? groups.map(g => {
         const constantRows = g.constantEntries.map(rowFor).join("");
         const blocksHtml = g.blocks.map((block, idx) => {
-          const label = g.blocks.length > 1
-            ? `<div style="font-size:12px; font-weight:700; color:#555; margin:12px 0 2px; padding-top:8px; border-top:1px dashed #ddd;">Nr. ${idx + 1}</div>`
+          const isRemovedBlock = block.entries.length > 0 && block.entries.every(e => e.kind === "removed");
+          const numberLabel = g.blocks.length > 1 ? `Nr. ${idx + 1}` : "";
+          const label = (isRemovedBlock || g.blocks.length > 1)
+            ? `<div style="font-size:12px; font-weight:700; color:${isRemovedBlock ? "#b3261e" : "#555"}; margin:12px 0 2px; padding-top:8px; border-top:1px dashed #ddd;">${numberLabel}${isRemovedBlock ? " 🗑 Slettet af kunden" : ""}</div>`
             : "";
           return `${label}${block.entries.map(rowFor).join("")}`;
         }).join("");
@@ -1376,120 +1408,55 @@ async function showChangesSummary() {
 
   const defaultRecipient = await getCurrentUserEmail();
 
-  const { changes, additions, adminAdditions, notes, allItems } = lastChangeSummary;
+  const { removed, notes, allItems } = lastChangeSummary;
 
-  const diffEntries = mergeAddressLineEntries([
-    ...changes.map(c => ({ ...c, kind: "changed" })),
-    ...additions.map(a => ({ ...a, kind: "added" })),
-    ...adminAdditions.map(a => ({ ...a, kind: "admin-added" })),
-    ...notes.map(n => ({ ...n, kind: "note" }))
-  ]);
+  // Der sendes kun ÉN samlet mail nu ("Opsummering") - med ALT data, uanset
+  // hvilke(t) system(er) de enkelte grupper er markeret til at rapportere
+  // til på adminquestiongroup.html. Slettede blokke tages med som deres
+  // egne linjer (kind "removed"), så de ikke bare forsvinder eller ligner
+  // en uændret/almindelig linje.
   const fullEntries = mergeAddressLineEntries(allItems.map(a => ({ ...a, kind: "full" })));
   const noteEntries = mergeAddressLineEntries(notes.map(n => ({ ...n, kind: "note" })));
+  const removedEntries = mergeAddressLineEntries(removed.map(r => ({ ...r, kind: "removed" })));
 
-  // Kontakter/Kundeliste/Uniconta: vis hele tile'et (alle felter for den
-  // pågældende blok/gentagelse), ikke kun de(t) felt(er) der er ændret -
-  // ellers er det ikke til at se hvilken adresse/person en ændring hører
-  // til. Kun blokke der reelt har mindst én ændring/tilføjelse/note tages
-  // med; selve ændringen farves stadig rød (jf. "changed" på full-entries).
-  const changedBlockKeys = new Set(diffEntries.map(e => `${e.groupId}|${e.repeatIndex}`));
+  const entries = [...fullEntries, ...noteEntries, ...removedEntries];
+  const hasContent = entries.length > 0;
 
-  const bySystemDiff = new Map();
-  for (const entry of fullEntries) {
-    const key = `${entry.groupId}|${entry.repeatIndex}`;
-    if (!changedBlockKeys.has(key)) continue;
+  const system = "SalesForce"; // intern nøgle bevaret (se SYSTEM_DISPLAY_NAMES) - vises som "Opsummering"
+  const { html: sectionHtml } = buildAreaSummary(system, entries);
+  const icon = SYSTEM_ICONS[system] || "❔";
 
-    for (const system of sourceSystemsForGroup(entry.group)) {
-      if (system === "SalesForce") continue; // "Alle data" bruger den fulde liste uafhængigt af ændringer
-      if (!bySystemDiff.has(system)) bySystemDiff.set(system, []);
-      bySystemDiff.get(system).push(entry);
-    }
-  }
-  // Noter hører ikke til i "allItems" (de er ikke almindelige spørgsmål),
-  // så de tilføjes særskilt til de samme blokke/tiles.
-  for (const note of noteEntries) {
-    for (const system of sourceSystemsForGroup(note.group)) {
-      if (system === "SalesForce") continue;
-      if (!bySystemDiff.has(system)) bySystemDiff.set(system, []);
-      bySystemDiff.get(system).push(note);
-    }
-  }
-
-  const bySystemFull = new Map();
-  for (const entry of [...fullEntries, ...noteEntries]) {
-    if (!sourceSystemsForGroup(entry.group).includes("SalesForce")) continue;
-    if (!bySystemFull.has("SalesForce")) bySystemFull.set("SalesForce", []);
-    bySystemFull.get("SalesForce").push(entry);
-  }
-
-  // Vis altid alle kendte områder, også dem uden indhold.
-  const systemsToShow = [...SYSTEM_ORDER];
-  for (const system of [...bySystemDiff.keys(), ...bySystemFull.keys()]) {
-    if (!systemsToShow.includes(system)) systemsToShow.push(system);
-  }
-
-  const cardData = [];
-  let html = `
-    <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px;">
+  const html = `
+    <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+      ${hasContent ? `
+        <input type="email" id="summaryToInput" value="${escapeHtml(defaultRecipient)}"
+               placeholder="modtager@eksempel.dk"
+               style="border:1px solid #ccc; border-radius:6px; padding:6px 10px; font-size:13px; width:220px;" />
+      ` : ""}
       <button type="button" class="btn" id="closeSummaryTopBtn">Luk</button>
-      <button type="button" class="btn primary" id="sendAllAreasBtn">Send alle</button>
+      ${hasContent ? `<button type="button" class="btn primary" id="sendSummaryBtn">Send</button>` : ""}
+    </div>
+    <div class="summary-card">
+      <div class="summary-card-header">
+        <h3 style="margin:0;">${icon} ${escapeHtml(displaySystemName(system))}</h3>
+      </div>
+      ${sectionHtml}
     </div>
   `;
-
-  systemsToShow.forEach((system, idx) => {
-    const entries = system === "SalesForce"
-      ? (bySystemFull.get(system) || [])
-      : (bySystemDiff.get(system) || []);
-
-    const hasContent = entries.length > 0;
-    const { html: sectionHtml, text: sectionText } = buildAreaSummary(system, entries);
-    const icon = SYSTEM_ICONS[system] || "❔";
-    const btnId = `sendAreaBtn_${idx}`;
-    const toInputId = `sendAreaTo_${idx}`;
-
-    html += `
-      <div class="summary-card">
-        <div class="summary-card-header">
-          <h3 style="margin:0;">${icon} ${escapeHtml(displaySystemName(system))}</h3>
-          ${hasContent ? `
-            <div style="display:flex; align-items:center; gap:8px;">
-              <input type="email" id="${toInputId}" value="${escapeHtml(defaultRecipient)}"
-                     placeholder="modtager@eksempel.dk"
-                     style="border:1px solid #ccc; border-radius:6px; padding:4px 8px; font-size:13px; width:200px;" />
-              <button type="button" class="btn" id="${btnId}">Send mail</button>
-            </div>
-          ` : ""}
-        </div>
-        ${sectionHtml}
-      </div>
-    `;
-
-    if (hasContent) cardData.push({ btnId, toInputId, system, entries });
-  });
 
   ui.changesModalBody.innerHTML = html;
 
   document.getElementById("closeSummaryTopBtn")?.addEventListener("click", () => hide(ui.changesModal));
 
-  cardData.forEach(({ btnId, toInputId, system, entries }) => {
-    const btn = document.getElementById(btnId);
-    const toInput = document.getElementById(toInputId);
-    btn?.addEventListener("click", () => sendAreaMail(system, entries, btn, toInput));
-  });
+  document.getElementById("sendSummaryBtn")?.addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    const toInput = document.getElementById("summaryToInput");
 
-  document.getElementById("sendAllAreasBtn")?.addEventListener("click", async (e) => {
-    const allBtn = e.currentTarget;
-    allBtn.disabled = true;
-    const original = allBtn.textContent;
-    allBtn.textContent = "Sender alle…";
+    // sendAreaMail styrer selv knappens tekst/disabled-state (inkl. reset
+    // efter et par sekunder) - vi lægger kun status-opdateringen til ovenpå.
+    const ok = await sendAreaMail(system, entries, btn, toInput);
+    if (!ok) return;
 
-    for (const { btnId, toInputId, system, entries } of cardData) {
-      const btn = document.getElementById(btnId);
-      const toInput = document.getElementById(toInputId);
-      await sendAreaMail(system, entries, btn, toInput);
-    }
-
-    // Alle områdemails er sendt - dette er den sidste fase i status-forløbet.
     try {
       await fetchJson("/api/survey-status-complete", {
         method: "POST",
@@ -1499,9 +1466,6 @@ async function showChangesSummary() {
     } catch (err) {
       console.error("Kunne ikke sætte status til Afsluttet:", err);
     }
-
-    allBtn.textContent = "Alle sendt ✔";
-    setTimeout(() => { allBtn.textContent = original; allBtn.disabled = false; }, 2000);
   });
 
   show(ui.changesModal);
