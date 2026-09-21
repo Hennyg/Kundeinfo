@@ -497,7 +497,12 @@ function renderQuestions() {
           lastChangeSummary.allItems.push({
             group: g, groupId: g.id, repeatIndex: ri, number: it.number,
             question: it.text || "", value: value || it.prefillText || "",
-            changed: isChangedFromPrefill
+            changed: isChangedFromPrefill,
+            // Tilføjet af enten kunden selv (ny gentagelse/blok) eller af
+            // den der oprettede skemaet (prefill ud over kendt data) - vises
+            // med en tydelig "Tilføjet"-markering i "Opsummering", så det
+            // ikke bare ser ud som almindelig, uændret data.
+            added: isAddedByCustomer || (!!it.addedByAdmin && !isChangedFromPrefill && (value || it.prefillText))
           });
         }
 
@@ -1240,7 +1245,7 @@ function buildAreaSummary(system, entries) {
   const lineFor = (e) => {
     if (e.kind === "removed") return `${e.question} – slettet af kunden (var: "${e.value}")`;
     if (e.kind === "changed") return `${e.question}: "${e.before}" → "${e.after}"`;
-    if (e.kind === "full") return `${e.question}: ${e.value || "(ikke udfyldt)"}${e.changed ? " (ændret)" : ""}`;
+    if (e.kind === "full") return `${e.question}: ${e.value || "(ikke udfyldt)"}${e.changed ? " (rettet)" : e.added ? " (tilføjet)" : ""}`;
     if (e.kind === "admin-added") return `${e.question} – tilføjet ved oprettelse: "${e.value}"`;
     if (e.kind === "note") return `${e.question}: "${e.value}"`;
     return `${e.question} – tilføjet: "${e.value}"`;
@@ -1258,11 +1263,12 @@ function buildAreaSummary(system, entries) {
     }
     if (e.kind === "full") {
       const valueHtml = escapeHtml(e.value || "(ikke udfyldt)");
-      return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong><br>` +
-        (e.changed
-          ? `<span style="color:#b3261e; font-weight:600;">${valueHtml}</span>`
-          : valueHtml) +
-        `</li>`;
+      const styled = e.changed
+        ? `<span style="color:#b3261e; font-weight:600;">${valueHtml}</span> <span style="color:#b3261e; font-weight:600;">(rettet af kunden)</span>`
+        : e.added
+          ? `<span style="color:#1f6c7a; font-weight:600;">${valueHtml}</span> <span style="color:#1f6c7a; font-weight:600;">(tilføjet)</span>`
+          : valueHtml;
+      return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong><br>${styled}</li>`;
     }
     if (e.kind === "admin-added") {
       return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong><br>` +
@@ -1276,18 +1282,41 @@ function buildAreaSummary(system, entries) {
   };
 
   const groups = groupAndSplitEntries(entries);
+  const isBoring = (e) => e.kind === "full" && !e.value && !e.changed && !e.added;
 
   const html = groups.map(g => {
+    const allGroupEntries = [...g.constantEntries, ...g.blocks.flatMap(b => b.entries)];
+    const isGroupBoring = allGroupEntries.length > 0 && allGroupEntries.every(isBoring);
+
+    if (isGroupBoring) {
+      return `
+        <div style="margin-bottom:14px;">
+          <div class="muted" style="font-weight:600; margin-bottom:4px;">${escapeHtml(g.title)}</div>
+          <p class="muted" style="margin:0;">Ingen ændring.</p>
+        </div>
+      `;
+    }
+
     const constantHtml = g.constantEntries.length
-      ? `<ul style="margin:0 0 6px;padding-left:18px;">${g.constantEntries.map(liFor).join("")}</ul>`
+      ? (g.constantEntries.every(isBoring)
+          ? `<p class="muted" style="margin:0 0 6px;">Ingen ændring.</p>`
+          : `<ul style="margin:0 0 6px;padding-left:18px;">${g.constantEntries.map(liFor).join("")}</ul>`)
       : "";
     const blocksHtml = g.blocks.map((block, idx) => {
       const isRemovedBlock = block.entries.length > 0 && block.entries.every(e => e.kind === "removed");
+      const isAddedBlock = !isRemovedBlock && block.entries.some(e => e.added) && !block.entries.some(e => e.changed);
+      const isBoringBlock = !isRemovedBlock && !isAddedBlock && block.entries.length > 0 && block.entries.every(isBoring);
+
       const numberLabel = g.blocks.length > 1 ? `${idx + 1}. ` : "";
-      const label = (isRemovedBlock || g.blocks.length > 1)
-        ? `<div style="font-weight:600; margin:8px 0 2px; ${isRemovedBlock ? "color:#b3261e;" : "color:inherit;"}" class="${isRemovedBlock ? "" : "muted"}">${numberLabel}${isRemovedBlock ? "🗑 Slettet af kunden" : ""}</div>`
+      const badge = isRemovedBlock ? "🗑 Slettet af kunden" : isAddedBlock ? "✚ Tilføjet" : "";
+      const label = (badge || g.blocks.length > 1)
+        ? `<div style="font-weight:600; margin:8px 0 2px; ${badge ? (isRemovedBlock ? "color:#b3261e;" : "color:#1f6c7a;") : "color:inherit;"}" class="${badge ? "" : "muted"}">${numberLabel}${badge}</div>`
         : "";
-      return `${label}<ul style="margin:0;padding-left:18px;">${block.entries.map(liFor).join("")}</ul>`;
+      const body = isBoringBlock
+        ? `<p class="muted" style="margin:0 0 0 18px;">Ingen ændring.</p>`
+        : `<ul style="margin:0;padding-left:18px;">${block.entries.map(liFor).join("")}</ul>`;
+
+      return `${label}${body}`;
     }).join("");
 
     return `
@@ -1322,8 +1351,10 @@ function buildAreaEmailHtml(system, entries, subjectPrefix) {
       ? `<span style="color:#888;">"${escapeHtml(e.before)}"</span> → <strong style="color:#b3261e;">"${escapeHtml(e.after)}"</strong>`
       : e.kind === "full"
         ? (e.changed
-            ? `<strong style="color:#b3261e;">${escapeHtml(e.value || "(ikke udfyldt)")}</strong>`
-            : escapeHtml(e.value || "(ikke udfyldt)"))
+            ? `<strong style="color:#b3261e;">${escapeHtml(e.value || "(ikke udfyldt)")}</strong> <span style="color:#b3261e;">(rettet af kunden)</span>`
+            : e.added
+              ? `<strong style="color:#1f6c7a;">${escapeHtml(e.value || "(ikke udfyldt)")}</strong> <span style="color:#1f6c7a;">(tilføjet)</span>`
+              : escapeHtml(e.value || "(ikke udfyldt)"))
         : e.kind === "admin-added"
           ? `<strong style="color:#1f6c7a;">${escapeHtml(e.value)}</strong> <span style="color:#888;">(tilføjet ved oprettelse)</span>`
           : e.kind === "note"
@@ -1338,16 +1369,44 @@ function buildAreaEmailHtml(system, entries, subjectPrefix) {
     `;
   };
 
+  const isBoring = (e) => e.kind === "full" && !e.value && !e.changed && !e.added;
+
   const groupsHtml = groups.length
     ? groups.map(g => {
-        const constantRows = g.constantEntries.map(rowFor).join("");
+        const allGroupEntries = [...g.constantEntries, ...g.blocks.flatMap(b => b.entries)];
+        const isGroupBoring = allGroupEntries.length > 0 && allGroupEntries.every(isBoring);
+
+        if (isGroupBoring) {
+          return `
+            <div style="margin-bottom:20px;">
+              <div style="font-size:12px; font-weight:700; color:#1f6c7a; text-transform:uppercase; letter-spacing:.5px; border-bottom:2px solid #1f6c7a; padding-bottom:6px; margin-bottom:4px;">
+                ${escapeHtml(g.title)}
+              </div>
+              <p style="color:#888; font-size:14px; margin:8px 0 0;">Ingen ændring.</p>
+            </div>
+          `;
+        }
+
+        const constantRows = g.constantEntries.length
+          ? (g.constantEntries.every(isBoring)
+              ? `<p style="color:#888; font-size:14px; margin:8px 0 0;">Ingen ændring.</p>`
+              : g.constantEntries.map(rowFor).join(""))
+          : "";
         const blocksHtml = g.blocks.map((block, idx) => {
           const isRemovedBlock = block.entries.length > 0 && block.entries.every(e => e.kind === "removed");
+          const isAddedBlock = !isRemovedBlock && block.entries.some(e => e.added) && !block.entries.some(e => e.changed);
+          const isBoringBlock = !isRemovedBlock && !isAddedBlock && block.entries.length > 0 && block.entries.every(isBoring);
+
           const numberLabel = g.blocks.length > 1 ? `Nr. ${idx + 1}` : "";
-          const label = (isRemovedBlock || g.blocks.length > 1)
-            ? `<div style="font-size:12px; font-weight:700; color:${isRemovedBlock ? "#b3261e" : "#555"}; margin:12px 0 2px; padding-top:8px; border-top:1px dashed #ddd;">${numberLabel}${isRemovedBlock ? " 🗑 Slettet af kunden" : ""}</div>`
+          const badge = isRemovedBlock ? " 🗑 Slettet af kunden" : isAddedBlock ? " ✚ Tilføjet" : "";
+          const label = (badge || g.blocks.length > 1)
+            ? `<div style="font-size:12px; font-weight:700; color:${isRemovedBlock ? "#b3261e" : isAddedBlock ? "#1f6c7a" : "#555"}; margin:12px 0 2px; padding-top:8px; border-top:1px dashed #ddd;">${numberLabel}${badge}</div>`
             : "";
-          return `${label}${block.entries.map(rowFor).join("")}`;
+          const body = isBoringBlock
+            ? `<p style="color:#888; font-size:14px; margin:2px 0 0;">Ingen ændring.</p>`
+            : block.entries.map(rowFor).join("");
+
+          return `${label}${body}`;
         }).join("");
 
         return `
