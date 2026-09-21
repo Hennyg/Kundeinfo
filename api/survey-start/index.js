@@ -19,10 +19,31 @@ function escODataString(s) {
   return String(s ?? "").replace(/'/g, "''");
 }
 
+// Samme mønster som i survey-send-invite-mail/index.js: SWA lægger denne
+// header på ALLE requests der kommer fra en indlogget (Entra ID) session -
+// den er kun til stede for admin-brugere, ALDRIG for en anonym kunde.
+function getClientPrincipal(req) {
+  const header = req.headers["x-ms-client-principal"];
+  if (!header) return null;
+  try {
+    const decoded = Buffer.from(header, "base64").toString("utf8");
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+}
+
 module.exports = async function (context, req) {
   try {
     const code = String(req?.body?.code || "").trim();
-    const readOnly = !!req?.body?.ro;
+
+    // Status skal KUN rykke til "Set" når det faktisk er kunden selv der
+    // åbner linket. Vi har hidtil kun stolet på ?ro=1 fra frontend, men
+    // hænger admin fx selv koden ind på "index.html" (login-siden) eller
+    // et andet sted uden ro=1, glider status alligevel til "Set" - selvom
+    // det er admin der kigger. Er requesten logget ind (admin), behandler
+    // vi den derfor ALTID som read-only, uanset om ro=1 er sat.
+    const readOnly = !!req?.body?.ro || !!getClientPrincipal(req);
     if (!code) return json(context, 400, { error: "missing_code", message: "Mangler code i body." });
 
     // 1) Find kundeundersøgelse på kode
@@ -75,7 +96,7 @@ module.exports = async function (context, req) {
       `&$filter=${encodeURIComponent(`_cr175_lch_kundeundersoegelse_value eq ${instanceId}`)}` +
       `&$expand=${encodeURIComponent(
         `cr175_lch_spoergsmaal($select=cr175_lch_kundeinfo_spoergsmaalid,cr175_lch_nummer,cr175_lch_spoergsmaalstekst,cr175_lch_forklaring,cr175_lch_svartype,cr175_lch_paakraevet,cr175_lch_sorteringsnummer;` +
-        `$expand=cr175_lch_spoergsmaalsgruppe($select=cr175_lch_kundeinfo_spoergsmaalsgruppeid,cr175_lch_titel,cr175_lch_description,cr175_lch_sorteringsnummer,cr175_lch_kangentages,cr175_lch_rapporterer_til,cr175_lch_harnotefelt,cr175_lch_notefeltoverskrift,cr175_lch_notefelthjaelpetekst))`
+        `$expand=cr175_lch_spoergsmaalsgruppe($select=cr175_lch_kundeinfo_spoergsmaalsgruppeid,cr175_lch_titel,cr175_lch_description,cr175_lch_sorteringsnummer,cr175_lch_kangentages,cr175_lch_rapporterer_til,cr175_lch_harnotefelt,cr175_lch_notefeltoverskrift,cr175_lch_notefelthjaelpetekst,cr175_lch_tilfoejflereknaptekst))`
       )}`;
 
     const rowsRes = await dvFetch(rowsPath, {
@@ -124,7 +145,11 @@ module.exports = async function (context, req) {
             : null,
           harNotefelt: g ? !!g.cr175_lch_harnotefelt : false,
           notefeltOverskrift: g ? (g.cr175_lch_notefeltoverskrift || "Note") : "Note",
-          notefeltHjaelpetekst: g ? (g.cr175_lch_notefelthjaelpetekst || "") : ""
+          notefeltHjaelpetekst: g ? (g.cr175_lch_notefelthjaelpetekst || "") : "",
+          // Tekst på "Tilføj flere"-knappen for denne gruppe - sat pr. gruppe
+          // på adminquestiongroup.html. Falder tilbage til standardteksten
+          // i kundesurvey.js, hvis feltet er tomt.
+          tilfoejFlereKnapTekst: g ? (g.cr175_lch_tilfoejflereknaptekst || "") : ""
         });
       }
 
@@ -266,6 +291,9 @@ module.exports = async function (context, req) {
     return json(context, 500, { error: "server_error", message: err.message || String(err) });
   }
 };
+
+
+
 
 
 

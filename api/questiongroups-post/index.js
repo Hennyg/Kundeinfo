@@ -29,7 +29,11 @@ module.exports = async function (context, req) {
       // kundesurvey.html, hvis slået til.
       cr175_lch_harnotefelt: !!p.harnotefelt,
       cr175_lch_notefeltoverskrift: p.harnotefelt ? (p.notefeltoverskrift ?? null) : null,
-      cr175_lch_notefelthjaelpetekst: p.harnotefelt ? (p.notefelthjaelpetekst ?? null) : null
+      cr175_lch_notefelthjaelpetekst: p.harnotefelt ? (p.notefelthjaelpetekst ?? null) : null,
+      // Tekst på "Tilføj flere"-knappen på kundens skema - kun relevant når
+      // gruppen faktisk kan gentages. Tomt felt = kundesurvey.js falder
+      // tilbage til standardteksten "+ Tilføj flere".
+      cr175_lch_tilfoejflereknaptekst: p.repeatable ? (p.tilfoejflereknaptekst ?? null) : null
     };
 
     const r = await dvFetch('cr175_lch_kundeinfo_spoergsmaalsgruppes', {
@@ -46,3 +50,6 @@ module.exports = async function (context, req) {
     context.res = { status: 500, body: err.message };
   }
 };
+
+
+

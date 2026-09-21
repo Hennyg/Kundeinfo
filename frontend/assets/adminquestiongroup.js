@@ -29,6 +29,8 @@ function getEls() {
     gsort: document.getElementById("gsort"),
     gactive: document.getElementById("gactive"),
     grepeatable: document.getElementById("grepeatable"),
+    grepeatableRows: document.getElementById("grepeatableRows"),
+    gtilfoejflereknaptekst: document.getElementById("gtilfoejflereknaptekst"),
     grapportertil: document.getElementById("grapportertil"),
 
     gharnotefelt: document.getElementById("gharnotefelt"),
@@ -92,6 +94,7 @@ function readForm() {
     sortorder: els.gsort.value === "" ? null : parseInt(els.gsort.value, 10),
     isactive: !!els.gactive.checked,
     repeatable: !!els.grepeatable.checked,
+    tilfoejflereknaptekst: (els.gtilfoejflereknaptekst.value || "").trim() || null,
     rapporterTil: getRapporterTil(),
     harnotefelt: !!els.gharnotefelt.checked,
     notefeltoverskrift: (els.gnotefeltoverskrift.value || "").trim() || null,
@@ -104,6 +107,11 @@ function updateNotefeltRowsVisibility() {
   els.gnotefeltRows.classList.toggle("hidden", !els.gharnotefelt.checked);
 }
 
+function updateRepeatableRowsVisibility() {
+  if (!els.grepeatableRows) return;
+  els.grepeatableRows.classList.toggle("hidden", !els.grepeatable.checked);
+}
+
 function fillForm(g) {
   els.gid.value = g.cr175_lch_kundeinfo_spoergsmaalsgruppeid || "";
   els.gtitle.value = g.cr175_lch_titel || "";
@@ -111,11 +119,13 @@ function fillForm(g) {
   els.gsort.value = (g.cr175_lch_sorteringsnummer ?? "") === null ? "" : (g.cr175_lch_sorteringsnummer ?? "");
   els.gactive.checked = (g.cr175_lch_aktiv ?? true) === true;
   els.grepeatable.checked = (g.cr175_lch_kangentages ?? false) === true;
+  els.gtilfoejflereknaptekst.value = g.cr175_lch_tilfoejflereknaptekst || "";
   setRapporterTil(g.cr175_lch_rapporterer_til ?? null);
   els.gharnotefelt.checked = (g.cr175_lch_harnotefelt ?? false) === true;
   els.gnotefeltoverskrift.value = g.cr175_lch_notefeltoverskrift || "";
   els.gnotefelthjaelpetekst.value = g.cr175_lch_notefelthjaelpetekst || "";
   updateNotefeltRowsVisibility();
+  updateRepeatableRowsVisibility();
 }
 
 function resetForm() {
@@ -124,6 +134,7 @@ function resetForm() {
   els.status.textContent = "";
   setRapporterTil([]);
   updateNotefeltRowsVisibility();
+  updateRepeatableRowsVisibility();
 }
 
 const RAPPORTER_TIL_LABELS = {
@@ -230,6 +241,7 @@ function wireEvents() {
   els.btnReset.addEventListener("click", resetForm);
 
   els.gharnotefelt?.addEventListener("change", updateNotefeltRowsVisibility);
+  els.grepeatable?.addEventListener("change", updateRepeatableRowsVisibility);
 
   els.grapportertil?.addEventListener("click", (e) => {
     const btn = e.target.closest(".toggle3-btn");
@@ -271,7 +283,11 @@ async function init() {
 
   wireEvents();
   updateNotefeltRowsVisibility();
+  updateRepeatableRowsVisibility();
   await listGroups();
 }
 
 document.addEventListener("DOMContentLoaded", init);
+
+
+

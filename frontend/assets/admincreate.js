@@ -60,6 +60,25 @@ function setListStatus(s) {
   els.listStatus.textContent = s || "";
 }
 
+// Synlig bekræftelse (popup) - resultatboksen ovenfor når kun at vises et
+// splitsekund før vi redirecter til oversigten, så den lille "muted"
+// statustekst er ikke nok til at man opdager at oprettelsen faktisk skete.
+let toastTimer = null;
+function showToast(message, type = "success") {
+  const el = document.getElementById("toast");
+  if (!el) return;
+
+  el.textContent = message;
+  el.className = "";
+  el.classList.add(type);
+  requestAnimationFrame(() => el.classList.add("show"));
+
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    el.classList.remove("show");
+  }, 3500);
+}
+
 function showResult({ code, link, instanceId }) {
   els.result.classList.remove("hidden");
   els.codeOut.textContent = code || "";
@@ -1643,6 +1662,8 @@ async function createOrSaveInstance(sendMailAfter, recipientOverride) {
         res.id
     });
 
+    showToast("Skema oprettet ✔", "success");
+
     let mailFailed = false;
 
     if (sendMailAfter) {
@@ -1657,6 +1678,7 @@ async function createOrSaveInstance(sendMailAfter, recipientOverride) {
           "Oprettet ✔ – men der blev ikke fundet en modtager-mail. " +
           "Skemaet er stadig oprettet, du kan sende linket manuelt (se link ovenfor)."
         );
+        showToast("Oprettet ✔ – men ingen modtager-mail blev fundet", "error");
       } else {
         try {
           await fetchJson("/api/survey-send-invite-mail", {
@@ -1681,6 +1703,7 @@ async function createOrSaveInstance(sendMailAfter, recipientOverride) {
             `Oprettet ✔ – men mailen kunne ikke sendes: ${mailErr.message}. ` +
             `Skemaet er stadig oprettet, du kan sende linket manuelt (se link ovenfor).`
           );
+          showToast("Oprettet ✔ – men mailen kunne ikke sendes", "error");
         }
       }
     } else {
@@ -1690,9 +1713,12 @@ async function createOrSaveInstance(sendMailAfter, recipientOverride) {
     }
 
     if (!mailFailed) {
+      // Lidt længere pause end før (900ms -> 1400ms), så toasten/resultatet
+      // rent faktisk kan nås at ses inden vi sender admin videre - og
+      // ?created=1 gør at oversigten selv viser en bekræftelse ved landing.
       setTimeout(() => {
-        location.href = "./adminoversigt.html";
-      }, 900);
+        location.href = "./adminoversigt.html?created=1";
+      }, 1400);
     }
   } catch (e) {
     console.error(e);
@@ -1701,6 +1727,7 @@ async function createOrSaveInstance(sendMailAfter, recipientOverride) {
       "Fejl: " +
       (e.message || e)
     );
+    showToast(`Kunne ikke oprette skema: ${e.message || e}`, "error");
   }
 }
 
@@ -1965,6 +1992,9 @@ document.addEventListener(
     }
   }
 );
+
+
+
 
 
 

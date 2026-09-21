@@ -15,6 +15,28 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 
+// Synlig bekræftelse i nederste højre hjørne (popup/toast) - bruges i
+// stedet for/ud over den lille "muted" statustekst, som er let at
+// overse og desuden bliver overskrevet næsten øjeblikkeligt af load().
+let toastTimer = null;
+function showToast(message, type = "success") {
+  const el = $("toast");
+  if (!el) return;
+
+  el.textContent = message;
+  el.className = "";
+  el.classList.add(type);
+
+  // Tvinger reflow, så klassen "show" altid trigger transition'en, også
+  // hvis en tidligere toast lige er blevet skjult igen.
+  requestAnimationFrame(() => el.classList.add("show"));
+
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    el.classList.remove("show");
+  }, 3500);
+}
+
 function getStatusLabel(row) {
   return row.cr175_lch_nystatus || "—";
 }
@@ -154,17 +176,27 @@ async function deleteSelected() {
     }
 
     const failed = (data.results || []).filter(x => !x.ok);
+    const okCount = ids.length - failed.length;
+
     if (failed.length) {
       $("status").textContent = `${failed.length} kunne ikke slettes – se konsollen for detaljer.`;
       console.error("survey-delete fejl for:", failed);
+      showToast(
+        okCount
+          ? `${okCount} slettet ✔ – ${failed.length} kunne ikke slettes`
+          : `Ingen blev slettet – se konsollen for detaljer`,
+        okCount ? "error" : "error"
+      );
     } else {
       $("status").textContent = "";
+      showToast(`${okCount} kundesurvey${okCount === 1 ? "" : "s"} slettet ✔`, "success");
     }
 
     await load();
   } catch (e) {
     console.error("survey-delete fejl:", e);
     $("status").textContent = `Kunne ikke slette: ${e.message}`;
+    showToast(`Kunne ikke slette: ${e.message}`, "error");
     btn.disabled = false;
   }
 }
@@ -329,6 +361,20 @@ async function load() {
 document.addEventListener("DOMContentLoaded", () => {
   load();
 
+  // Viser en bekræftelse her, hvis vi lige er kommet fra admincreate.html
+  // efter at have oprettet/opdateret et skema - resultatboksen dér nåede
+  // kun at vises et splitsekund før redirect hertil.
+  const params = new URLSearchParams(location.search);
+  if (params.has("created")) {
+    showToast("Nyt skema oprettet ✔", "success");
+    params.delete("created");
+    history.replaceState({}, "", location.pathname + (params.toString() ? `?${params}` : ""));
+  } else if (params.has("updated")) {
+    showToast("Skema opdateret ✔", "success");
+    params.delete("updated");
+    history.replaceState({}, "", location.pathname + (params.toString() ? `?${params}` : ""));
+  }
+
   $("checkAll")?.addEventListener("change", (e) => {
     document.querySelectorAll(".rowCheck").forEach(cb => { cb.checked = e.target.checked; });
     updateSelectionUi();
@@ -369,6 +415,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (tr?.dataset.href) location.href = tr.dataset.href;
   });
 });
+
+
+
 
 
 

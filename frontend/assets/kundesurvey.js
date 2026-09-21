@@ -616,7 +616,7 @@ function renderQuestions() {
       const addBtn = document.createElement("button");
       addBtn.type = "button";
       addBtn.className = "btn";
-      addBtn.textContent = "+ Tilføj flere";
+      addBtn.textContent = (g.tilfoejFlereKnapTekst || "").trim() || "+ Tilføj flere";
       addBtn.onclick = () => {
         const next = (repeatCounters[g.id] ?? 0) + 1;
         repeatCounters[g.id] = next;
@@ -1508,6 +1508,9 @@ async function showChangesSummary() {
 }
 
 document.addEventListener("DOMContentLoaded", init);
+
+
+
 
 
 

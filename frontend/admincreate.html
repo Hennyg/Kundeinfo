@@ -470,6 +470,32 @@
         min-width: 720px;
       }
     }
+
+    /* Synlig bekræftelse (popup) ved oprettelse/opdatering - den lille
+       "muted" statustekst er let at overse, og forsvinder helt inden
+       redirect til oversigten når man ikke sender mail. */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 1000;
+      min-width: 260px;
+      max-width: 420px;
+      padding: 14px 18px;
+      border-radius: 10px;
+      box-shadow: 0 6px 20px rgba(0,0,0,.2);
+      font-size: 14px;
+      line-height: 1.4;
+      color: #fff;
+      background: #1f6c7a;
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity .25s ease, transform .25s ease;
+      pointer-events: none;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    #toast.success { background: #137333; }
+    #toast.error { background: #b3261e; }
   </style>
 </head>
 
@@ -767,12 +793,17 @@
     });
   </script>
 
+  <div id="toast"></div>
+
   <script
     type="module"
     src="./assets/admincreate.js"
   ></script>
 </body>
 </html>
+
+
+
 
 
 
