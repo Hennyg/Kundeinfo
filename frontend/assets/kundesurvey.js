@@ -567,16 +567,33 @@ function renderQuestions() {
         const input = buildInput(it, value);
         if (isMarked) input.classList.add("changed");
 
+        // Marker feltet rødt med det samme kunden forlader det - ikke først
+        // når siden alligevel gentegnes (fx ved klik på "+ Tilføj flere"),
+        // for ellers ser kunden ikke selv hvad der lige er rettet/tilføjet.
+        const markFieldIfChanged = (currentValue) => {
+          const nowChanged = valuesDiffer(it.prefillText, currentValue);
+          const nowAdded = !it.prefillText && it.addedByCustomer && !!currentValue;
+          input.classList.toggle("changed", nowChanged || nowAdded);
+          const prefillBoxEl = label.querySelector(".prefill-box");
+          if (prefillBoxEl) prefillBoxEl.classList.toggle("changed", nowChanged);
+        };
+
         if (input.dataset.yesnoGroup) {
           // Ja/Nej-knapper: disabled/autosave sættes på de underliggende
           // radio-knapper, ikke på selve containeren.
           input.querySelectorAll('input[type="radio"]').forEach(radio => {
             if (isReadOnly() || isRemoved) radio.disabled = true;
-            radio.addEventListener("change", () => autosaveOnBlur());
+            radio.addEventListener("change", () => {
+              autosaveOnBlur();
+              markFieldIfChanged(radio.value);
+            });
           });
         } else {
           if (isReadOnly() || isRemoved) input.disabled = true;
-          input.addEventListener("blur", () => autosaveOnBlur());
+          input.addEventListener("blur", () => {
+            autosaveOnBlur();
+            markFieldIfChanged(input.value);
+          });
           if (it.number === LEVERINGSADRESSE_LINJE1_NR || it.number === LEVERINGSADRESSE_LINJE2_NR) {
             input.addEventListener("input", () => refreshAddressSuggestions());
           }
