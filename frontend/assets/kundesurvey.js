@@ -281,7 +281,43 @@ function buildInput(it, value) {
   return el;
 }
 
+function captureLiveValues() {
+  // Læser de VÆRDIER kunden har nået at skrive i den nuværende DOM, før
+  // renderQuestions() tegner formularen om (fx ved klik på "+ Tilføj flere"
+  // eller "Slet"/"Fortryd") - ellers ville et endnu ikke autosavet felt
+  // (autosave er debounced 600ms) blive nulstillet til den sidst KENDTE
+  // værdi fra DATA, som ikke nødvendigvis er det kunden lige har skrevet.
+  const map = new Map();
+  ui.form?.querySelectorAll("[data-questionid]").forEach(el => {
+    const questionId = (el.dataset.questionid || "").trim();
+    if (!questionId) return;
+    const repeatIndex = parseInt(el.dataset.repeatindex || "0", 10);
+    const key = `${questionId}|${repeatIndex}`;
+
+    if (el.type === "radio") {
+      if (el.checked) map.set(key, el.value ?? "");
+      return;
+    }
+    map.set(key, el.value ?? "");
+  });
+  return map;
+}
+
+function captureLiveNotes() {
+  const map = new Map();
+  ui.form?.querySelectorAll("[data-group-note]").forEach(el => {
+    const groupId = (el.dataset.groupId || "").trim();
+    if (!groupId) return;
+    const repeatIndex = parseInt(el.dataset.repeatIndex || "0", 10);
+    map.set(`${groupId}|${repeatIndex}`, el.value || "");
+  });
+  return map;
+}
+
 function renderQuestions() {
+  const liveValues = captureLiveValues();
+  const liveNotes = captureLiveNotes();
+
   ui.questions.innerHTML = "";
   lastChangeSummary = { changes: [], additions: [], adminAdditions: [], removed: [], notes: [], allItems: [] };
 
@@ -293,6 +329,8 @@ function renderQuestions() {
   for (const n of (DATA.notes || [])) {
     notesMap.set(`${n.groupId}|${n.repeatIndex}`, n.notetekst || "");
   }
+  // Overskriv med det kunden rent faktisk har stående i felterne lige nu.
+  for (const [key, val] of liveNotes) notesMap.set(key, val);
 
   // Basale spørgsmål (repeatIndex 0) pr. gruppe – bruges som skabelon for gentagelser
   const baseByGroup = new Map();
@@ -335,6 +373,12 @@ function renderQuestions() {
       return String(a.number || "").localeCompare(String(b.number || ""), "da", { numeric: true });
     });
   }
+
+  // Overskriv med det kunden rent faktisk har stående i felterne lige nu -
+  // inkl. gentagelser der slet ikke findes i DATA endnu (fx en helt ny
+  // blok tilføjet i DENNE session, før autosave/genindlæsning har nået at
+  // sætte den ind i DATA.items).
+  for (const [key, val] of liveValues) valueMap.set(key, val);
 
   for (const g of groups) {
     const baseQs = baseByGroup.get(g.id) || [];
