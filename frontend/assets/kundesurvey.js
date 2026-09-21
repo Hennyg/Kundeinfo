@@ -498,11 +498,13 @@ function renderQuestions() {
             group: g, groupId: g.id, repeatIndex: ri, number: it.number,
             question: it.text || "", value: value || it.prefillText || "",
             changed: isChangedFromPrefill,
-            // Tilføjet af enten kunden selv (ny gentagelse/blok) eller af
-            // den der oprettede skemaet (prefill ud over kendt data) - vises
-            // med en tydelig "Tilføjet"-markering i "Opsummering", så det
-            // ikke bare ser ud som almindelig, uændret data.
-            added: isAddedByCustomer || (!!it.addedByAdmin && !isChangedFromPrefill && (value || it.prefillText))
+            // Tilføjet af KUNDEN (ny gentagelse/blok, eller et felt kunden
+            // selv har udfyldt uden prefill) vises med én tekst, og
+            // tilføjet af DEN DER OPRETTER SKEMAET (prefill ud over kendt
+            // data) med en anden - så det altid er tydeligt hvem der har
+            // tilføjet noget i "Opsummering".
+            addedByCustomer: isAddedByCustomer,
+            addedByAdmin: !isAddedByCustomer && !!it.addedByAdmin && !isChangedFromPrefill && !!(value || it.prefillText)
           });
         }
 
@@ -1245,9 +1247,12 @@ function buildAreaSummary(system, entries) {
   const lineFor = (e) => {
     if (e.kind === "removed") return `${e.question} – slettet af kunden (var: "${e.value}")`;
     if (e.kind === "changed") return `${e.question}: "${e.before}" → "${e.after}"`;
-    if (e.kind === "full") return `${e.question}: ${e.value || "(ikke udfyldt)"}${e.changed ? " (rettet)" : e.added ? " (tilføjet)" : ""}`;
+    if (e.kind === "full") {
+      const suffix = e.changed ? " (rettet af kunden)" : e.addedByCustomer ? " (tilføjet af kunden)" : e.addedByAdmin ? " (tilføjet ved oprettelse)" : "";
+      return `${e.question}: ${e.value || "(ikke udfyldt)"}${suffix}`;
+    }
     if (e.kind === "admin-added") return `${e.question} – tilføjet ved oprettelse: "${e.value}"`;
-    if (e.kind === "note") return `${e.question}: "${e.value}"`;
+    if (e.kind === "note") return `${e.question}: "${e.value}" (tilføjet af kunden)`;
     return `${e.question} – tilføjet: "${e.value}"`;
   };
 
@@ -1265,9 +1270,11 @@ function buildAreaSummary(system, entries) {
       const valueHtml = escapeHtml(e.value || "(ikke udfyldt)");
       const styled = e.changed
         ? `<span style="color:#b3261e; font-weight:600;">${valueHtml}</span> <span style="color:#b3261e; font-weight:600;">(rettet af kunden)</span>`
-        : e.added
-          ? `<span style="color:#1f6c7a; font-weight:600;">${valueHtml}</span> <span style="color:#1f6c7a; font-weight:600;">(tilføjet)</span>`
-          : valueHtml;
+        : e.addedByCustomer
+          ? `<span style="color:#1f6c7a; font-weight:600;">${valueHtml}</span> <span style="color:#1f6c7a; font-weight:600;">(tilføjet af kunden)</span>`
+          : e.addedByAdmin
+            ? `<span style="color:#1f6c7a; font-weight:600;">${valueHtml}</span> <span style="color:#1f6c7a; font-weight:600;">(tilføjet ved oprettelse)</span>`
+            : valueHtml;
       return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong><br>${styled}</li>`;
     }
     if (e.kind === "admin-added") {
@@ -1276,13 +1283,15 @@ function buildAreaSummary(system, entries) {
         `<span class="muted">(tilføjet ved oprettelse)</span></li>`;
     }
     if (e.kind === "note") {
-      return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong><br>${escapeHtml(e.value)}</li>`;
+      return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong><br>` +
+        `<span style="color:#1f6c7a; font-weight:600;">${escapeHtml(e.value)}</span> ` +
+        `<span style="color:#1f6c7a; font-weight:600;">(tilføjet af kunden)</span></li>`;
     }
     return `<li style="margin-bottom:8px;"><strong>${escapeHtml(e.question)}</strong> – tilføjet: "${escapeHtml(e.value)}"</li>`;
   };
 
   const groups = groupAndSplitEntries(entries);
-  const isBoring = (e) => e.kind === "full" && !e.value && !e.changed && !e.added;
+  const isBoring = (e) => e.kind === "full" && !e.value && !e.changed && !e.addedByCustomer && !e.addedByAdmin;
 
   const html = groups.map(g => {
     const allGroupEntries = [...g.constantEntries, ...g.blocks.flatMap(b => b.entries)];
@@ -1304,11 +1313,19 @@ function buildAreaSummary(system, entries) {
       : "";
     const blocksHtml = g.blocks.map((block, idx) => {
       const isRemovedBlock = block.entries.length > 0 && block.entries.every(e => e.kind === "removed");
-      const isAddedBlock = !isRemovedBlock && block.entries.some(e => e.added) && !block.entries.some(e => e.changed);
-      const isBoringBlock = !isRemovedBlock && !isAddedBlock && block.entries.length > 0 && block.entries.every(isBoring);
+      const hasChange = block.entries.some(e => e.changed);
+      // Et note-felt har ikke noget "før"-stadie at sammenligne med - al
+      // note-tekst kunden selv har skrevet regnes derfor altid som en
+      // tilføjelse, på linje med felter uden prefill.
+      const isAddedByCustomerBlock = !isRemovedBlock && !hasChange &&
+        block.entries.some(e => e.addedByCustomer || e.kind === "note");
+      const isAddedByAdminBlock = !isRemovedBlock && !hasChange && !isAddedByCustomerBlock &&
+        block.entries.some(e => e.addedByAdmin);
+      const isBoringBlock = !isRemovedBlock && !isAddedByCustomerBlock && !isAddedByAdminBlock &&
+        block.entries.length > 0 && block.entries.every(isBoring);
 
       const numberLabel = g.blocks.length > 1 ? `${idx + 1}. ` : "";
-      const badge = isRemovedBlock ? "🗑 Slettet af kunden" : isAddedBlock ? "✚ Tilføjet" : "";
+      const badge = isRemovedBlock ? "🗑 Slettet af kunden" : isAddedByCustomerBlock ? "✚ Tilføjet af kunden" : isAddedByAdminBlock ? "✚ Tilføjet ved oprettelse" : "";
       const label = (badge || g.blocks.length > 1)
         ? `<div style="font-weight:600; margin:8px 0 2px; ${badge ? (isRemovedBlock ? "color:#b3261e;" : "color:#1f6c7a;") : "color:inherit;"}" class="${badge ? "" : "muted"}">${numberLabel}${badge}</div>`
         : "";
@@ -1352,13 +1369,15 @@ function buildAreaEmailHtml(system, entries, subjectPrefix) {
       : e.kind === "full"
         ? (e.changed
             ? `<strong style="color:#b3261e;">${escapeHtml(e.value || "(ikke udfyldt)")}</strong> <span style="color:#b3261e;">(rettet af kunden)</span>`
-            : e.added
-              ? `<strong style="color:#1f6c7a;">${escapeHtml(e.value || "(ikke udfyldt)")}</strong> <span style="color:#1f6c7a;">(tilføjet)</span>`
-              : escapeHtml(e.value || "(ikke udfyldt)"))
+            : e.addedByCustomer
+              ? `<strong style="color:#1f6c7a;">${escapeHtml(e.value || "(ikke udfyldt)")}</strong> <span style="color:#1f6c7a;">(tilføjet af kunden)</span>`
+              : e.addedByAdmin
+                ? `<strong style="color:#1f6c7a;">${escapeHtml(e.value || "(ikke udfyldt)")}</strong> <span style="color:#1f6c7a;">(tilføjet ved oprettelse)</span>`
+                : escapeHtml(e.value || "(ikke udfyldt)"))
         : e.kind === "admin-added"
           ? `<strong style="color:#1f6c7a;">${escapeHtml(e.value)}</strong> <span style="color:#888;">(tilføjet ved oprettelse)</span>`
           : e.kind === "note"
-            ? escapeHtml(e.value)
+            ? `<strong style="color:#1f6c7a;">${escapeHtml(e.value)}</strong> <span style="color:#1f6c7a;">(tilføjet af kunden)</span>`
             : `<strong>${escapeHtml(e.value)}</strong> <span style="color:#888;">(tilføjet)</span>`;
 
     return `
@@ -1369,7 +1388,7 @@ function buildAreaEmailHtml(system, entries, subjectPrefix) {
     `;
   };
 
-  const isBoring = (e) => e.kind === "full" && !e.value && !e.changed && !e.added;
+  const isBoring = (e) => e.kind === "full" && !e.value && !e.changed && !e.addedByCustomer && !e.addedByAdmin;
 
   const groupsHtml = groups.length
     ? groups.map(g => {
@@ -1394,13 +1413,18 @@ function buildAreaEmailHtml(system, entries, subjectPrefix) {
           : "";
         const blocksHtml = g.blocks.map((block, idx) => {
           const isRemovedBlock = block.entries.length > 0 && block.entries.every(e => e.kind === "removed");
-          const isAddedBlock = !isRemovedBlock && block.entries.some(e => e.added) && !block.entries.some(e => e.changed);
-          const isBoringBlock = !isRemovedBlock && !isAddedBlock && block.entries.length > 0 && block.entries.every(isBoring);
+          const hasChange = block.entries.some(e => e.changed);
+          const isAddedByCustomerBlock = !isRemovedBlock && !hasChange &&
+            block.entries.some(e => e.addedByCustomer || e.kind === "note");
+          const isAddedByAdminBlock = !isRemovedBlock && !hasChange && !isAddedByCustomerBlock &&
+            block.entries.some(e => e.addedByAdmin);
+          const isBoringBlock = !isRemovedBlock && !isAddedByCustomerBlock && !isAddedByAdminBlock &&
+            block.entries.length > 0 && block.entries.every(isBoring);
 
           const numberLabel = g.blocks.length > 1 ? `Nr. ${idx + 1}` : "";
-          const badge = isRemovedBlock ? " 🗑 Slettet af kunden" : isAddedBlock ? " ✚ Tilføjet" : "";
+          const badge = isRemovedBlock ? " 🗑 Slettet af kunden" : isAddedByCustomerBlock ? " ✚ Tilføjet af kunden" : isAddedByAdminBlock ? " ✚ Tilføjet ved oprettelse" : "";
           const label = (badge || g.blocks.length > 1)
-            ? `<div style="font-size:12px; font-weight:700; color:${isRemovedBlock ? "#b3261e" : isAddedBlock ? "#1f6c7a" : "#555"}; margin:12px 0 2px; padding-top:8px; border-top:1px dashed #ddd;">${numberLabel}${badge}</div>`
+            ? `<div style="font-size:12px; font-weight:700; color:${isRemovedBlock ? "#b3261e" : (isAddedByCustomerBlock || isAddedByAdminBlock) ? "#1f6c7a" : "#555"}; margin:12px 0 2px; padding-top:8px; border-top:1px dashed #ddd;">${numberLabel}${badge}</div>`
             : "";
           const body = isBoringBlock
             ? `<p style="color:#888; font-size:14px; margin:2px 0 0;">Ingen ændring.</p>`
