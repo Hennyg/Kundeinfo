@@ -92,7 +92,7 @@ module.exports = async function (context, req) {
     // 2) Hent spørgeskemasvar for denne kundeundersøgelse + udvid spørgsmål + gruppe
     const rowsPath =
       `cr175_lch_kundeinfo_spoergeskemasvars` +
-      `?$select=cr175_lch_kundeinfo_spoergeskemasvarid,cr175_lch_unik,cr175_lch_prefillvaerdi,cr175_lch_svarvaerdi,cr175_lch_gentagelsesindeks,_cr175_lch_spoergsmaal_value` +
+      `?$select=cr175_lch_kundeinfo_spoergeskemasvarid,cr175_lch_unik,cr175_lch_prefillvaerdi,cr175_lch_svarvaerdi,cr175_lch_gentagelsesindeks,cr175_lch_slettet,_cr175_lch_spoergsmaal_value` +
       `&$filter=${encodeURIComponent(`_cr175_lch_kundeundersoegelse_value eq ${instanceId}`)}` +
       `&$expand=${encodeURIComponent(
         `cr175_lch_spoergsmaal($select=cr175_lch_kundeinfo_spoergsmaalid,cr175_lch_nummer,cr175_lch_spoergsmaalstekst,cr175_lch_forklaring,cr175_lch_svartype,cr175_lch_paakraevet,cr175_lch_sorteringsnummer;` +
@@ -124,6 +124,7 @@ module.exports = async function (context, req) {
     // over det Uniconta/Entra allerede kendte) - adskilt fra
     // addedByQuestionRepeat, som dækker kundens egne tilføjelser.
     const addedByAdminQuestionRepeat = new Map();
+    const removedByQuestionRepeat = new Map();
     const repeatIndexesByGroup = new Map();
 
     for (const row of rows) {
@@ -165,6 +166,7 @@ module.exports = async function (context, req) {
       answerByQuestionRepeat.set(`${qid}|${ri}`, row.cr175_lch_svarvaerdi || "");
       addedByQuestionRepeat.set(`${qid}|${ri}`, /-NY-/.test(String(row.cr175_lch_unik || "")));
       addedByAdminQuestionRepeat.set(`${qid}|${ri}`, /-ADMIN-/.test(String(row.cr175_lch_unik || "")));
+      removedByQuestionRepeat.set(`${qid}|${ri}`, !!row.cr175_lch_slettet);
 
       if (!repeatIndexesByGroup.has(groupId)) repeatIndexesByGroup.set(groupId, new Set());
       repeatIndexesByGroup.get(groupId).add(ri);
@@ -205,6 +207,7 @@ module.exports = async function (context, req) {
         const prefillText = prefillByQuestionRepeat.get(`${bq.questionId}|${ri}`) || "";
         const addedByCustomer = addedByQuestionRepeat.get(`${bq.questionId}|${ri}`) || false;
         const addedByAdmin = addedByAdminQuestionRepeat.get(`${bq.questionId}|${ri}`) || false;
+        const removed = removedByQuestionRepeat.get(`${bq.questionId}|${ri}`) || false;
 
         items.push({
           itemId: ri === 0 ? bq.itemId : null,
@@ -220,6 +223,7 @@ module.exports = async function (context, req) {
           savedValue,
           addedByCustomer,
           addedByAdmin,
+          removed,
           sortKey: bq.sortKey
         });
       }

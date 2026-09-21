@@ -182,7 +182,11 @@ module.exports = async function (context, req) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             cr175_lch_svarvaerdi: value,
-            cr175_lch_gentagelsesindeks: repeatIndex
+            cr175_lch_gentagelsesindeks: repeatIndex,
+            // Nulstiller evt. tidligere slettemarkering - relevant hvis en
+            // blok blev slettet i en tidligere indsendelse, men senere er
+            // blevet rettet igen (fx via admins "Ret skema data").
+            cr175_lch_slettet: false
           })
         });
         updated++;
@@ -203,7 +207,10 @@ module.exports = async function (context, req) {
       }
     }
 
-    // 3) Slet svar for gentagelser kunden har fjernet
+    // 3) Marker svar for gentagelser kunden har fjernet som SLETTET - i
+    // stedet for at DELETE'e rækken permanent. Værdien bevares, så admin
+    // stadig kan se hvad der stod, krydset over, når skemaet gennemses
+    // bagefter (ellers forsvinder blokken bare helt fra visningen igen).
     for (const rem of removed) {
       const questionId = String(rem.questionId || "").trim();
       const repeatIndex = Number.isFinite(Number(rem.repeatIndex)) ? Number(rem.repeatIndex) : 0;
@@ -222,7 +229,11 @@ module.exports = async function (context, req) {
       const existingId = (fd?.value || [])[0]?.cr175_lch_kundeinfo_spoergeskemasvarid || null;
 
       if (existingId) {
-        await dvFetch(`cr175_lch_kundeinfo_spoergeskemasvars(${existingId})`, { method: "DELETE" });
+        await dvFetch(`cr175_lch_kundeinfo_spoergeskemasvars(${existingId})`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cr175_lch_slettet: true })
+        });
         deleted++;
       }
     }
@@ -310,3 +321,6 @@ module.exports = async function (context, req) {
     return json(context, 500, { error: "server_error", message: err.message || String(err) });
   }
 };
+
+
+

@@ -670,6 +670,12 @@ async function loadSurvey() {
 
   DATA = data;
   removedRepeats.clear();
+  // Genskab hvilke gentagelser der er slettet, fra data'en vi lige har
+  // hentet - ellers "glemmer" siden det, hver gang skemaet genindlæses
+  // (fx ved gennemsyn af et afsluttet skema, eller efter et sideskift).
+  for (const it of items) {
+    if (it.removed) removedRepeats.add(`${it.groupId}:${it.repeatIndex}`);
+  }
   initRepeatCounters();
 
   ui.title.textContent = data?.customerName ? `Spørgeskema – ${data.customerName}` : "Spørgeskema";
@@ -731,7 +737,12 @@ async function initAdminStatusTile(data, customerLink) {
   }
 
   if (ui.showChangesSummaryBtn) {
-    if (data?.status === "Udfyldt") {
+    // "Udfyldt" = kunden er færdig, men opsummeringen er ikke sendt endnu.
+    // "Afsluttet" = opsummeringen ER sendt (via "Send"-knappen i
+    // opsummeringen) - knappen skal blive stående så man altid kan åbne
+    // opsummeringen igen for et afsluttet skema, ikke kun første gang.
+    const isFinished = data?.status === "Udfyldt" || data?.status === "Afsluttet";
+    if (isFinished) {
       // "Se skema som kunden ser den" åbner uden ro=1, og det er ikke
       // længere muligt, når skemaet er udfyldt (survey-start afviser det) -
       // så erstat linket med "Vis Rettelser & tilføjelser" i stedet for at

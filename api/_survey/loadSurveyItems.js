@@ -42,7 +42,7 @@ async function loadSurveyItems(code) {
   // 2) Hent spørgeskemasvar for denne kundeundersøgelse + udvid spørgsmål + gruppe
   const rowsPath =
     `cr175_lch_kundeinfo_spoergeskemasvars` +
-    `?$select=cr175_lch_kundeinfo_spoergeskemasvarid,cr175_lch_unik,cr175_lch_prefillvaerdi,cr175_lch_svarvaerdi,cr175_lch_gentagelsesindeks,_cr175_lch_spoergsmaal_value` +
+    `?$select=cr175_lch_kundeinfo_spoergeskemasvarid,cr175_lch_unik,cr175_lch_prefillvaerdi,cr175_lch_svarvaerdi,cr175_lch_gentagelsesindeks,cr175_lch_slettet,_cr175_lch_spoergsmaal_value` +
     `&$filter=${encodeURIComponent(`_cr175_lch_kundeundersoegelse_value eq ${instanceId}`)}` +
     `&$expand=${encodeURIComponent(
       `cr175_lch_spoergsmaal($select=cr175_lch_kundeinfo_spoergsmaalid,cr175_lch_nummer,cr175_lch_spoergsmaalstekst,cr175_lch_forklaring,cr175_lch_svartype,cr175_lch_paakraevet,cr175_lch_sorteringsnummer;` +
@@ -66,6 +66,7 @@ async function loadSurveyItems(code) {
   const prefillByQuestionRepeat = new Map();
   const answerByQuestionRepeat = new Map();
   const addedByQuestionRepeat = new Map();
+  const removedByQuestionRepeat = new Map();
   const repeatIndexesByGroup = new Map();
 
   for (const row of rows) {
@@ -99,6 +100,7 @@ async function loadSurveyItems(code) {
     prefillByQuestionRepeat.set(`${qid}|${ri}`, row.cr175_lch_prefillvaerdi || "");
     answerByQuestionRepeat.set(`${qid}|${ri}`, row.cr175_lch_svarvaerdi || "");
     addedByQuestionRepeat.set(`${qid}|${ri}`, /-NY-/.test(String(row.cr175_lch_unik || "")));
+    removedByQuestionRepeat.set(`${qid}|${ri}`, !!row.cr175_lch_slettet);
 
     if (!repeatIndexesByGroup.has(groupId)) repeatIndexesByGroup.set(groupId, new Set());
     repeatIndexesByGroup.get(groupId).add(ri);
@@ -137,6 +139,7 @@ async function loadSurveyItems(code) {
       const savedValue = answerByQuestionRepeat.get(`${bq.questionId}|${ri}`) ?? "";
       const prefillText = prefillByQuestionRepeat.get(`${bq.questionId}|${ri}`) || "";
       const addedByCustomer = addedByQuestionRepeat.get(`${bq.questionId}|${ri}`) || false;
+      const removed = removedByQuestionRepeat.get(`${bq.questionId}|${ri}`) || false;
 
       items.push({
         itemId: ri === 0 ? bq.itemId : null,
@@ -151,6 +154,7 @@ async function loadSurveyItems(code) {
         prefillText,
         savedValue,
         addedByCustomer,
+        removed,
         sortKey: bq.sortKey
       });
     }
@@ -170,3 +174,6 @@ async function loadSurveyItems(code) {
 }
 
 module.exports = { loadSurveyItems };
+
+
+
