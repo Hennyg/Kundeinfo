@@ -1,4 +1,8 @@
-const { graph } = require("../_graph/graph");
+// api/entra-customer-contacts/index.js
+// Kopi af Kundeinfo-appens endpoint - ejere og medarbejdere (gæstebrugere
+// med kundenr i companyName) for en kunde.
+
+const { graphGet } = require("../_graphKunde");
 
 function json(context, status, body) {
   context.res = {
@@ -96,7 +100,7 @@ module.exports = async function (context, req) {
     }
 
     const acceptedNumbers = customerNumberVariants(customerNumber);
-const select = [
+    const select = [
   "id",
   "displayName",
   "givenName",
@@ -121,7 +125,7 @@ const select = [
     const matched = [];
 
     for (let guard = 0; guard < 50 && path; guard++) {
-      const page = await graph("GET", path);
+      const page = await graphGet(path);
 
       for (const user of page?.value || []) {
         if (text(user.userType).toLowerCase() !== "guest") continue;
