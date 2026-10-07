@@ -27,19 +27,25 @@ module.exports = async function (context, req) {
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
     const sendtTilRaw = req.body?.sendtTil;
     const sendtTil = sendtTilRaw === undefined ? undefined : (String(sendtTilRaw || "").trim() || null);
+    const sendtTilMobilRaw = req.body?.sendtTilMobil;
+    const sendtTilMobil = sendtTilMobilRaw === undefined ? undefined : (String(sendtTilMobilRaw || "").trim() || null);
 
-    if (!instanceId || (!items.length && sendtTil === undefined)) {
+    if (!instanceId || (!items.length && sendtTil === undefined && sendtTilMobil === undefined)) {
       return json(context, 400, { error: "missing_data", message: "Mangler instanceId eller items." });
     }
 
-    // "Brug email"-feltet (cr175_lch_sendttil) er ikke en spørgeskemasvar-
-    // række, men hører til selve kundeundersøgelse-instansen - opdateres
-    // derfor separat, kun hvis feltet reelt er sendt med.
-    if (sendtTil !== undefined) {
+    // "Brug email"- og "Brug mobil"-felterne (cr175_lch_sendttil /
+    // cr175_lch_sendttilmobil) er ikke spørgeskemasvar-rækker, men hører til
+    // selve kundeundersøgelse-instansen - opdateres derfor separat, kun med
+    // de felter der reelt er sendt med.
+    const instancePatch = {};
+    if (sendtTil !== undefined) instancePatch.cr175_lch_sendttil = sendtTil;
+    if (sendtTilMobil !== undefined) instancePatch.cr175_lch_sendttilmobil = sendtTilMobil;
+    if (Object.keys(instancePatch).length) {
       await dvFetch(`cr175_lch_kundeinfo_kundeundersoegelses(${instanceId})`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json; charset=utf-8" },
-        body: JSON.stringify({ cr175_lch_sendttil: sendtTil })
+        body: JSON.stringify(instancePatch)
       });
     }
 
@@ -101,6 +107,3 @@ module.exports = async function (context, req) {
     return json(context, 500, { error: "server_error", message: err.message || String(err) });
   }
 };
-
-
-

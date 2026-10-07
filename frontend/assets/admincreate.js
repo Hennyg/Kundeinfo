@@ -3,12 +3,9 @@ let els;
 // Kunde-vendte links (i mails og "kopiér link") skal altid pege på vores
 // eget domæne, uanset hvilket domæne admin selv sidder på lige nu
 // (fx *.azurestaticapps.net under test) - ellers ser mailen ikke ud til at
-// komme fra os. Ret KUN her, hvis domænet nogensinde skifter.
-// MIDLERTIDIGT (test i dag) - DNS/custom domain for kundeinfo.lcherrup.dk
-// virker ikke lige nu, så peger midlertidigt på SWA'ens eget azurestaticapps.net-
-// hostnavn i stedet. Husk at sætte den tilbage til
-// "https://kundeinfo.lcherrup.dk" igen, når DNS'en er på plads.
-const CUSTOMER_BASE_URL = "https://yellow-meadow-08815f003.2.azurestaticapps.net";
+// komme fra os. Ret KUN her, hvis domænet nogensinde skifter. (Selve
+// mail-linket bygges desuden på serveren i survey-send-invite-mail.)
+const CUSTOMER_BASE_URL = "https://kundeinfo.lcherrup.dk";
 
 // Den indloggede admins egen mailadresse (fra /.auth/me), til
 // "Opret og send mail til: xx"-knappen. Sat af loadOwnEmail().
@@ -379,8 +376,11 @@ function debtorRow(label, value) {
 // updateCreateMailTarget() (fx skift af mailskabelon), så en admins egen
 // rettelse af adressen ikke bliver overskrevet undervejs.
 function syncCustomerEmailField() {
-  if (!els.useEmail) return;
-  els.useEmail.value = (currentDebtor?.email || "").trim();
+  if (els.useEmail) els.useEmail.value = (currentDebtor?.email || "").trim();
+  // Mobilnummeret til SMS-påmindelsen gemmes på skemaet ved oprettelsen
+  // (cr175_lch_sendttilmobil), så runbook'en ikke selv skal slå op i
+  // Uniconta. Samme regel som mailfeltet: sættes kun når debitoren skifter.
+  if (els.useMobile) els.useMobile.value = (currentDebtor?.mobile || "").trim();
 }
 
 // Opdaterer "Opret skema og send mail til: xx"-knappen med den mailadresse
@@ -1403,6 +1403,9 @@ async function loadInstanceForEdit(instanceId) {
     if (els.useEmail) {
       els.useEmail.value = data.sendtTil || "";
     }
+    if (els.useMobile) {
+      els.useMobile.value = data.sendtTilMobil || "";
+    }
 
     for (const it of (data.items || [])) {
       setPrefillValueByQuestionRepeat(it.questionId, it.repeatIndex, it.prefillText);
@@ -1505,7 +1508,8 @@ async function saveEditedInstance() {
         repeatIndex: p.repeatIndex,
         prefillText: p.prefillText
       })),
-      sendtTil: (els.useEmail?.value || "").trim() || null
+      sendtTil: (els.useEmail?.value || "").trim() || null,
+      sendtTilMobil: (els.useMobile?.value || "").trim() || null
     };
 
     await fetchJson("/api/survey-items-update", {
@@ -1631,7 +1635,8 @@ async function createOrSaveInstance(sendMailAfter, recipientOverride) {
       note,
       prefillItems,
       oprettetAf: ownEmail || null,
-      sendtTil: (els.useEmail?.value || "").trim() || null
+      sendtTil: (els.useEmail?.value || "").trim() || null,
+      sendtTilMobil: (els.useMobile?.value || "").trim() || null
     };
 
     const res = await fetchJson(
@@ -1745,6 +1750,9 @@ document.addEventListener(
 
       useEmail:
         $("useEmail"),
+
+      useMobile:
+        $("useMobile"),
 
       expiresAt:
         $("expiresAt"),
@@ -1992,9 +2000,3 @@ document.addEventListener(
     }
   }
 );
-
-
-
-
-
-

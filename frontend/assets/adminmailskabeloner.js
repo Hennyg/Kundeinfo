@@ -1,5 +1,18 @@
 // /frontend/assets/adminmailskabeloner.js
+//
+// Vedligeholder både mail- og SMS-skabeloner i samme Dataverse-tabel
+// (cr175_lch_kundeinfo_mailskabelons). En SMS-skabelon er kendetegnet ved
+// kategorien "sms-paamindelse" (SMS_CATEGORY) - der er altså intet separat
+// type-felt i Dataverse. SMS-skabeloner har ingen emne og ingen PDF, og
+// brødteksten er ren tekst. De bruges af SMS-påmindelses-runbook'en i
+// Automation Account "Kundeinfo".
 let els = null;
+
+const SMS_CATEGORY = "sms-paamindelse";
+
+function isSmsCategory(kategori) {
+  return String(kategori || "").trim().toLowerCase().startsWith("sms");
+}
 
 function escapeHtml(s) {
   return String(s ?? "")
@@ -45,6 +58,11 @@ function getEls() {
     btnReset: document.getElementById("btnReset"),
 
     tid: document.getElementById("tid"),
+    ttype: document.getElementById("ttype"),
+    tbroedtekstLabel: document.getElementById("tbroedtekstLabel"),
+    smsCounter: document.getElementById("smsCounter"),
+    hintMail: document.getElementById("hintMail"),
+    hintSms: document.getElementById("hintSms"),
     tnavn: document.getElementById("tnavn"),
     tkategori: document.getElementById("tkategori"),
     temne: document.getElementById("temne"),
@@ -129,15 +147,90 @@ function updateCurrentPdfInfo(existingFilename) {
   }
 }
 
+/* ---------- Mail/SMS-type ---------- */
+
+function currentType() {
+  return els.ttype?.value === "sms" ? "sms" : "mail";
+}
+
+// GSM 7-bit tegnsæt (inkl. æøåÆØÅ). Tegn udenfor gør SMS'en til Unicode,
+// hvor der kun er plads til 70 tegn pr. SMS.
+const GSM7 = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?" +
+  "¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
+const GSM7_EXT = "^{}\\[~]|€";
+
+function smsInfo(text) {
+  let len = 0;
+  let unicode = false;
+  for (const ch of String(text || "")) {
+    if (GSM7.includes(ch)) len += 1;
+    else if (GSM7_EXT.includes(ch)) len += 2;
+    else { unicode = true; break; }
+  }
+  if (unicode) {
+    const n = [...String(text || "")].length;
+    return { chars: n, unicode: true, parts: n <= 70 ? 1 : Math.ceil(n / 67) };
+  }
+  return { chars: len, unicode: false, parts: len <= 160 ? 1 : Math.ceil(len / 153) };
+}
+
+function updateSmsCounter() {
+  if (!els.smsCounter) return;
+  if (currentType() !== "sms") {
+    els.smsCounter.classList.add("hidden");
+    return;
+  }
+  const text = els.tbroedtekst.value || "";
+  const info = smsInfo(text);
+  els.smsCounter.classList.remove("hidden");
+  els.smsCounter.classList.toggle("warn", info.parts > 1 || info.unicode);
+  els.smsCounter.textContent =
+    `${info.chars} tegn = ${info.parts} SMS${info.unicode ? " (specialtegn/emoji – kun 70 tegn pr. SMS)" : ""}. ` +
+    `Tallet er før pladsholdere indsættes – {{link}} fylder ca. 55 tegn, {{kundenavn}} varierer.`;
+}
+
+function applyTypeUI() {
+  const sms = currentType() === "sms";
+
+  document.querySelectorAll(".mailOnly").forEach(el => el.classList.toggle("hidden", sms));
+  els.hintMail?.classList.toggle("hidden", sms);
+  els.hintSms?.classList.toggle("hidden", !sms);
+
+  if (els.tbroedtekstLabel) els.tbroedtekstLabel.textContent = sms ? "SMS-tekst" : "Brødtekst (HTML)";
+  els.tbroedtekst.rows = sms ? 5 : 12;
+  els.tbroedtekst.placeholder = sms
+    ? "Hej {{kundenavn}}. Vi mangler stadig dit svar på vores spørgeskema: {{link}} Mvh Lely Center Herrup"
+    : "Hej {{kundenavn}},\n\nUdfyld venligst spørgeskemaet her: {{link}}";
+
+  if (sms) {
+    els.tkategori.value = SMS_CATEGORY;
+    els.tkategori.readOnly = true;
+  } else {
+    if (isSmsCategory(els.tkategori.value)) els.tkategori.value = "";
+    els.tkategori.readOnly = false;
+  }
+
+  updateSmsCounter();
+}
+
 function readForm() {
+  const sms = currentType() === "sms";
+
   const payload = {
     id: (els.tid.value || "").trim() || null,
     navn: (els.tnavn.value || "").trim(),
-    kategori: (els.tkategori.value || "").trim() || null,
-    emne: (els.temne.value || "").trim() || null,
-    broedtekst: els.tbroedtekst.value || null,
+    kategori: sms ? SMS_CATEGORY : ((els.tkategori.value || "").trim() || null),
+    emne: sms ? null : ((els.temne.value || "").trim() || null),
+    broedtekst: (sms ? (els.tbroedtekst.value || "").trim() : els.tbroedtekst.value) || null,
     aktiv: !!els.taktiv.checked,
   };
+
+  // En SMS kan ikke have en vedhæftning - fjern en evt. eksisterende.
+  if (sms) {
+    payload.vedhaeftetpdf = null;
+    payload.vedhaeftetpdfnavn = null;
+    return payload;
+  }
 
   // PDF-felterne sendes KUN med hvis admin aktivt har ændret noget - ellers
   // rører vi ikke ved en evt. eksisterende vedhæftning (se
@@ -160,10 +253,12 @@ function fillForm(t) {
   els.temne.value = t.cr175_lch_emne || "";
   els.tbroedtekst.value = t.cr175_lch_broedtekst || "";
   els.taktiv.checked = (t.cr175_lch_aktiv ?? true) === true;
+  if (els.ttype) els.ttype.value = isSmsCategory(t.cr175_lch_kategori) ? "sms" : "mail";
 
   pdfState = { action: "keep", base64: null, filename: null };
   if (els.tpdf) els.tpdf.value = "";
   updateCurrentPdfInfo(t.cr175_lch_vedhaeftetpdfnavn || null);
+  applyTypeUI();
 }
 
 function resetForm() {
@@ -171,10 +266,12 @@ function resetForm() {
   els.tid.value = "";
   els.status.textContent = "";
   els.taktiv.checked = true;
+  if (els.ttype) els.ttype.value = "mail";
 
   pdfState = { action: "keep", base64: null, filename: null };
   if (els.tpdf) els.tpdf.value = "";
   updateCurrentPdfInfo(null);
+  applyTypeUI();
 }
 
 async function listTemplates() {
@@ -193,11 +290,13 @@ async function listTemplates() {
   rows.sort((a, b) => String(a.cr175_lch_navn || "").localeCompare(String(b.cr175_lch_navn || ""), "da"));
 
   rows.forEach(t => {
+    const sms = isSmsCategory(t.cr175_lch_kategori);
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${escapeHtml(t.cr175_lch_navn ?? '')}</td>
+      <td>${sms ? 'SMS' : 'Mail'}</td>
       <td>${escapeHtml(t.cr175_lch_kategori ?? '—')}</td>
-      <td>${escapeHtml(t.cr175_lch_emne ?? '')}</td>
+      <td>${sms ? '—' : escapeHtml(t.cr175_lch_emne ?? '')}</td>
       <td>${t.cr175_lch_vedhaeftetpdfnavn ? `Ja (${escapeHtml(t.cr175_lch_vedhaeftetpdfnavn)})` : '—'}</td>
       <td>${(t.cr175_lch_aktiv ?? true) ? 'Ja' : 'Nej'}</td>
       <td class="actions">
@@ -216,10 +315,11 @@ async function listTemplates() {
    rent faktisk understøtter (se api/survey-send-invite-mail/index.js).
    Tilføjes en ny pladsholder i koden, skal den også tilføjes her manuelt. */
 
+// sms: true = understøttes også i SMS-skabeloner (runbook'en).
 const AVAILABLE_PLACEHOLDERS = [
-  { kode: "kundenavn", navn: "Kundenavn", beskrivelse: "Kundens navn, fx 'Enslev Agro I/S'" },
-  { kode: "kode", navn: "Kode", beskrivelse: "Skemaets kode, fx '111965'" },
-  { kode: "link", navn: "Link", beskrivelse: "Link til selve spørgeskemaet kunden skal udfylde" },
+  { kode: "kundenavn", navn: "Kundenavn", beskrivelse: "Kundens navn, fx 'Enslev Agro I/S'", sms: true },
+  { kode: "kode", navn: "Kode", beskrivelse: "Skemaets kode, fx '111965'", sms: true },
+  { kode: "link", navn: "Link", beskrivelse: "Link til selve spørgeskemaet kunden skal udfylde", sms: true },
   { kode: "afsendernavn", navn: "Afsendernavn", beskrivelse: "Navnet på den admin-bruger der sender mailen (til signatur)" },
   { kode: "kundeemail", navn: "Kundens e-mail", beskrivelse: "Fra Uniconta debitor-data" },
   { kode: "telefon", navn: "Telefon", beskrivelse: "Fra Uniconta debitor-data" },
@@ -238,7 +338,7 @@ function renderPlaceholderList() {
       <span class="ph-item">
         <code>{{${escapeHtml(p.kode)}}}</code>${escapeHtml(p.navn)}${
           p.beskrivelse ? ` – ${escapeHtml(p.beskrivelse)}` : ''
-        }
+        }${p.sms ? '<span class="smsOk">(også SMS)</span>' : ''}
       </span>
     `)
     .join("");
@@ -273,7 +373,7 @@ async function upsertTemplate(payload) {
 }
 
 async function deleteTemplate(id) {
-  if (!confirm("Slet denne mailskabelon?")) return;
+  if (!confirm("Slet denne skabelon?")) return;
 
   const r = await fetch(`/api/mailskabeloner-delete?id=${encodeURIComponent(id)}`, {
     method: "DELETE"
@@ -299,6 +399,9 @@ function wireEvents() {
   });
 
   els.btnReset.addEventListener("click", resetForm);
+
+  els.ttype?.addEventListener("change", applyTypeUI);
+  els.tbroedtekst?.addEventListener("input", updateSmsCounter);
 
   els.table.addEventListener("click", async (e) => {
     const btn = e.target.closest("button");
@@ -387,6 +490,7 @@ async function init() {
   if (!me) return;
 
   wireEvents();
+  applyTypeUI();
   await listTemplates();
   renderPlaceholderList();
 }

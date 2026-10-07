@@ -26,12 +26,25 @@
 // Efter mailen er sendt, gemmes tidspunktet på selve kundeundersøgelsen
 // (cr175_lch_mailsendttidspunkt), så adminoversigt.html kan vise en ægte
 // "Mail sendt"-kolonne adskilt fra "Skema oprettet".
+//
+// Kundelinket ({{link}}) bygges HER på serveren ud fra koden og
+// CUSTOMER_BASE_URL - det link browseren sender med ignoreres. Så peger
+// mailen altid på kundeinfo.lcherrup.dk, uanset om admin sidder på
+// azurestaticapps.net-adressen, og uanset hvilken side mailen sendes fra
+// (admincreate.html, redigering eller "Se skema"-statusboksen).
 
 const { graph } = require("../_graph/graph");
 const { getTemplateById, substitutePlaceholders } = require("../_mail/renderTemplate");
 const { unicontaFetch, normalizeDebtor } = require("../_uniconta");
 const { cdFetch: dvFetch } = require("../_coredata");
 const { STATUS, advanceStatus } = require("../_surveyStatus");
+
+// Kunde-vendt domæne til links i mails. Ret KUN her, hvis domænet skifter.
+const CUSTOMER_BASE_URL = "https://kundeinfo.lcherrup.dk";
+
+function buildCustomerLink(code) {
+  return `${CUSTOMER_BASE_URL}/kundesurvey.html?code=${encodeURIComponent(code)}`;
+}
 
 function json(context, status, body) {
   context.res = {
@@ -107,17 +120,18 @@ module.exports = async function (context, req) {
     }
 
     const code = String(req?.body?.code || "").trim();
-    const link = String(req?.body?.link || "").trim();
+    // Bygges altid på serveren (se kommentar øverst) - req.body.link ignoreres.
+    const link = code ? buildCustomerLink(code) : "";
     const customerName = String(req?.body?.customerName || "").trim();
     const customerNumber = String(req?.body?.customerNumber || "").trim();
     const instanceId = String(req?.body?.instanceId || "").trim();
     const to = String(req?.body?.to || "").trim();
     const templateId = String(req?.body?.templateId || "").trim();
 
-    if (!code || !link || !to) {
+    if (!code || !to) {
       return json(context, 400, {
         error: "missing_fields",
-        message: "Mangler code, link eller modtager."
+        message: "Mangler code eller modtager."
       });
     }
 
@@ -235,6 +249,7 @@ module.exports = async function (context, req) {
       ok: true,
       from: fromMailbox,
       to,
+      link,
       templateId,
       unicontaDebtorFound: !!debtor,
       mailTimestampSaved
@@ -248,6 +263,3 @@ module.exports = async function (context, req) {
     });
   }
 };
-
-
-

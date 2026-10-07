@@ -70,6 +70,9 @@ module.exports = async function (context, req) {
     const expiresAt = safeIsoOrNull(p.expiresAt);
     const oprettetAf = (p.oprettetAf ?? "").toString().trim() || null;
     const sendtTil = (p.sendtTil ?? "").toString().trim() || null;
+    // Mobilnummer til SMS-påmindelsen (runbook i Automation Account
+    // "Kundeinfo"). Udfyldes fra Uniconta på admincreate.html, men kan rettes.
+    const sendtTilMobil = (p.sendtTilMobil ?? "").toString().trim() || null;
 
     if (!customerName) {
       return json(context, 400, { error: "missing_customerName", message: "Mangler customerName." });
@@ -93,6 +96,7 @@ module.exports = async function (context, req) {
     if (expiresAt) instanceBody.cr175_lch_udloebstidspunkt = expiresAt;
     if (oprettetAf) instanceBody.cr175_lch_oprettetaf = oprettetAf;
     if (sendtTil) instanceBody.cr175_lch_sendttil = sendtTil;
+    if (sendtTilMobil) instanceBody.cr175_lch_sendttilmobil = sendtTilMobil;
 
     const rCreate = await dvFetch("cr175_lch_kundeinfo_kundeundersoegelses", {
       method: "POST",
@@ -148,6 +152,3 @@ module.exports = async function (context, req) {
     return json(context, 500, { error: "server_error", detail: err.message, stack: String(err.stack || "") });
   }
 };
-
-
-

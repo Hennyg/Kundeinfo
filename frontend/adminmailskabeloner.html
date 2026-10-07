@@ -2,7 +2,7 @@
 <html lang="da">
 <head>
   <meta charset="utf-8" />
-  <title>Admin – Mailskabeloner</title>
+  <title>Admin – Mail- og SMS-skabeloner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="./assets/style.css" rel="stylesheet" />
   <style>
@@ -32,6 +32,9 @@
       padding:10px 12px; background:#f7f7f7; border:1px solid #e3e3e3; border-radius:8px;
       font-size:13px; color:#444;
     }
+    .smsCounter { font-size:12px; color:#666; margin-top:4px; }
+    .smsCounter.warn { color:#b45309; }
+    .placeholderList .ph-item .smsOk { font-size:11px; color:#0a7a3d; margin-left:4px; }
     .placeholderList .ph-item code {
       background:#fff; border:1px solid #ddd; border-radius:4px;
       padding:1px 5px; font-size:12px; margin-right:4px;
@@ -59,7 +62,7 @@
   <div id="app" style="display:none">
     <div class="navbar">
       <div class="navbar-inner">
-        <div class="brand">Admin - Mailskabeloner</div>
+        <div class="brand">Admin - Mail- og SMS-skabeloner</div>
         <nav class="nav">
           <a href="./index.html">Hjem</a>
           <span class="sep">•</span>
@@ -71,7 +74,7 @@
 
     <div class="container">
       <header>
-        <h1>Admin · Mailskabeloner</h1>
+        <h1>Admin · Mail- og SMS-skabeloner</h1>
         <div id="authArea">
           <span id="userInfo" class="muted"></span>
           <a class="tag" href="/.auth/logout?post_logout_redirect_uri=/">Log ud</a>
@@ -81,10 +84,16 @@
       <section class="card">
         <h2>Opret/ret skabelon</h2>
 
-        <div class="placeholderHint">
+        <div class="placeholderHint" id="hintMail">
           Pladsholdere indsættes som <code>{{kode}}</code> i Emne og Brødtekst og bliver erstattet
           med de rigtige værdier når mailen sendes. Se listen over tilgængelige pladsholdere
           nederst på siden. Brødtekst må gerne indeholde HTML.
+        </div>
+        <div class="placeholderHint hidden" id="hintSms">
+          SMS-skabeloner er ren tekst (ingen HTML). Pladsholderne <code>{{kundenavn}}</code>,
+          <code>{{kode}}</code> og <code>{{link}}</code> kan bruges og bliver erstattet når SMS'en
+          sendes af påmindelses-runbook'en (kategori <code>sms-paamindelse</code>). Afsendernavnet på
+          SMS'en er fast og styres ikke herfra.
         </div>
 
         <form id="templateForm">
@@ -96,6 +105,14 @@
           </div>
 
           <div class="row">
+            <label for="ttype">Type</label>
+            <select id="ttype" style="padding:.5rem; max-width:200px;">
+              <option value="mail">Mail</option>
+              <option value="sms">SMS</option>
+            </select>
+          </div>
+
+          <div class="row">
             <label for="tkategori">Kategori</label>
             <input id="tkategori" placeholder="fx opret-skema" />
           </div>
@@ -104,21 +121,25 @@
             <div class="muted" style="margin-top:-6px;">
               Bruges til at filtrere hvilke skabeloner der vises i dropdown-menuer rundt om i
               systemet (fx skabelon-vælgeren på "Opret skema"-siden bruger kategorien
-              <code>opret-skema</code>).
+              <code>opret-skema</code>). SMS-skabeloner får altid kategorien
+              <code>sms-paamindelse</code>.
             </div>
           </div>
 
-          <div class="row">
+          <div class="row mailOnly">
             <label for="temne">Emne</label>
             <input id="temne" placeholder="fx Spørgeskema til {{kundenavn}}" />
           </div>
 
           <div class="row">
-            <label for="tbroedtekst">Brødtekst (HTML)</label>
-            <textarea id="tbroedtekst" rows="12" placeholder="Hej {{kundenavn}},&#10;&#10;Udfyld venligst spørgeskemaet her: {{link}}"></textarea>
+            <label for="tbroedtekst" id="tbroedtekstLabel">Brødtekst (HTML)</label>
+            <div>
+              <textarea id="tbroedtekst" rows="12" placeholder="Hej {{kundenavn}},&#10;&#10;Udfyld venligst spørgeskemaet her: {{link}}"></textarea>
+              <div id="smsCounter" class="smsCounter hidden"></div>
+            </div>
           </div>
 
-          <div class="row">
+          <div class="row mailOnly">
             <label></label>
             <div style="border:1px solid #e3e3e3; border-radius:8px; padding:14px; background:#fafafa;">
               <div style="font-weight:600; margin-bottom:4px;">Hjælpeværktøj: Tekst → HTML</div>
@@ -153,7 +174,7 @@ Med venlig hilsen
             </div>
           </div>
 
-          <div class="row">
+          <div class="row mailOnly">
             <label for="tpdf">Vedhæftet PDF</label>
             <div>
               <div id="currentPdfInfo" class="muted" style="margin-bottom:6px;"></div>
@@ -161,7 +182,7 @@ Med venlig hilsen
               <button type="button" id="btnRemovePdf" class="hidden" style="margin-left:8px;">Fjern vedhæftning</button>
             </div>
           </div>
-          <div class="row">
+          <div class="row mailOnly">
             <label></label>
             <div class="muted" style="margin-top:-6px;">
               Sendes automatisk med som vedhæftet fil på mails der bruger denne skabelon. Maks. ca.
@@ -191,6 +212,7 @@ Med venlig hilsen
           <thead>
             <tr>
               <th>Navn</th>
+              <th>Type</th>
               <th>Kategori</th>
               <th>Emne</th>
               <th>PDF</th>
@@ -218,9 +240,6 @@ Med venlig hilsen
     requireAuth({ autoRedirect: false });
   </script>
 
-  <script src="./assets/adminmailskabeloner.js" type="module"></script>
+  <script src="./assets/adminmailskabeloner.js?v=2" type="module"></script>
 </body>
 </html>
-
-
-

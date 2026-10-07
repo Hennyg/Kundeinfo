@@ -23,7 +23,7 @@ module.exports = async function (context, req) {
 
     const instRes = await dvFetch(
       `cr175_lch_kundeinfo_kundeundersoegelses(${id})` +
-      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kundenavn,cr175_lch_kundenummer,cr175_lch_kode,cr175_lch_status,cr175_lch_udloebstidspunkt,cr175_lch_mailsendttidspunkt,cr175_lch_sidstsendtmailskabelon,cr175_lch_sendttil`
+      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kundenavn,cr175_lch_kundenummer,cr175_lch_kode,cr175_lch_status,cr175_lch_udloebstidspunkt,cr175_lch_mailsendttidspunkt,cr175_lch_sidstsendtmailskabelon,cr175_lch_sendttil,cr175_lch_sendttilmobil`
     );
     const inst = await instRes.json();
 
@@ -51,6 +51,7 @@ module.exports = async function (context, req) {
       mailSentAt: inst.cr175_lch_mailsendttidspunkt || null,
       mailTemplateUsed: inst.cr175_lch_sidstsendtmailskabelon || null,
       sendtTil: inst.cr175_lch_sendttil || null,
+      sendtTilMobil: inst.cr175_lch_sendttilmobil || null,
       items
     });
   } catch (err) {
@@ -58,6 +59,3 @@ module.exports = async function (context, req) {
     return json(context, 500, { error: "server_error", message: err.message || String(err) });
   }
 };
-
-
-
