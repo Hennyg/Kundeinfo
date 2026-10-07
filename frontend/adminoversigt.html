@@ -161,6 +161,33 @@
     #toast.show { opacity: 1; transform: translateY(0); }
     #toast.success { background: #137333; }
     #toast.error { background: #b3261e; }
+
+    /* "Send SMS"-vindue */
+    .smsModalBackdrop {
+      position: fixed; inset: 0; z-index: 900;
+      background: rgba(0,0,0,.4);
+      display: flex; align-items: center; justify-content: center;
+      padding: 16px;
+    }
+    .smsModalBackdrop.hidden { display: none; }
+    .smsModal {
+      background: #fff; border-radius: 12px; width: 100%; max-width: 560px;
+      max-height: calc(100vh - 32px); overflow: auto;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25); padding: 20px 22px;
+    }
+    .smsModal h2 { margin: 0 0 4px; }
+    .smsModal label { display: block; font-weight: 600; font-size: 13px; margin: 14px 0 4px; }
+    .smsModal input[type="tel"],
+    .smsModal textarea {
+      width: 100%; box-sizing: border-box; padding: 8px 10px;
+      border: 1px solid #ccc; border-radius: 8px; font: inherit;
+    }
+    .smsModal textarea { min-height: 220px; resize: vertical; }
+    .smsModal .hint { font-size: 12px; color: #666; margin-top: 4px; }
+    .smsModal .hint.warn { color: #b45309; }
+    .smsModal .checkRow { display: flex; gap: 8px; align-items: center; margin-top: 14px; font-size: 13px; }
+    .smsModal .checkRow input { width: auto; margin: 0; }
+    .smsModal .btnrow { margin-top: 18px; justify-content: flex-end; }
   </style>
 </head>
 
@@ -265,14 +292,41 @@
 
   <div id="toast"></div>
 
+  <div id="smsModal" class="smsModalBackdrop hidden" role="dialog" aria-modal="true" aria-labelledby="smsModalTitle">
+    <div class="smsModal">
+      <h2 id="smsModalTitle">Send sms til</h2>
+      <div id="smsModalCustomer" class="muted"></div>
+
+      <label for="smsTo">Mobilnummer</label>
+      <input id="smsTo" type="tel" placeholder="fx 20123456" autocomplete="off" />
+      <div id="smsToHint" class="hint"></div>
+
+      <label for="smsText">Tekst</label>
+      <textarea id="smsText" placeholder="Henter tekst fra SMS-skabelonen…"></textarea>
+      <div id="smsCount" class="hint"></div>
+      <div id="smsTemplateHint" class="hint"></div>
+
+      <div class="checkRow">
+        <input id="smsMarkSent" type="checkbox" />
+        <label for="smsMarkSent" style="margin:0; font-weight:normal;">
+          Registrér som "SMS sendt" på skemaet (lad være slået fra ved test)
+        </label>
+      </div>
+
+      <div id="smsStatus" class="hint" style="margin-top:12px;"></div>
+
+      <div class="btnrow">
+        <button id="smsCancel" class="btn" type="button">Annuller</button>
+        <button id="smsSend" class="btn primary" type="button">Send SMS</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     import { requireAuth } from "./assets/auth-guard.js";
     requireAuth({ autoRedirect: true });
   </script>
 
-  <script type="module" src="./assets/adminoversigt.js"></script>
+  <script type="module" src="./assets/adminoversigt.js?v=2"></script>
 </body>
 </html>
-
-
-

@@ -91,7 +91,9 @@
         </div>
         <div class="placeholderHint hidden" id="hintSms">
           SMS-skabeloner er ren tekst (ingen HTML). Pladsholderne <code>{{kundenavn}}</code>,
-          <code>{{kode}}</code> og <code>{{link}}</code> kan bruges og bliver erstattet når SMS'en
+          <code>{{kode}}</code>, <code>{{link}}</code>, <code>{{mail}}</code> (adressen invitationen
+          blev sendt til) og <code>{{afsender}}</code> (den der oprettede skemaet) kan bruges og
+          bliver erstattet når SMS'en
           sendes af påmindelses-runbook'en (kategori <code>sms-paamindelse</code>). Afsendernavnet på
           SMS'en er fast og styres ikke herfra.
         </div>
@@ -240,6 +242,6 @@ Med venlig hilsen
     requireAuth({ autoRedirect: false });
   </script>
 
-  <script src="./assets/adminmailskabeloner.js?v=2" type="module"></script>
+  <script src="./assets/adminmailskabeloner.js?v=3" type="module"></script>
 </body>
 </html>

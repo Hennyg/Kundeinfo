@@ -107,6 +107,9 @@ function rowHtml(row) {
           ${customerLink
             ? `<a class="tag copyLinkBtn" href="#" data-link="${escapeHtml(customerLink)}">Kopier link</a>`
             : ""}
+          ${id
+            ? `<a class="tag sendSmsBtn" href="#" data-id="${escapeHtml(id)}">Send SMS</a>`
+            : ""}
         </div>
       </td>
     </tr>
@@ -299,10 +302,142 @@ function renderTable(rows) {
     });
   });
 
+  tbody.querySelectorAll(".sendSmsBtn").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      openSmsModal(btn.dataset.id);
+    });
+  });
+
   const filterCount = $("filterCount");
   if (filterCount) {
     filterCount.textContent =
       rows.length === allRows.length ? "" : `Viser ${rows.length} af ${allRows.length}`;
+  }
+}
+
+/* ---------- "Send SMS"-vindue ----------
+   Henter den aktive SMS-skabelon udfyldt for skemaet (/api/survey-sms-preview),
+   lader admin rette nummer og tekst, og sender via /api/survey-send-sms.
+   Nummeret er forudfyldt med skemaets mobil (cr175_lch_sendttilmobil), men
+   kan rettes til fx eget nummer ved test. */
+
+let smsInstanceId = null;
+
+const GSM7 = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?" +
+  "¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
+const GSM7_EXT = "^{}\\[~]|€";
+
+function smsInfo(text) {
+  let len = 0;
+  for (const ch of String(text || "")) {
+    if (GSM7.includes(ch)) len += 1;
+    else if (GSM7_EXT.includes(ch)) len += 2;
+    else {
+      const n = [...String(text || "")].length;
+      return { chars: n, unicode: true, parts: n <= 70 ? 1 : Math.ceil(n / 67) };
+    }
+  }
+  return { chars: len, unicode: false, parts: len <= 160 ? 1 : Math.ceil(len / 153) };
+}
+
+function updateSmsCount() {
+  const info = smsInfo($("smsText").value);
+  const el = $("smsCount");
+  el.textContent = `${info.chars} tegn = ${info.parts} SMS${info.unicode ? " (specialtegn/emoji – kun 70 tegn pr. SMS)" : ""}`;
+  el.classList.toggle("warn", info.unicode || info.parts > 4);
+}
+
+function setSmsStatus(text, isError = false) {
+  const el = $("smsStatus");
+  el.textContent = text || "";
+  el.classList.toggle("warn", !!isError);
+}
+
+function closeSmsModal() {
+  $("smsModal").classList.add("hidden");
+  smsInstanceId = null;
+}
+
+async function openSmsModal(instanceId) {
+  smsInstanceId = instanceId;
+
+  $("smsModalCustomer").textContent = "Henter…";
+  $("smsTo").value = "";
+  $("smsToHint").textContent = "";
+  $("smsText").value = "";
+  $("smsTemplateHint").textContent = "";
+  $("smsTemplateHint").classList.remove("warn");
+  $("smsMarkSent").checked = false;
+  $("smsSend").disabled = true;
+  setSmsStatus("");
+  updateSmsCount();
+  $("smsModal").classList.remove("hidden");
+
+  try {
+    const r = await fetch(`/api/survey-sms-preview?id=${encodeURIComponent(instanceId)}`, { cache: "no-store" });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.message || data.error || `${r.status}`);
+    if (smsInstanceId !== instanceId) return; // vinduet er lukket/skiftet imens
+
+    $("smsModalCustomer").textContent = `${data.kundenavn || "(uden navn)"} – kode ${data.kode || ""}`;
+    $("smsTo").value = data.mobil || "";
+    $("smsToHint").textContent = data.mobil
+      ? `Skemaets mobilnummer: ${data.mobil}`
+      : "Der er intet mobilnummer på skemaet.";
+    $("smsText").value = data.message || "";
+
+    const tplHint = $("smsTemplateHint");
+    if (data.templateWarning) {
+      tplHint.textContent = data.templateWarning;
+      tplHint.classList.add("warn");
+    } else {
+      tplHint.textContent = data.templateName ? `Skabelon: ${data.templateName}` : "";
+    }
+
+    updateSmsCount();
+    $("smsSend").disabled = false;
+    $("smsTo").focus();
+  } catch (e) {
+    console.error("survey-sms-preview fejl:", e);
+    $("smsModalCustomer").textContent = "";
+    setSmsStatus(`Kunne ikke hente SMS-tekst: ${e.message}`, true);
+    $("smsSend").disabled = false; // man kan stadig skrive teksten selv
+  }
+}
+
+async function sendSms() {
+  const to = $("smsTo").value.trim();
+  const message = $("smsText").value.trim();
+  const markSent = $("smsMarkSent").checked;
+
+  if (!to) { setSmsStatus("Udfyld mobilnummer.", true); return; }
+  if (!message) { setSmsStatus("Teksten er tom.", true); return; }
+
+  const parts = smsInfo(message).parts;
+  if (!confirm(`Send SMS (${parts} del${parts === 1 ? "" : "e"}) til ${to}?`)) return;
+
+  $("smsSend").disabled = true;
+  setSmsStatus("Sender…");
+
+  try {
+    const r = await fetch("/api/survey-send-sms", {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ instanceId: smsInstanceId, to, message, markSent })
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.message || data.error || `${r.status}`);
+
+    closeSmsModal();
+    let msg = `SMS sendt til ${data.to} ✔`;
+    if (data.logError) msg += " (men kunne ikke logges i SMS-loggen)";
+    showToast(msg, data.logError ? "error" : "success");
+    if (data.marked) await load();
+  } catch (e) {
+    console.error("survey-send-sms fejl:", e);
+    setSmsStatus(`Fejl: ${e.message}`, true);
+    $("smsSend").disabled = false;
   }
 }
 
@@ -382,6 +517,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("btnDeleteSelected")?.addEventListener("click", deleteSelected);
 
+  $("smsText")?.addEventListener("input", updateSmsCount);
+  $("smsSend")?.addEventListener("click", sendSms);
+  $("smsCancel")?.addEventListener("click", closeSmsModal);
+  $("smsModal")?.addEventListener("click", (e) => {
+    if (e.target === $("smsModal")) closeSmsModal();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !$("smsModal")?.classList.contains("hidden")) closeSmsModal();
+  });
+
   ["searchInput", "filterKundenavn", "filterKode", "filterOprettet", "filterMailSendt", "filterUdfyldt", "filterUdloeber", "filterSidstRettet"]
     .forEach(id => $(id)?.addEventListener("input", applyFilters));
   $("filterStatusBtn")?.addEventListener("click", (e) => {
@@ -415,9 +560,3 @@ document.addEventListener("DOMContentLoaded", () => {
     if (tr?.dataset.href) location.href = tr.dataset.href;
   });
 });
-
-
-
-
-
-

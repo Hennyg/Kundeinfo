@@ -186,7 +186,7 @@ function updateSmsCounter() {
   els.smsCounter.classList.toggle("warn", info.parts > 1 || info.unicode);
   els.smsCounter.textContent =
     `${info.chars} tegn = ${info.parts} SMS${info.unicode ? " (specialtegn/emoji – kun 70 tegn pr. SMS)" : ""}. ` +
-    `Tallet er før pladsholdere indsættes – {{link}} fylder ca. 55 tegn, {{kundenavn}} varierer.`;
+    `Tallet er før pladsholdere indsættes – {{link}} fylder ca. 55 tegn, {{kundenavn}}, {{mail}} og {{afsender}} varierer.`;
 }
 
 function applyTypeUI() {
@@ -320,6 +320,8 @@ const AVAILABLE_PLACEHOLDERS = [
   { kode: "kundenavn", navn: "Kundenavn", beskrivelse: "Kundens navn, fx 'Enslev Agro I/S'", sms: true },
   { kode: "kode", navn: "Kode", beskrivelse: "Skemaets kode, fx '111965'", sms: true },
   { kode: "link", navn: "Link", beskrivelse: "Link til selve spørgeskemaet kunden skal udfylde", sms: true },
+  { kode: "mail", navn: "Mail (kun SMS)", beskrivelse: "Den mailadresse invitationen blev sendt til", sms: true },
+  { kode: "afsender", navn: "Afsender (kun SMS)", beskrivelse: "Navnet på den der oprettede skemaet", sms: true },
   { kode: "afsendernavn", navn: "Afsendernavn", beskrivelse: "Navnet på den admin-bruger der sender mailen (til signatur)" },
   { kode: "kundeemail", navn: "Kundens e-mail", beskrivelse: "Fra Uniconta debitor-data" },
   { kode: "telefon", navn: "Telefon", beskrivelse: "Fra Uniconta debitor-data" },
