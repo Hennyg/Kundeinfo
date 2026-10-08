@@ -7,6 +7,7 @@
 // mailen, uden at duplikere hele Dataverse-forespørgslen.
 
 const { cdFetch: dvFetch } = require("../_coredata");
+const { filterLeveringsadresser } = require("./filterLeveringsadresser");
 
 function escODataString(s) {
   return String(s ?? "").replace(/'/g, "''");
@@ -170,10 +171,16 @@ async function loadSurveyItems(code) {
 
   const groups = [...groupsById.values()].sort((a, b) => a.sort - b.sort);
 
-  return { instanceId, code, customerName, kundenummer, groups, items };
+  // Leveringsadresser uden produkter på kundelisten skal ikke med i PDF'en
+  // (se filterLeveringsadresser.js). Fejler det, bruges items uændret.
+  let filteredItems = items;
+  try {
+    filteredItems = await filterLeveringsadresser({ items, groups, kundenummer }, console.log);
+  } catch (e) {
+    console.error("filterLeveringsadresser fejlede - bruger alle adresser:", e);
+  }
+
+  return { instanceId, code, customerName, kundenummer, groups, items: filteredItems };
 }
 
 module.exports = { loadSurveyItems };
-
-
-

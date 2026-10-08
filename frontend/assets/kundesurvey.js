@@ -541,6 +541,8 @@ function renderQuestions() {
           lastChangeSummary.allItems.push({
             group: g, groupId: g.id, repeatIndex: ri, number: it.number,
             question: it.text || "", value: value || it.prefillText || "",
+            prefill: it.prefillText || "",
+            blockAddedByCustomer: !!it.addedByCustomer,
             changed: isChangedFromPrefill,
             // Tilføjet af KUNDEN (ny gentagelse/blok, eller et felt kunden
             // selv har udfyldt uden prefill) vises med én tekst, og
@@ -1164,6 +1166,76 @@ function sourceSystemsForGroup(group) {
   return [UKENDT_SYSTEM];
 }
 
+// Leveringsadresser uden produkter på kundelisten skal ikke med i
+// opsummeringen (vinduet og mailen). Samme regel som
+// api/_survey/filterLeveringsadresser.js (PDF'en) - ret begge steder:
+//   - en blok vises, hvis adressen (forudfyldt ELLER kundens rettede) findes
+//     på kundelisten med mindst ét produkt
+//   - en blok kunden selv har tilføjet, vises altid
+//   - ellers fjernes den; er der ingen tilbage, står der "Ingen leveringsadresse"
+// Kunne kundelisten ikke hentes (kundeAdresserList tom), filtreres der ikke.
+// Kører på de rå entries (før mergeAddressLineEntries).
+const INGEN_LEVERINGSADRESSE = "Ingen leveringsadresse";
+
+function filterLeveringsadresseEntries(fullEntries, noteEntries, removedEntries) {
+  const all = [...fullEntries, ...noteEntries, ...removedEntries];
+  const groupEntry = all.find(e =>
+    String(e.group?.title || "").trim().toLowerCase() === "leveringsadresse");
+  if (!groupEntry || !kundeAdresserList.length) {
+    return { fullEntries, noteEntries, removedEntries };
+  }
+  const gid = groupEntry.groupId;
+
+  const norm = s => String(s || "").trim().replace(/\s+/g, " ").toLowerCase();
+  const withProducts = new Set(
+    kundeAdresserList.filter(a => (a.produkter || []).length > 0).map(a => norm(formatAdresse(a)))
+  );
+
+  const byRepeat = new Map(); // ri -> entries
+  for (const e of all) {
+    if (e.groupId !== gid) continue;
+    const ri = e.repeatIndex ?? 0;
+    if (!byRepeat.has(ri)) byRepeat.set(ri, []);
+    byRepeat.get(ri).push(e);
+  }
+
+  const hidden = new Set();
+  for (const [ri, list] of byRepeat) {
+    const l1 = list.find(e => e.number === LEVERINGSADRESSE_LINJE1_NR);
+    const l2 = list.find(e => e.number === LEVERINGSADRESSE_LINJE2_NR);
+    const prefillAddr = [l1?.prefill, l2?.prefill].filter(Boolean).join(", ");
+    const finalAddr = [l1?.value, l2?.value].filter(Boolean).join(", ");
+    const addedByCustomer = list.some(e => e.blockAddedByCustomer);
+    const hasProducts = withProducts.has(norm(prefillAddr)) || withProducts.has(norm(finalAddr));
+    if (!addedByCustomer && !hasProducts) hidden.add(ri);
+  }
+
+  if (!hidden.size) return { fullEntries, noteEntries, removedEntries };
+
+  const keep = e => !(e.groupId === gid && hidden.has(e.repeatIndex ?? 0));
+  const result = {
+    fullEntries: fullEntries.filter(keep),
+    noteEntries: noteEntries.filter(keep),
+    removedEntries: removedEntries.filter(keep)
+  };
+
+  const anyLeft = [...result.fullEntries, ...result.noteEntries, ...result.removedEntries]
+    .some(e => e.groupId === gid);
+
+  if (!anyLeft) {
+    const firstRi = Math.min(...byRepeat.keys());
+    const mail = fullEntries.find(e =>
+      e.groupId === gid && (e.repeatIndex ?? 0) === firstRi && e.number === LEVERINGSADRESSE_LINJE_MAIL_NR);
+    result.fullEntries.push({
+      group: groupEntry.group, groupId: gid, repeatIndex: 0, number: "",
+      question: "Leveringsadresse", value: INGEN_LEVERINGSADRESSE, kind: "full"
+    });
+    if (mail) result.fullEntries.push({ ...mail, repeatIndex: 0 });
+  }
+
+  return result;
+}
+
 // Leveringsadresse-gruppens to felter (vejnavn + postnr/by) vises som én
 // samlet linje i stedet for to separate punkter i opsummeringen.
 function mergeAddressLineEntries(entries) {
@@ -1587,9 +1659,14 @@ async function showChangesSummary() {
   // til på adminquestiongroup.html. Slettede blokke tages med som deres
   // egne linjer (kind "removed"), så de ikke bare forsvinder eller ligner
   // en uændret/almindelig linje.
-  const fullEntries = mergeAddressLineEntries(allItems.map(a => ({ ...a, kind: "full" })));
-  const noteEntries = mergeAddressLineEntries(notes.map(n => ({ ...n, kind: "note" })));
-  const removedEntries = mergeAddressLineEntries(removed.map(r => ({ ...r, kind: "removed" })));
+  const filtered = filterLeveringsadresseEntries(
+    allItems.map(a => ({ ...a, kind: "full" })),
+    notes.map(n => ({ ...n, kind: "note" })),
+    removed.map(r => ({ ...r, kind: "removed" }))
+  );
+  const fullEntries = mergeAddressLineEntries(filtered.fullEntries);
+  const noteEntries = mergeAddressLineEntries(filtered.noteEntries);
+  const removedEntries = mergeAddressLineEntries(filtered.removedEntries);
 
   const entries = [...fullEntries, ...noteEntries, ...removedEntries];
   const hasContent = entries.length > 0;
@@ -1605,7 +1682,7 @@ async function showChangesSummary() {
           <strong style="font-size:13px;">Send til:</strong>
           ${SUMMARY_RECIPIENT_GROUPS.map(g => `
             <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-              <input type="checkbox" data-recipient="${escapeHtml(g.email)}" style="width:auto; margin:0;" />
+              <input type="checkbox" data-recipient="${escapeHtml(g.email)}" checked style="width:auto; margin:0;" />
               ${escapeHtml(g.label)} <span class="muted">(${escapeHtml(g.email)})</span>
             </label>`).join("")}
         ` : ""}

@@ -321,6 +321,11 @@
       <input id="smsTo" type="tel" placeholder="fx 20123456 – flere adskilles med komma" autocomplete="off" />
       <div id="smsToHint" class="hint"></div>
 
+      <label for="smsTemplate">Skabelon</label>
+      <select id="smsTemplate" style="width:100%; padding:8px 10px; border:1px solid #ccc; border-radius:8px; font:inherit;">
+        <option value="">Henter skabeloner…</option>
+      </select>
+
       <label for="smsText">Tekst</label>
       <textarea id="smsText" placeholder="Henter tekst fra SMS-skabelonen…"></textarea>
       <div id="smsCount" class="hint"></div>
@@ -347,6 +352,6 @@
     requireAuth({ autoRedirect: true });
   </script>
 
-  <script type="module" src="./assets/adminoversigt.js?v=3"></script>
+  <script type="module" src="./assets/adminoversigt.js?v=4"></script>
 </body>
 </html>

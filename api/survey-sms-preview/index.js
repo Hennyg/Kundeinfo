@@ -23,6 +23,21 @@ module.exports = async function (context, req) {
 
     const message = template ? await S.renderSmsForInstance(inst, template.cr175_lch_broedtekst) : "";
 
+    const templates = [];
+    for (const [category, label] of [
+      [S.SMS_CATEGORY, "Afventer (standard)"],
+      [S.SMS_CATEGORY_SET, "Set / Igang"]
+    ]) {
+      const { template: t } = await S.getSmsTemplateByCategory(category);
+      if (!t) continue;
+      templates.push({
+        category,
+        label,
+        name: t.cr175_lch_navn || "",
+        message: await S.renderSmsForInstance(inst, t.cr175_lch_broedtekst)
+      });
+    }
+
     return json(context, 200, {
       instanceId: id,
       kundenavn: S.cleanKundenavn(inst.cr175_lch_kundenavn),
@@ -37,7 +52,10 @@ module.exports = async function (context, req) {
         : fallback
           ? `Ingen aktiv skabelon til status Set/Igang ("${wanted}") - bruger standardskabelonen.`
           : (count > 1 ? "Der er flere aktive skabeloner i samme kategori - den senest rettede bruges." : null),
-      message
+      message,
+      // Begge skabeloner udfyldt for skemaet, så vinduet kan skifte mellem
+      // dem uden et nyt kald. Kun aktive skabeloner kommer med.
+      templates
     });
   } catch (err) {
     context.log.error("survey-sms-preview failed:", err);

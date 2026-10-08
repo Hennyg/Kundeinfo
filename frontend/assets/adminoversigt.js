@@ -105,7 +105,7 @@ function rowHtml(row) {
   // "Send SMS" med "Registrér som SMS sendt" slået til).
   const smsSendtHtml = escapeHtml(smsSendtText(row));
   const reminder = needsReminder(row);
-  const canSendSms = id && !/^afsluttet$/i.test(statusLabel);
+  const canSendSms = id && !/^(afsluttet|udfyldt)$/i.test(statusLabel);
   const seSkemaLink = code ? `./kundesurvey.html?code=${encodeURIComponent(code)}&ro=1` : "#";
   const prefillLink = id ? `./admincreate.html?instanceId=${encodeURIComponent(id)}` : "#";
   const customerLink = code ? `${window.location.origin}/kundesurvey.html?code=${encodeURIComponent(code)}` : "";
@@ -349,6 +349,42 @@ function renderTable(rows) {
    er sat hak ved. Feltet kan rettes frit, fx til eget nummer ved test. */
 
 let smsInstanceId = null;
+let smsTemplates = []; // [{ category, label, name, message }] fra survey-sms-preview
+
+function fillSmsTemplateSelect(selectedCategory) {
+  const sel = $("smsTemplate");
+  if (!sel) return;
+  if (!smsTemplates.length) {
+    sel.innerHTML = `<option value="">Ingen aktive SMS-skabeloner</option>`;
+    sel.disabled = true;
+    return;
+  }
+  sel.disabled = false;
+  sel.innerHTML = smsTemplates
+    .map(t => `<option value="${escapeHtml(t.category)}">${escapeHtml(t.label)} – ${escapeHtml(t.name)}</option>`)
+    .join("");
+  if (selectedCategory && smsTemplates.some(t => t.category === selectedCategory)) {
+    sel.value = selectedCategory;
+  }
+}
+
+// Skift skabelon: teksten erstattes med den valgte skabelons tekst. Har
+// admin selv rettet i teksten, spørges der først.
+let smsTextOriginal = "";
+function onSmsTemplateChange() {
+  const t = smsTemplates.find(x => x.category === $("smsTemplate").value);
+  if (!t) return;
+  const current = $("smsText").value;
+  if (current.trim() && current !== smsTextOriginal &&
+      !confirm("Du har rettet i teksten. Erstat den med den valgte skabelon?")) {
+    return;
+  }
+  $("smsText").value = t.message;
+  smsTextOriginal = t.message;
+  $("smsTemplateHint").textContent = "";
+  $("smsTemplateHint").classList.remove("warn");
+  updateSmsCount();
+}
 
 function phoneKey(raw) {
   let n = String(raw || "").replace(/[^\d+]/g, "");
@@ -468,6 +504,12 @@ async function openSmsModal(instanceId) {
   $("smsTemplateHint").classList.remove("warn");
   $("smsMarkSent").checked = false;
   $("smsOwners").innerHTML = `<span class="hint">Henter ejere…</span>`;
+  smsTemplates = [];
+  smsTextOriginal = "";
+  if ($("smsTemplate")) {
+    $("smsTemplate").innerHTML = `<option value="">Henter skabeloner…</option>`;
+    $("smsTemplate").disabled = true;
+  }
   $("smsSend").disabled = true;
   setSmsStatus("");
   updateSmsCount();
@@ -486,6 +528,9 @@ async function openSmsModal(instanceId) {
       ? `Skemaets mobilnummer: ${data.mobil}`
       : "Der er intet mobilnummer på skemaet.";
     $("smsText").value = data.message || "";
+    smsTextOriginal = data.message || "";
+    smsTemplates = Array.isArray(data.templates) ? data.templates : [];
+    fillSmsTemplateSelect(data.templateCategory);
 
     const tplHint = $("smsTemplateHint");
     if (data.templateWarning) {
@@ -621,6 +666,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("btnDeleteSelected")?.addEventListener("click", deleteSelected);
 
   $("smsText")?.addEventListener("input", updateSmsCount);
+  $("smsTemplate")?.addEventListener("change", onSmsTemplateChange);
   $("smsOwners")?.addEventListener("change", onOwnerToggle);
   $("smsTo")?.addEventListener("input", syncOwnerChecks);
   $("smsSend")?.addEventListener("click", sendSms);
