@@ -78,12 +78,15 @@ module.exports = async function (context, req) {
       });
     }
 
-    const to = String(req?.body?.to || "").trim();
+    // "to" kan være én adresse, flere adskilt af komma/semikolon, eller et
+    // array (afdelinger valgt med checkbokse i opsummeringen).
+    const rawTo = Array.isArray(req?.body?.to) ? req.body.to : String(req?.body?.to || "").split(/[,;]/);
+    const to = [...new Set(rawTo.map(x => String(x || "").trim()).filter(Boolean))];
     const subject = String(req?.body?.subject || "").trim();
     const html = String(req?.body?.html || "");
     const code = String(req?.body?.code || "").trim();
 
-    if (!to || !subject || !html) {
+    if (!to.length || !subject || !html) {
       return json(context, 400, {
         error: "missing_fields",
         message: "Mangler modtager, emne eller indhold."
@@ -96,13 +99,13 @@ module.exports = async function (context, req) {
       message: {
         subject,
         body: { contentType: "HTML", content: html },
-        toRecipients: [{ emailAddress: { address: to } }],
+        toRecipients: to.map(address => ({ emailAddress: { address } })),
         attachments: attachment ? [attachment] : []
       },
       saveToSentItems: true
     });
 
-    return json(context, 200, { ok: true, from: fromMailbox, pdfAttached: !!attachment, pdfError });
+    return json(context, 200, { ok: true, from: fromMailbox, to, pdfAttached: !!attachment, pdfError });
 
   } catch (err) {
     context.log.error("survey-send-summary-mail failed:", err);

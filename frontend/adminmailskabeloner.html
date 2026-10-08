@@ -92,10 +92,11 @@
         <div class="placeholderHint hidden" id="hintSms">
           SMS-skabeloner er ren tekst (ingen HTML). Pladsholderne <code>{{kundenavn}}</code>,
           <code>{{kode}}</code>, <code>{{link}}</code>, <code>{{mail}}</code> (adressen invitationen
-          blev sendt til) og <code>{{afsender}}</code> (den der oprettede skemaet) kan bruges og
+          blev sendt til) og <code>{{afsender}}</code> (fornavn på den der oprettede skemaet +
+          "30506180 (Tryk 4)") kan bruges og
           bliver erstattet når SMS'en
           sendes af påmindelses-runbook'en og fra "Send SMS" på oversigten. Skemaer med status
-          <b>Set</b> får skabelonen til Set (findes den ikke, bruges standard). Afsendernavnet på
+          <b>Set</b> eller <b>Igang</b> får skabelonen til Set/Igang (findes den ikke, bruges standard). Afsendernavnet på
           SMS'en er fast og styres ikke herfra.
         </div>
 
@@ -118,8 +119,8 @@
           <div class="row smsOnly hidden">
             <label for="tsmsvariant">Bruges til</label>
             <select id="tsmsvariant" style="padding:.5rem; max-width:420px;">
-              <option value="sms-paamindelse">Påmindelse – status Afventer / Igang (standard)</option>
-              <option value="sms-paamindelse-set">Påmindelse – status Set (åbnet, men ikke besvaret)</option>
+              <option value="sms-paamindelse">Påmindelse – status Afventer (standard)</option>
+              <option value="sms-paamindelse-set">Påmindelse – status Set / Igang (åbnet, men ikke afsluttet)</option>
             </select>
           </div>
 
@@ -251,6 +252,6 @@ Med venlig hilsen
     requireAuth({ autoRedirect: false });
   </script>
 
-  <script src="./assets/adminmailskabeloner.js?v=4" type="module"></script>
+  <script src="./assets/adminmailskabeloner.js?v=5" type="module"></script>
 </body>
 </html>

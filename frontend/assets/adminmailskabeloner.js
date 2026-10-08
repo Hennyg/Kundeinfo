@@ -2,8 +2,8 @@
 //
 // Vedligeholder både mail- og SMS-skabeloner i samme Dataverse-tabel
 // (cr175_lch_kundeinfo_mailskabelons). En SMS-skabelon er kendetegnet ved
-// kategorien "sms-paamindelse" (standard: Afventer/Igang) eller
-// "sms-paamindelse-set" (status Set) - der er altså intet separat type-felt i
+// kategorien "sms-paamindelse" (standard: Afventer) eller
+// "sms-paamindelse-set" (status Set og Igang) - der er altså intet separat type-felt i
 // Dataverse. SMS-skabeloner har ingen emne og ingen PDF, og
 // brødteksten er ren tekst. De bruges af SMS-påmindelses-runbook'en i
 // Automation Account "Kundeinfo".
@@ -305,7 +305,7 @@ async function listTemplates() {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${escapeHtml(t.cr175_lch_navn ?? '')}</td>
-      <td>${sms ? (smsVariantFromCategory(t.cr175_lch_kategori) === 'sms-paamindelse-set' ? 'SMS (Set)' : 'SMS') : 'Mail'}</td>
+      <td>${sms ? (smsVariantFromCategory(t.cr175_lch_kategori) === 'sms-paamindelse-set' ? 'SMS (Set/Igang)' : 'SMS') : 'Mail'}</td>
       <td>${escapeHtml(t.cr175_lch_kategori ?? '—')}</td>
       <td>${sms ? '—' : escapeHtml(t.cr175_lch_emne ?? '')}</td>
       <td>${t.cr175_lch_vedhaeftetpdfnavn ? `Ja (${escapeHtml(t.cr175_lch_vedhaeftetpdfnavn)})` : '—'}</td>
@@ -328,11 +328,11 @@ async function listTemplates() {
 
 // sms: true = understøttes også i SMS-skabeloner (runbook'en).
 const AVAILABLE_PLACEHOLDERS = [
-  { kode: "kundenavn", navn: "Kundenavn", beskrivelse: "Kundens navn, fx 'Enslev Agro I/S'", sms: true },
+  { kode: "kundenavn", navn: "Kundenavn", beskrivelse: "Kundens navn uden kundenummer, fx 'Enslev Agro I/S'", sms: true },
   { kode: "kode", navn: "Kode", beskrivelse: "Skemaets kode, fx '111965'", sms: true },
   { kode: "link", navn: "Link", beskrivelse: "Link til selve spørgeskemaet kunden skal udfylde", sms: true },
   { kode: "mail", navn: "Mail (kun SMS)", beskrivelse: "Den mailadresse invitationen blev sendt til", sms: true },
-  { kode: "afsender", navn: "Afsender (kun SMS)", beskrivelse: "Navnet på den der oprettede skemaet", sms: true },
+  { kode: "afsender", navn: "Afsender (kun SMS)", beskrivelse: "Fornavn på den der oprettede skemaet + '30506180 (Tryk 4)'", sms: true },
   { kode: "afsendernavn", navn: "Afsendernavn", beskrivelse: "Navnet på den admin-bruger der sender mailen (til signatur)" },
   { kode: "kundeemail", navn: "Kundens e-mail", beskrivelse: "Fra Uniconta debitor-data" },
   { kode: "telefon", navn: "Telefon", beskrivelse: "Fra Uniconta debitor-data" },

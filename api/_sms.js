@@ -8,9 +8,9 @@
 // sender.
 //
 // To SMS-skabeloner, valgt ud fra skemaets status:
-//   "sms-paamindelse-set" - status Set (kunden har åbnet linket, men ikke svaret)
-//   "sms-paamindelse"     - alle andre (Afventer/Igang) - og fallback hvis der
-//                           ikke findes en aktiv Set-skabelon
+//   "sms-paamindelse-set" - status Set eller Igang (kunden har åbnet linket)
+//   "sms-paamindelse"     - alle andre (Afventer) - og fallback hvis der ikke
+//                           findes en aktiv Set/Igang-skabelon
 //
 // App settings:
 //   SVEVE_USER, SVEVE_PASSWD  - Sveve-login
@@ -26,12 +26,20 @@ const SMS_CATEGORY = "sms-paamindelse";
 const SMS_CATEGORY_SET = "sms-paamindelse-set";
 
 function categoryForStatus(status) {
-  return String(status || "").trim().toLowerCase() === "set" ? SMS_CATEGORY_SET : SMS_CATEGORY;
+  return /^(set|igang)$/i.test(String(status || "").trim()) ? SMS_CATEGORY_SET : SMS_CATEGORY;
+}
+
+// cr175_lch_kundenavn gemmes som "Navn (kundenummer)" - {{kundenavn}} skal
+// kun være navnet.
+function cleanKundenavn(name) {
+  return String(name || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
 }
 const SURVEY_TABLE = "cr175_lch_kundeinfo_kundeundersoegelses";
 const TEMPLATE_TABLE = "cr175_lch_kundeinfo_mailskabelons";
 const SMS_LOG_TABLE = "cr175_lch_sms_services";
 const FALLBACK_AFSENDER = "Lely Center Herrup";
+// {{afsender}} i SMS = "<fornavn> 30506180 (Tryk 4)".
+const AFSENDER_SUFFIX = "30506180 (Tryk 4)";
 
 function sveveBase() {
   return String(process.env.SVEVE_BASE_URL || "https://api.sveve.dk").replace(/\/+$/, "");
@@ -95,16 +103,20 @@ async function getSmsTemplateForStatus(status) {
   return { ...std, wanted, fallback: !!std.template };
 }
 
-// Visningsnavn på den der oprettede skemaet (cr175_lch_oprettetaf er en
-// mailadresse). Fejler opslaget, bruges mailadressen.
-async function getAfsenderNavn(email) {
+// Fornavn på den der oprettede skemaet (cr175_lch_oprettetaf er en
+// mailadresse): Entra givenName, ellers første ord i displayName. Fejler
+// opslaget, eller er feltet tomt, bruges FALLBACK_AFSENDER.
+async function getAfsenderFornavn(email) {
   const e = String(email || "").trim();
   if (!e) return FALLBACK_AFSENDER;
   try {
-    const u = await graph("GET", `/users/${encodeURIComponent(e)}?$select=displayName`);
-    return u?.displayName || e;
+    const u = await graph("GET", `/users/${encodeURIComponent(e)}?$select=givenName,displayName`);
+    const given = String(u?.givenName || "").trim();
+    if (given) return given;
+    const first = String(u?.displayName || "").trim().split(/\s+/)[0];
+    return first || FALLBACK_AFSENDER;
   } catch {
-    return e;
+    return FALLBACK_AFSENDER;
   }
 }
 
@@ -113,14 +125,15 @@ function customerLink(code) {
 }
 
 async function renderSmsForInstance(inst, templateText) {
-  const afsender = await getAfsenderNavn(inst.cr175_lch_oprettetaf);
+  const fornavn = await getAfsenderFornavn(inst.cr175_lch_oprettetaf);
+  const afsender = `${fornavn} ${AFSENDER_SUFFIX}`;
   return substitutePlaceholders(String(templateText || "").replace(/\r\n/g, "\n").trim(), {
-    kundenavn: inst.cr175_lch_kundenavn || "",
+    kundenavn: cleanKundenavn(inst.cr175_lch_kundenavn),
     kode: inst.cr175_lch_kode || "",
     link: customerLink(inst.cr175_lch_kode || ""),
     mail: inst.cr175_lch_sendttil || "",
     afsender,
-    afsendernavn: afsender
+    afsendernavn: fornavn
   });
 }
 
@@ -226,6 +239,7 @@ module.exports = {
   SMS_CATEGORY,
   SMS_CATEGORY_SET,
   categoryForStatus,
+  cleanKundenavn,
   normalizePhone,
   loadInstance,
   getSmsTemplateByCategory,

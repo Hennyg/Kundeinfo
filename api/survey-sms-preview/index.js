@@ -2,8 +2,8 @@
 //
 // GET ?id=<instanceId>
 // Udfylder den aktive SMS-skabelon for én kundeundersøgelse, til "Send SMS"-
-// vinduet på adminoversigt.html. Skabelonen vælges ud fra status (Set har sin
-// egen, se _sms.js). Returnerer også kundenummeret, så vinduet kan hente
+// vinduet på adminoversigt.html. Skabelonen vælges ud fra status (Set og
+// Igang har deres egen, se _sms.js). Returnerer også kundenummeret, så vinduet kan hente
 // ejerne fra /api/entra-customer-contacts. Sender intet.
 
 const S = require("../_sms");
@@ -25,7 +25,7 @@ module.exports = async function (context, req) {
 
     return json(context, 200, {
       instanceId: id,
-      kundenavn: inst.cr175_lch_kundenavn || "",
+      kundenavn: S.cleanKundenavn(inst.cr175_lch_kundenavn),
       kode: inst.cr175_lch_kode || "",
       kundenummer: inst.cr175_lch_kundenummer || "",
       status,
@@ -35,7 +35,7 @@ module.exports = async function (context, req) {
       templateWarning: !template
         ? `Ingen aktiv SMS-skabelon med kategori "${wanted}" - opret den under Mailskabeloner (Type = SMS).`
         : fallback
-          ? `Ingen aktiv skabelon til status Set ("${wanted}") - bruger standardskabelonen.`
+          ? `Ingen aktiv skabelon til status Set/Igang ("${wanted}") - bruger standardskabelonen.`
           : (count > 1 ? "Der er flere aktive skabeloner i samme kategori - den senest rettede bruges." : null),
       message
     });

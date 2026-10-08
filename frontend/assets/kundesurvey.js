@@ -1419,7 +1419,21 @@ function buildAreaSummary(system, entries) {
 
 // Pænere, selvstændig HTML-skabelon til selve mailen. Mail-klienter
 // ignorerer sidens eget stylesheet, så alt styling her er inline med vilje.
-function buildAreaEmailHtml(system, entries, subjectPrefix) {
+// Afdelinger der kan vælges som modtagere af opsummeringen (checkbokse
+// øverst til venstre i opsummeringsvinduet).
+const SUMMARY_RECIPIENT_GROUPS = [
+  { key: "salg", label: "Salgsafdelingen", email: "alle-salg@lcherrup.dk" },
+  { key: "handover", label: "Produkt-handover", email: "Produkt-Handover@lcherrup.dk" },
+  { key: "it", label: "IT", email: "it-afd@lcherrup.dk" }
+];
+
+// customerName gemmes som "Navn (kundenummer)" - i mailens tekst og emne
+// skal kun navnet stå.
+function cleanCustomerName(name) {
+  return String(name || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
+}
+
+function buildAreaEmailHtml(system, entries, subjectPrefix, introHtml = "") {
   const groups = groupAndSplitEntries(entries);
 
   const rowFor = (e) => {
@@ -1511,24 +1525,29 @@ function buildAreaEmailHtml(system, entries, subjectPrefix) {
         <div style="font-size:16px; font-weight:700;">${escapeHtml(subjectPrefix)}</div>
       </div>
       <div style="border:1px solid #e3e3e3; border-top:none; border-radius:0 0 10px 10px; padding:18px 22px; background:#fff;">
+        ${introHtml}
         ${groupsHtml}
       </div>
     </div>
   `;
 }
 
-// Sender ét områdes opsummering som mail via /api/survey-send-summary-mail.
+// Sender opsummeringen som mail via /api/survey-send-summary-mail.
 // Afsenderen bestemmes server-side (den bruger der er logget ind).
-// Modtageren kommer fra det pågældende korts eget tekstfelt.
-async function sendAreaMail(system, entries, btn, toInput) {
-  const to = (toInput?.value || "").trim();
-  if (!to) {
-    if (toInput) toInput.focus();
-    return false;
-  }
+// Modtagerne er de afkrydsede afdelinger + evt. adresser skrevet i feltet
+// (flere adskilles med komma).
+async function sendAreaMail(system, entries, btn, recipients) {
+  const to = [...new Set((recipients || []).map(x => String(x || "").trim()).filter(Boolean))];
+  if (!to.length) return false;
 
-  const subjectPrefix = `Spørgeskema ${DATA?.code || ""} – ${DATA?.customerName || ""}`;
-  const html = buildAreaEmailHtml(system, entries, subjectPrefix);
+  const kundenavn = cleanCustomerName(DATA?.customerName);
+  const subjectPrefix = `Spørgeskema ${DATA?.code || ""} – ${kundenavn}`;
+  const introHtml = `
+    <p style="margin:0 0 16px; font-size:14px; line-height:1.5; color:#222;">
+      Vi har fået svar tilbage fra ${escapeHtml(kundenavn)}.<br>
+      De som har opgaver i den forbindelse, skal opdatere de systemer som de er ansvarlige for.
+    </p>`;
+  const html = buildAreaEmailHtml(system, entries, subjectPrefix, introHtml);
 
   if (btn) { btn.disabled = true; btn.textContent = "Sender…"; }
 
@@ -1538,7 +1557,7 @@ async function sendAreaMail(system, entries, btn, toInput) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         to,
-        subject: `${subjectPrefix} – ${displaySystemName(system)}`,
+        subject: `Kundeinfo - ${kundenavn} - Opsummering`,
         html,
         code: DATA?.code || ""
       })
@@ -1561,8 +1580,6 @@ async function sendAreaMail(system, entries, btn, toInput) {
 async function showChangesSummary() {
   if (!ui.changesModal || !ui.changesModalBody) return;
 
-  const defaultRecipient = await getCurrentUserEmail();
-
   const { removed, notes, allItems } = lastChangeSummary;
 
   // Der sendes kun ÉN samlet mail nu ("Opsummering") - med ALT data, uanset
@@ -1582,15 +1599,28 @@ async function showChangesSummary() {
   const icon = SYSTEM_ICONS[system] || "❔";
 
   const html = `
-    <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-      ${hasContent ? `
-        <input type="email" id="summaryToInput" value="${escapeHtml(defaultRecipient)}"
-               placeholder="modtager@eksempel.dk"
-               style="border:1px solid #ccc; border-radius:6px; padding:6px 10px; font-size:13px; width:220px;" />
-      ` : ""}
-      <button type="button" class="btn" id="closeSummaryTopBtn">Luk</button>
-      ${hasContent ? `<button type="button" class="btn primary" id="sendSummaryBtn">Send</button>` : ""}
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+      <div id="summaryRecipientGroups" style="display:flex; flex-direction:column; gap:4px; font-size:13px;">
+        ${hasContent ? `
+          <strong style="font-size:13px;">Send til:</strong>
+          ${SUMMARY_RECIPIENT_GROUPS.map(g => `
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" data-recipient="${escapeHtml(g.email)}" style="width:auto; margin:0;" />
+              ${escapeHtml(g.label)} <span class="muted">(${escapeHtml(g.email)})</span>
+            </label>`).join("")}
+        ` : ""}
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        ${hasContent ? `
+          <input type="text" id="summaryToInput" value=""
+                 placeholder="Evt. andre modtagere (komma)"
+                 style="border:1px solid #ccc; border-radius:6px; padding:6px 10px; font-size:13px; width:240px;" />
+        ` : ""}
+        <button type="button" class="btn" id="closeSummaryTopBtn">Luk</button>
+        ${hasContent ? `<button type="button" class="btn primary" id="sendSummaryBtn">Send</button>` : ""}
+      </div>
     </div>
+    <div id="summarySendStatus" class="muted" style="font-size:13px; margin:-4px 0 10px;"></div>
     <div class="summary-card">
       <div class="summary-card-header">
         <h3 style="margin:0;">${icon} ${escapeHtml(displaySystemName(system))}</h3>
@@ -1606,11 +1636,27 @@ async function showChangesSummary() {
   document.getElementById("sendSummaryBtn")?.addEventListener("click", async (e) => {
     const btn = e.currentTarget;
     const toInput = document.getElementById("summaryToInput");
+    const statusEl = document.getElementById("summarySendStatus");
+
+    const recipients = [
+      ...[...document.querySelectorAll("#summaryRecipientGroups input[data-recipient]:checked")]
+        .map(cb => cb.dataset.recipient),
+      ...String(toInput?.value || "").split(/[,;]/).map(x => x.trim()).filter(Boolean)
+    ];
+
+    if (!recipients.length) {
+      if (statusEl) statusEl.textContent = "Vælg mindst én afdeling eller skriv en modtager.";
+      return;
+    }
+    if (statusEl) statusEl.textContent = `Sendes til: ${[...new Set(recipients)].join(", ")}`;
 
     // sendAreaMail styrer selv knappens tekst/disabled-state (inkl. reset
     // efter et par sekunder) - vi lægger kun status-opdateringen til ovenpå.
-    const ok = await sendAreaMail(system, entries, btn, toInput);
-    if (!ok) return;
+    const ok = await sendAreaMail(system, entries, btn, recipients);
+    if (!ok) {
+      if (statusEl) statusEl.textContent = "Mailen kunne ikke sendes - se konsollen.";
+      return;
+    }
 
     try {
       await fetchJson("/api/survey-status-complete", {
@@ -1627,9 +1673,3 @@ async function showChangesSummary() {
 }
 
 document.addEventListener("DOMContentLoaded", init);
-
-
-
-
-
-
