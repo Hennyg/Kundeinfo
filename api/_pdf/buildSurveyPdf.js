@@ -19,6 +19,12 @@ const TEXT_DARK = "#222222";
 const TEXT_ANSWER = "#444444";
 const BORDER_LIGHT = "#e3e3e3";
 const MUTED = "#666666";
+const RED = "#b3261e";
+
+// pdfkits indbyggede Helvetica kan ikke tegne emoji (🗑/✚ som i mailen),
+// så markeringerne er ren tekst her.
+const BADGE_REMOVED = "Slettet af kunden";
+const BADGE_ADDED = "Tilføjet af kunden";
 
 // Kræves "lazy" (inde i buildSurveyPdf, ikke her øverst) med vilje: et
 // top-level require af et npm-modul der ikke er installeret får HELE
@@ -49,11 +55,38 @@ function groupItemsByGroupAndRepeat(items) {
   return byGroup;
 }
 
-function displayValue(it) {
-  const val = String(it.savedValue || "").trim();
-  if (val) return val;
+// Samme regel som valuesDiffer() i kundesurvey.js: kun en ændring, hvis
+// både prefill og svar har en værdi, og de er forskellige.
+function valuesDiffer(prefill, value) {
+  const norm = s => String(s ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+  const p = norm(prefill), v = norm(value);
+  if (!p || !v) return false;
+  return p !== v;
+}
+
+// Svaret + hvordan det skal markeres - samme markeringer som opsummerings-
+// mailen (rettet / tilføjet / slettet af kunden).
+//   kind: "normal" | "changed" | "added" | "removed" | "empty"
+function answerFor(it) {
+  const saved = String(it.savedValue || "").trim();
   const prefill = String(it.prefillText || "").trim();
-  return prefill || "(ikke besvaret)";
+
+  if (it.removed) {
+    const v = saved || prefill;
+    return v ? { text: v, kind: "removed" } : { text: "", kind: "empty" };
+  }
+  if (valuesDiffer(prefill, saved)) return { text: saved, kind: "changed" };
+  if (!prefill && it.addedByCustomer && saved) return { text: saved, kind: "added" };
+
+  const v = saved || prefill;
+  return v ? { text: v, kind: "normal" } : { text: "(ikke besvaret)", kind: "empty" };
+}
+
+// Markering af en hel blok (gentagelse): slettet eller tilføjet af kunden.
+function blockBadge(rowItems) {
+  if (rowItems.length && rowItems.every(it => it.removed)) return { text: BADGE_REMOVED, color: RED };
+  if (rowItems.length && rowItems.every(it => it.addedByCustomer)) return { text: BADGE_ADDED, color: TEAL };
+  return null;
 }
 
 /**
@@ -112,7 +145,7 @@ function buildSurveyPdf({ customerName, code, groups, items }) {
 
       // --- "Nr. X"-label mellem gentagelser (samme som mailens skillelinje
       //     mellem fx flere ejere/kontakter) ---
-      function drawRepeatLabel(n) {
+      function drawRepeatLabel(n, badge) {
         const lineY = doc.y + 2;
         doc.save();
         doc.dash(2, { space: 2 }).moveTo(leftX, lineY).lineTo(leftX + contentWidth, lineY)
@@ -121,7 +154,8 @@ function buildSurveyPdf({ customerName, code, groups, items }) {
         doc.restore();
         doc.x = leftX;
         doc.y = lineY + 8;
-        doc.font("Helvetica-Bold").fontSize(8.5).fillColor(MUTED).text(`Nr. ${n}`);
+        doc.font("Helvetica-Bold").fontSize(8.5).fillColor(badge ? badge.color : MUTED)
+          .text(badge ? `Nr. ${n} – ${badge.text}` : `Nr. ${n}`);
         doc.y += 6;
         doc.x = leftX;
       }
@@ -134,8 +168,22 @@ function buildSurveyPdf({ customerName, code, groups, items }) {
           .text(question || "", { width: contentWidth });
         doc.x = leftX;
         doc.moveDown(0.15);
-        doc.font("Helvetica").fontSize(10.5).fillColor(TEXT_ANSWER)
-          .text(answer, { width: contentWidth });
+
+        const suffix = {
+          changed: " (rettet af kunden)",
+          added: " (tilføjet af kunden)",
+          removed: " (slettet af kunden)"
+        }[answer.kind] || "";
+        const color = answer.kind === "changed" || answer.kind === "removed"
+          ? RED
+          : answer.kind === "added" ? TEAL : TEXT_ANSWER;
+
+        doc.font(answer.kind === "changed" || answer.kind === "added" ? "Helvetica-Bold" : "Helvetica")
+          .fontSize(10.5).fillColor(color)
+          .text(answer.text, { width: contentWidth, continued: !!suffix, strike: answer.kind === "removed" });
+        if (suffix) {
+          doc.font("Helvetica").fontSize(9.5).fillColor(color).text(suffix, { strike: false });
+        }
 
         const lineY = doc.y + 8;
         doc.moveTo(leftX, lineY).lineTo(leftX + contentWidth, lineY)
@@ -157,15 +205,23 @@ function buildSurveyPdf({ customerName, code, groups, items }) {
           // Ny side hvis der ikke er plads til overskrift + mindst ét spørgsmål
           if (doc.y > bottomLimit() - 100) doc.addPage();
 
+          const badge = group.repeatable ? blockBadge(rowItems) : null;
+
           if (ri === 0) {
             drawGroupHeading(group.title);
+            // Første blok får også "Nr. 1", når der er flere blokke eller
+            // blokken er slettet/tilføjet af kunden (som i mailen).
+            if (group.repeatable && (repeatIndexes.length > 1 || badge)) drawRepeatLabel(1, badge);
           } else if (group.repeatable) {
-            drawRepeatLabel(ri + 1);
+            drawRepeatLabel(ri + 1, badge);
           }
 
           for (const it of rowItems) {
+            const answer = answerFor(it);
+            // Tomme felter i en slettet blok udelades (som i mailen).
+            if (it.removed && answer.kind === "empty") continue;
             if (doc.y > bottomLimit() - 60) doc.addPage();
-            drawQaRow(it.text, displayValue(it));
+            drawQaRow(it.text, answer);
           }
 
           doc.moveDown(0.3);
