@@ -65,6 +65,30 @@ function jaNejHtml(value) {
   return value ? "Ja" : "Nej";
 }
 
+const REMINDER_DAYS = 14;
+
+// Hele kalenderdage siden oprettelsen (lokal tid), så et skema oprettet for
+// 14 dage siden tæller som 14, uanset klokkeslæt.
+function daysSinceCreated(row) {
+  const d = new Date(row.createdon);
+  if (Number.isNaN(d.getTime())) return 0;
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((today - start) / 86400000);
+}
+
+// Afventer/Set, oprettet for 14+ dage siden og ingen SMS sendt endnu.
+function needsReminder(row) {
+  return /^(afventer|set)$/i.test(getStatusLabel(row)) &&
+    !row.cr175_lch_smssendttidspunkt &&
+    daysSinceCreated(row) >= REMINDER_DAYS;
+}
+
+function smsSendtText(row) {
+  return row.cr175_lch_smssendttidspunkt ? fmtDateTime(row.cr175_lch_smssendttidspunkt) : "Nej";
+}
+
 function rowHtml(row) {
   const id = row.cr175_lch_kundeinfo_kundeundersoegelseid;
   const code = row.cr175_lch_kode || "";
@@ -77,22 +101,22 @@ function rowHtml(row) {
   const isUdfyldtOrLater = /udfyldt|afslut/i.test(statusLabel);
   const udfyldtAt = isUdfyldtOrLater ? fmtDateTime(row.sidstRettet) : "—";
 
-  // cr175_lch_udloebstidspunkt er pt. en deadline til en kommende function
-  // app (send SMS hvis skemaet ikke er udfyldt inden datoen), ikke et reelt
-  // "SMS afsendt"-tidspunkt - feltet er altid udfyldt allerede fra
-  // oprettelsen, så "Ja/Nej ud fra dato" ville altid vise Ja. Viser derfor
-  // altid Nej her, indtil der findes et dedikeret "SMS sendt"-felt.
-  const smsSendtHtml = "Nej";
+  // "SMS sendt" = cr175_lch_smssendttidspunkt (sat af runbook'en eller af
+  // "Send SMS" med "Registrér som SMS sendt" slået til).
+  const smsSendtHtml = escapeHtml(smsSendtText(row));
+  const reminder = needsReminder(row);
+  const canSendSms = id && !/^afsluttet$/i.test(statusLabel);
   const seSkemaLink = code ? `./kundesurvey.html?code=${encodeURIComponent(code)}&ro=1` : "#";
   const prefillLink = id ? `./admincreate.html?instanceId=${encodeURIComponent(id)}` : "#";
   const customerLink = code ? `${window.location.origin}/kundesurvey.html?code=${encodeURIComponent(code)}` : "";
 
   return `
-    <tr class="clickableRow" data-href="${escapeHtml(seSkemaLink)}">
+    <tr class="clickableRow${reminder ? " needsReminder" : ""}" data-href="${escapeHtml(seSkemaLink)}"${
+      reminder ? ` title="Ikke besvaret ${daysSinceCreated(row)} dage efter oprettelse - send påmindelse"` : ""}>
       <td><input type="checkbox" class="rowCheck" data-id="${escapeHtml(id || "")}" /></td>
       <td>${escapeHtml(customerName)}</td>
       <td>${escapeHtml(code)}</td>
-      <td>${statusPillHtml(row)}</td>
+      <td>${statusPillHtml(row)}${reminder ? `<span class="pill reminder">${daysSinceCreated(row)} dage</span>` : ""}</td>
       <td>${fmtDateTime(row.createdon)}</td>
       <td>${jaNejHtml(row.cr175_lch_mailsendttidspunkt)}</td>
       <td>${udfyldtAt}</td>
@@ -107,7 +131,7 @@ function rowHtml(row) {
           ${customerLink
             ? `<a class="tag copyLinkBtn" href="#" data-link="${escapeHtml(customerLink)}">Kopier link</a>`
             : ""}
-          ${id
+          ${canSendSms
             ? `<a class="tag sendSmsBtn" href="#" data-id="${escapeHtml(id)}">Send SMS</a>`
             : ""}
         </div>
@@ -229,7 +253,7 @@ function rowMatchesFilters(row, f) {
   const mailSendt = jaNejHtml(row.cr175_lch_mailsendttidspunkt).toLowerCase();
   const isUdfyldtOrLater = /udfyldt|afslut/i.test(statusLabel);
   const udfyldt = (isUdfyldtOrLater ? fmtDateTime(row.sidstRettet) : "—").toLowerCase();
-  const udloeber = "nej"; // se kommentar i rowHtml() om smsSendtHtml
+  const udloeber = smsSendtText(row).toLowerCase();
   const sidstRettet = fmtDateTime(row.sidstRettet).toLowerCase();
 
   if (f.search && !(kundenavn.includes(f.search) || kode.includes(f.search))) return false;
@@ -318,11 +342,85 @@ function renderTable(rows) {
 
 /* ---------- "Send SMS"-vindue ----------
    Henter den aktive SMS-skabelon udfyldt for skemaet (/api/survey-sms-preview),
-   lader admin rette nummer og tekst, og sender via /api/survey-send-sms.
-   Nummeret er forudfyldt med skemaets mobil (cr175_lch_sendttilmobil), men
-   kan rettes til fx eget nummer ved test. */
+   henter ejerne fra Entra (/api/entra-customer-contacts - samme kilde som
+   admincreate.html), lader admin vælge en eller flere ejere og rette nummer
+   og tekst, og sender via /api/survey-send-sms. Nummerfeltet er forudfyldt
+   med skemaets mobil (cr175_lch_sendttilmobil); den ejer der har det nummer,
+   er sat hak ved. Feltet kan rettes frit, fx til eget nummer ved test. */
 
 let smsInstanceId = null;
+
+function phoneKey(raw) {
+  let n = String(raw || "").replace(/[^\d+]/g, "");
+  if (n.startsWith("+")) n = n.slice(1);
+  else if (n.startsWith("00")) n = n.slice(2);
+  if (/^45\d{8}$/.test(n)) n = n.slice(2);
+  return n;
+}
+
+function splitNumbers(value) {
+  return String(value || "").split(/[,;]/).map(x => x.trim()).filter(Boolean);
+}
+
+function ownerPhone(owner) {
+  return String(owner.mobilePhone || owner.businessPhone || "").trim();
+}
+
+// Hak ved en ejer tilføjer nummeret i feltet, fjern hak fjerner det.
+function onOwnerToggle(e) {
+  const cb = e.target.closest("input[type=checkbox][data-phone]");
+  if (!cb) return;
+  const phone = cb.dataset.phone;
+  const key = phoneKey(phone);
+  let nums = splitNumbers($("smsTo").value).filter(n => phoneKey(n) !== key);
+  if (cb.checked) nums.push(phone);
+  $("smsTo").value = nums.join(", ");
+}
+
+// Holder hakkerne i takt med feltet, hvis admin skriver/sletter numre selv.
+function syncOwnerChecks() {
+  const keys = new Set(splitNumbers($("smsTo").value).map(phoneKey));
+  document.querySelectorAll("#smsOwners input[data-phone]").forEach(cb => {
+    cb.checked = keys.has(phoneKey(cb.dataset.phone));
+  });
+}
+
+async function loadSmsOwners(kundenummer, instanceId) {
+  const box = $("smsOwners");
+  if (!kundenummer) {
+    box.innerHTML = `<span class="hint">Skemaet har intet kundenummer.</span>`;
+    return;
+  }
+  box.innerHTML = `<span class="hint">Henter ejere for ${escapeHtml(kundenummer)}…</span>`;
+
+  try {
+    const r = await fetch(`/api/entra-customer-contacts?kundenr=${encodeURIComponent(kundenummer)}`, { cache: "no-store" });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.message || data.error || `${r.status}`);
+    if (smsInstanceId !== instanceId) return;
+
+    const owners = Array.isArray(data.owners) ? data.owners : [];
+    if (!owners.length) {
+      box.innerHTML = `<span class="hint">Ingen ejere fundet i kontaktlisten.</span>`;
+      return;
+    }
+
+    box.innerHTML = owners.map(o => {
+      const phone = ownerPhone(o);
+      const name = escapeHtml(o.displayName || "(uden navn)");
+      return phone
+        ? `<label><input type="checkbox" data-phone="${escapeHtml(phone)}" /> ${name} – ${escapeHtml(phone)}</label>`
+        : `<label class="noPhone"><input type="checkbox" disabled /> ${name} – intet telefonnummer</label>`;
+    }).join("");
+
+    syncOwnerChecks();
+  } catch (e) {
+    console.error("entra-customer-contacts fejl:", e);
+    if (smsInstanceId === instanceId) {
+      box.innerHTML = `<span class="hint warn">Kunne ikke hente ejere: ${escapeHtml(e.message)}</span>`;
+    }
+  }
+}
 
 const GSM7 = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?" +
   "¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
@@ -369,6 +467,7 @@ async function openSmsModal(instanceId) {
   $("smsTemplateHint").textContent = "";
   $("smsTemplateHint").classList.remove("warn");
   $("smsMarkSent").checked = false;
+  $("smsOwners").innerHTML = `<span class="hint">Henter ejere…</span>`;
   $("smsSend").disabled = true;
   setSmsStatus("");
   updateSmsCount();
@@ -380,7 +479,8 @@ async function openSmsModal(instanceId) {
     if (!r.ok) throw new Error(data.message || data.error || `${r.status}`);
     if (smsInstanceId !== instanceId) return; // vinduet er lukket/skiftet imens
 
-    $("smsModalCustomer").textContent = `${data.kundenavn || "(uden navn)"} – kode ${data.kode || ""}`;
+    $("smsModalCustomer").textContent =
+      `${data.kundenavn || "(uden navn)"} – kode ${data.kode || ""} – status ${data.status || "—"}`;
     $("smsTo").value = data.mobil || "";
     $("smsToHint").textContent = data.mobil
       ? `Skemaets mobilnummer: ${data.mobil}`
@@ -396,6 +496,7 @@ async function openSmsModal(instanceId) {
     }
 
     updateSmsCount();
+    loadSmsOwners(data.kundenummer, instanceId);
     $("smsSend").disabled = false;
     $("smsTo").focus();
   } catch (e) {
@@ -407,15 +508,16 @@ async function openSmsModal(instanceId) {
 }
 
 async function sendSms() {
-  const to = $("smsTo").value.trim();
+  const numbers = splitNumbers($("smsTo").value);
   const message = $("smsText").value.trim();
   const markSent = $("smsMarkSent").checked;
 
-  if (!to) { setSmsStatus("Udfyld mobilnummer.", true); return; }
+  if (!numbers.length) { setSmsStatus("Vælg en ejer eller skriv et mobilnummer.", true); return; }
   if (!message) { setSmsStatus("Teksten er tom.", true); return; }
 
   const parts = smsInfo(message).parts;
-  if (!confirm(`Send SMS (${parts} del${parts === 1 ? "" : "e"}) til ${to}?`)) return;
+  const toText = numbers.join(", ");
+  if (!confirm(`Send SMS (${parts} del${parts === 1 ? "" : "e"}) til ${numbers.length === 1 ? toText : `${numbers.length} modtagere: ${toText}`}?`)) return;
 
   $("smsSend").disabled = true;
   setSmsStatus("Sender…");
@@ -424,13 +526,14 @@ async function sendSms() {
     const r = await fetch("/api/survey-send-sms", {
       method: "POST",
       headers: { "Content-Type": "application/json; charset=utf-8" },
-      body: JSON.stringify({ instanceId: smsInstanceId, to, message, markSent })
+      body: JSON.stringify({ instanceId: smsInstanceId, to: numbers, message, markSent })
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.message || data.error || `${r.status}`);
 
     closeSmsModal();
-    let msg = `SMS sendt til ${data.to} ✔`;
+    const sentTo = Array.isArray(data.to) ? data.to.join(", ") : data.to;
+    let msg = `SMS sendt til ${sentTo} ✔`;
     if (data.logError) msg += " (men kunne ikke logges i SMS-loggen)";
     showToast(msg, data.logError ? "error" : "success");
     if (data.marked) await load();
@@ -518,6 +621,8 @@ document.addEventListener("DOMContentLoaded", () => {
   $("btnDeleteSelected")?.addEventListener("click", deleteSelected);
 
   $("smsText")?.addEventListener("input", updateSmsCount);
+  $("smsOwners")?.addEventListener("change", onOwnerToggle);
+  $("smsTo")?.addEventListener("input", syncOwnerChecks);
   $("smsSend")?.addEventListener("click", sendSms);
   $("smsCancel")?.addEventListener("click", closeSmsModal);
   $("smsModal")?.addEventListener("click", (e) => {

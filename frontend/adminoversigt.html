@@ -162,6 +162,15 @@
     #toast.success { background: #137333; }
     #toast.error { background: #b3261e; }
 
+    /* Skemaer der ikke er besvaret 14+ dage efter oprettelse og ikke har fået
+       SMS - skal have en påmindelse. */
+    tr.needsReminder { background:#fff4e5; }
+    tr.needsReminder:hover { background:#ffe9cc; }
+    tr.needsReminder td:nth-child(2) { box-shadow: inset 4px 0 0 #e8710a; }
+    .pill.reminder { background:#e8710a; color:#fff; margin-left:4px; white-space:nowrap; }
+    .legend { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:#666; }
+    .legend .swatch { width:14px; height:14px; border-radius:3px; background:#fff4e5; border-left:4px solid #e8710a; }
+
     /* "Send SMS"-vindue */
     .smsModalBackdrop {
       position: fixed; inset: 0; z-index: 900;
@@ -185,6 +194,13 @@
     .smsModal textarea { min-height: 220px; resize: vertical; }
     .smsModal .hint { font-size: 12px; color: #666; margin-top: 4px; }
     .smsModal .hint.warn { color: #b45309; }
+    .smsOwners { border:1px solid #eee; border-radius:8px; padding:8px 10px; background:#fafafa; }
+    .smsOwners label {
+      display:flex; align-items:center; gap:8px; margin:4px 0;
+      font-weight:normal; font-size:13px; cursor:pointer;
+    }
+    .smsOwners label input { width:auto; margin:0; }
+    .smsOwners label.noPhone { color:#999; cursor:default; }
     .smsModal .checkRow { display: flex; gap: 8px; align-items: center; margin-top: 14px; font-size: 13px; }
     .smsModal .checkRow input { width: auto; margin: 0; }
     .smsModal .btnrow { margin-top: 18px; justify-content: flex-end; }
@@ -230,6 +246,7 @@
         <input type="search" id="searchInput" placeholder="Søg på kundenavn eller kode…" autocomplete="off" />
         <button id="btnClearFilters" class="btn clearFiltersBtn" type="button">Ryd filtre</button>
         <span id="filterCount" class="muted"></span>
+        <span class="legend"><span class="swatch"></span>Ikke besvaret 14+ dage efter oprettelse og ingen SMS sendt – send påmindelse</span>
       </div>
 
       <div id="status" class="muted">Indlæser kundesurveys…</div>
@@ -297,8 +314,11 @@
       <h2 id="smsModalTitle">Send sms til</h2>
       <div id="smsModalCustomer" class="muted"></div>
 
+      <label>Ejere</label>
+      <div id="smsOwners" class="smsOwners"><span class="hint">Henter ejere…</span></div>
+
       <label for="smsTo">Mobilnummer</label>
-      <input id="smsTo" type="tel" placeholder="fx 20123456" autocomplete="off" />
+      <input id="smsTo" type="tel" placeholder="fx 20123456 – flere adskilles med komma" autocomplete="off" />
       <div id="smsToHint" class="hint"></div>
 
       <label for="smsText">Tekst</label>
@@ -327,6 +347,6 @@
     requireAuth({ autoRedirect: true });
   </script>
 
-  <script type="module" src="./assets/adminoversigt.js?v=2"></script>
+  <script type="module" src="./assets/adminoversigt.js?v=3"></script>
 </body>
 </html>

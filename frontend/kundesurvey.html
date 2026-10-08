@@ -116,6 +116,22 @@
     .btn.primary { background:#1f6c7a; color:#fff; border-color:#1f6c7a; }
     .btn.danger { background:#fff; color:#b3261e; border-color:#b3261e; }
 
+    /* "Gem & afslut" - samme farve som navbaren og fuld bredde, så den ikke
+       bliver overset (flere kunder er endt på status "Set" uden at afslutte). */
+    .submitRow { flex-direction:column; align-items:stretch; }
+    #btnSubmit {
+      width:100%;
+      background:var(--nav-bg, #850c18);
+      border-color:var(--nav-bg, #850c18);
+      color:#fff;
+      padding:.9rem 1rem;
+      font-size:1.1rem;
+      font-weight:700;
+    }
+    #btnSubmit:hover:not(:disabled) { filter:brightness(1.1); }
+    #btnSubmit:disabled { opacity:.6; cursor:default; }
+    .submitRow #status { text-align:center; }
+
     /* Prefill-værdi – markeret ramme, samme stil som knapper, 20% grå baggrund */
     .prefill-box {
       display:inline-block;
@@ -317,7 +333,7 @@
       <form id="surveyForm" autocomplete="off" novalidate>
         <div id="questions"></div>
 
-        <div class="btnrow card" style="margin-top:14px;">
+        <div class="btnrow card submitRow" style="margin-top:14px;">
           <button class="btn primary" id="btnSubmit" type="submit">Gem &amp; afslut</button>
           <span class="muted" id="status"></span>
         </div>
@@ -349,9 +365,3 @@
   <script type="module" src="./assets/kundesurvey.js?v=6"></script>
 </body>
 </html>
-
-
-
-
-
-

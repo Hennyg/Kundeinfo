@@ -2,13 +2,20 @@
 //
 // Vedligeholder både mail- og SMS-skabeloner i samme Dataverse-tabel
 // (cr175_lch_kundeinfo_mailskabelons). En SMS-skabelon er kendetegnet ved
-// kategorien "sms-paamindelse" (SMS_CATEGORY) - der er altså intet separat
-// type-felt i Dataverse. SMS-skabeloner har ingen emne og ingen PDF, og
+// kategorien "sms-paamindelse" (standard: Afventer/Igang) eller
+// "sms-paamindelse-set" (status Set) - der er altså intet separat type-felt i
+// Dataverse. SMS-skabeloner har ingen emne og ingen PDF, og
 // brødteksten er ren tekst. De bruges af SMS-påmindelses-runbook'en i
 // Automation Account "Kundeinfo".
 let els = null;
 
 const SMS_CATEGORY = "sms-paamindelse";
+const SMS_CATEGORIES = ["sms-paamindelse", "sms-paamindelse-set"];
+
+function smsVariantFromCategory(kategori) {
+  const k = String(kategori || "").trim().toLowerCase();
+  return SMS_CATEGORIES.includes(k) ? k : SMS_CATEGORY;
+}
 
 function isSmsCategory(kategori) {
   return String(kategori || "").trim().toLowerCase().startsWith("sms");
@@ -59,6 +66,7 @@ function getEls() {
 
     tid: document.getElementById("tid"),
     ttype: document.getElementById("ttype"),
+    tsmsvariant: document.getElementById("tsmsvariant"),
     tbroedtekstLabel: document.getElementById("tbroedtekstLabel"),
     smsCounter: document.getElementById("smsCounter"),
     hintMail: document.getElementById("hintMail"),
@@ -193,6 +201,7 @@ function applyTypeUI() {
   const sms = currentType() === "sms";
 
   document.querySelectorAll(".mailOnly").forEach(el => el.classList.toggle("hidden", sms));
+  document.querySelectorAll(".smsOnly").forEach(el => el.classList.toggle("hidden", !sms));
   els.hintMail?.classList.toggle("hidden", sms);
   els.hintSms?.classList.toggle("hidden", !sms);
 
@@ -203,7 +212,7 @@ function applyTypeUI() {
     : "Hej {{kundenavn}},\n\nUdfyld venligst spørgeskemaet her: {{link}}";
 
   if (sms) {
-    els.tkategori.value = SMS_CATEGORY;
+    els.tkategori.value = smsVariantFromCategory(els.tsmsvariant?.value);
     els.tkategori.readOnly = true;
   } else {
     if (isSmsCategory(els.tkategori.value)) els.tkategori.value = "";
@@ -219,7 +228,7 @@ function readForm() {
   const payload = {
     id: (els.tid.value || "").trim() || null,
     navn: (els.tnavn.value || "").trim(),
-    kategori: sms ? SMS_CATEGORY : ((els.tkategori.value || "").trim() || null),
+    kategori: sms ? smsVariantFromCategory(els.tsmsvariant?.value) : ((els.tkategori.value || "").trim() || null),
     emne: sms ? null : ((els.temne.value || "").trim() || null),
     broedtekst: (sms ? (els.tbroedtekst.value || "").trim() : els.tbroedtekst.value) || null,
     aktiv: !!els.taktiv.checked,
@@ -254,6 +263,7 @@ function fillForm(t) {
   els.tbroedtekst.value = t.cr175_lch_broedtekst || "";
   els.taktiv.checked = (t.cr175_lch_aktiv ?? true) === true;
   if (els.ttype) els.ttype.value = isSmsCategory(t.cr175_lch_kategori) ? "sms" : "mail";
+  if (els.tsmsvariant) els.tsmsvariant.value = smsVariantFromCategory(t.cr175_lch_kategori);
 
   pdfState = { action: "keep", base64: null, filename: null };
   if (els.tpdf) els.tpdf.value = "";
@@ -267,6 +277,7 @@ function resetForm() {
   els.status.textContent = "";
   els.taktiv.checked = true;
   if (els.ttype) els.ttype.value = "mail";
+  if (els.tsmsvariant) els.tsmsvariant.value = SMS_CATEGORY;
 
   pdfState = { action: "keep", base64: null, filename: null };
   if (els.tpdf) els.tpdf.value = "";
@@ -294,7 +305,7 @@ async function listTemplates() {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${escapeHtml(t.cr175_lch_navn ?? '')}</td>
-      <td>${sms ? 'SMS' : 'Mail'}</td>
+      <td>${sms ? (smsVariantFromCategory(t.cr175_lch_kategori) === 'sms-paamindelse-set' ? 'SMS (Set)' : 'SMS') : 'Mail'}</td>
       <td>${escapeHtml(t.cr175_lch_kategori ?? '—')}</td>
       <td>${sms ? '—' : escapeHtml(t.cr175_lch_emne ?? '')}</td>
       <td>${t.cr175_lch_vedhaeftetpdfnavn ? `Ja (${escapeHtml(t.cr175_lch_vedhaeftetpdfnavn)})` : '—'}</td>
@@ -403,6 +414,7 @@ function wireEvents() {
   els.btnReset.addEventListener("click", resetForm);
 
   els.ttype?.addEventListener("change", applyTypeUI);
+  els.tsmsvariant?.addEventListener("change", applyTypeUI);
   els.tbroedtekst?.addEventListener("input", updateSmsCounter);
 
   els.table.addEventListener("click", async (e) => {

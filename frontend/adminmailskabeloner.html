@@ -94,7 +94,8 @@
           <code>{{kode}}</code>, <code>{{link}}</code>, <code>{{mail}}</code> (adressen invitationen
           blev sendt til) og <code>{{afsender}}</code> (den der oprettede skemaet) kan bruges og
           bliver erstattet når SMS'en
-          sendes af påmindelses-runbook'en (kategori <code>sms-paamindelse</code>). Afsendernavnet på
+          sendes af påmindelses-runbook'en og fra "Send SMS" på oversigten. Skemaer med status
+          <b>Set</b> får skabelonen til Set (findes den ikke, bruges standard). Afsendernavnet på
           SMS'en er fast og styres ikke herfra.
         </div>
 
@@ -114,6 +115,14 @@
             </select>
           </div>
 
+          <div class="row smsOnly hidden">
+            <label for="tsmsvariant">Bruges til</label>
+            <select id="tsmsvariant" style="padding:.5rem; max-width:420px;">
+              <option value="sms-paamindelse">Påmindelse – status Afventer / Igang (standard)</option>
+              <option value="sms-paamindelse-set">Påmindelse – status Set (åbnet, men ikke besvaret)</option>
+            </select>
+          </div>
+
           <div class="row">
             <label for="tkategori">Kategori</label>
             <input id="tkategori" placeholder="fx opret-skema" />
@@ -123,8 +132,8 @@
             <div class="muted" style="margin-top:-6px;">
               Bruges til at filtrere hvilke skabeloner der vises i dropdown-menuer rundt om i
               systemet (fx skabelon-vælgeren på "Opret skema"-siden bruger kategorien
-              <code>opret-skema</code>). SMS-skabeloner får altid kategorien
-              <code>sms-paamindelse</code>.
+              <code>opret-skema</code>). SMS-skabeloner får kategorien
+              <code>sms-paamindelse</code> eller <code>sms-paamindelse-set</code> ud fra "Bruges til".
             </div>
           </div>
 
@@ -242,6 +251,6 @@ Med venlig hilsen
     requireAuth({ autoRedirect: false });
   </script>
 
-  <script src="./assets/adminmailskabeloner.js?v=3" type="module"></script>
+  <script src="./assets/adminmailskabeloner.js?v=4" type="module"></script>
 </body>
 </html>

@@ -1,11 +1,16 @@
 // /api/_sms.js
 //
-// Fælles SMS-logik for Kundeinfo: SMS-skabelon (kategori "sms-paamindelse"
-// i cr175_lch_kundeinfo_mailskabelons), udfyldning af pladsholdere ud fra en
+// Fælles SMS-logik for Kundeinfo: SMS-skabeloner (i
+// cr175_lch_kundeinfo_mailskabelons), udfyldning af pladsholdere ud fra en
 // kundeundersøgelse, afsendelse via Sveve og log i SMS service-appens tabel
 // (cr175_lch_sms_services). Samme regler som påmindelses-runbook'en i
 // Automation Account "Kundeinfo", så en test herfra svarer til det runbook'en
 // sender.
+//
+// To SMS-skabeloner, valgt ud fra skemaets status:
+//   "sms-paamindelse-set" - status Set (kunden har åbnet linket, men ikke svaret)
+//   "sms-paamindelse"     - alle andre (Afventer/Igang) - og fallback hvis der
+//                           ikke findes en aktiv Set-skabelon
 //
 // App settings:
 //   SVEVE_USER, SVEVE_PASSWD  - Sveve-login
@@ -18,6 +23,11 @@ const { substitutePlaceholders } = require("./_mail/renderTemplate");
 
 const CUSTOMER_BASE_URL = "https://kundeinfo.lcherrup.dk";
 const SMS_CATEGORY = "sms-paamindelse";
+const SMS_CATEGORY_SET = "sms-paamindelse-set";
+
+function categoryForStatus(status) {
+  return String(status || "").trim().toLowerCase() === "set" ? SMS_CATEGORY_SET : SMS_CATEGORY;
+}
 const SURVEY_TABLE = "cr175_lch_kundeinfo_kundeundersoegelses";
 const TEMPLATE_TABLE = "cr175_lch_kundeinfo_mailskabelons";
 const SMS_LOG_TABLE = "cr175_lch_sms_services";
@@ -57,22 +67,32 @@ async function loadInstance(instanceId) {
   const r = await dvFetch(
     `${SURVEY_TABLE}(${instanceId})` +
     `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kode,cr175_lch_kundenavn,` +
-    `cr175_lch_kundenummer,cr175_lch_sendttil,cr175_lch_sendttilmobil,cr175_lch_oprettetaf`
+    `cr175_lch_kundenummer,cr175_lch_sendttil,cr175_lch_sendttilmobil,cr175_lch_oprettetaf,cr175_lch_nystatus`
   );
   return r.json();
 }
 
-// Den aktive SMS-skabelon. Er der flere, bruges den senest rettede (som i
-// runbook'en).
-async function getSmsTemplate() {
-  const filter = `cr175_lch_kategori eq '${escOData(SMS_CATEGORY)}' and cr175_lch_aktiv eq true`;
+// Den aktive SMS-skabelon i en kategori. Er der flere, bruges den senest
+// rettede (som i runbook'en).
+async function getSmsTemplateByCategory(category) {
+  const filter = `cr175_lch_kategori eq '${escOData(category)}' and cr175_lch_aktiv eq true`;
   const r = await dvFetch(
     `${TEMPLATE_TABLE}?$select=cr175_lch_kundeinfo_mailskabelonid,cr175_lch_navn,cr175_lch_broedtekst` +
     `&$filter=${encodeURIComponent(filter)}&$orderby=modifiedon desc&$top=2`
   );
   const data = await r.json();
   const rows = data?.value || [];
-  return { template: rows[0] || null, count: rows.length };
+  return { template: rows[0] || null, count: rows.length, category };
+}
+
+// Skabelonen til et skema ud fra dets status. Mangler Set-skabelonen, bruges
+// standardskabelonen (med fallback = true).
+async function getSmsTemplateForStatus(status) {
+  const wanted = categoryForStatus(status);
+  const res = await getSmsTemplateByCategory(wanted);
+  if (res.template || wanted === SMS_CATEGORY) return { ...res, wanted, fallback: false };
+  const std = await getSmsTemplateByCategory(SMS_CATEGORY);
+  return { ...std, wanted, fallback: !!std.template };
 }
 
 // Visningsnavn på den der oprettede skemaet (cr175_lch_oprettetaf er en
@@ -122,8 +142,9 @@ function smsParts(text) {
   return len <= 160 ? 1 : Math.ceil(len / 153);
 }
 
-// Sender én SMS via Sveve (GET - Sveve svarer 404 på POST). Kaster ikke;
-// returnerer { ok, smsCount, error, raw }.
+// Sender én SMS via Sveve (GET - Sveve svarer 404 på POST). "to" kan være
+// flere numre adskilt af komma. Kaster ikke; returnerer
+// { ok, okCount, smsCount, error, raw }.
 async function sveveSend(to, msg) {
   const { user, passwd, from } = sveveConfig();
   const qs = new URLSearchParams({ f: "json", user, passwd, to, from, msg });
@@ -150,6 +171,7 @@ async function sveveSend(to, msg) {
 
   return {
     ok: !error,
+    okCount: Number(resp.msgOkCount ?? 0),
     smsCount: Number(resp.stdSMSCount ?? resp.stdSmsCount ?? 0),
     error,
     raw
@@ -166,7 +188,7 @@ function formatTitle(date, kode) {
 
 // Én række i SMS service-appens log. Fejl her må ikke skjule at SMS'en er
 // sendt - returnerer fejlbeskeden i stedet for at kaste.
-async function writeSmsLog({ to, msg, status, smsCount, raw, kode, afsender, afsenderMail, test }) {
+async function writeSmsLog({ to, msg, status, smsCount, raw, kode, afsender, afsenderMail, test, antalModtagere }) {
   try {
     await dvFetch(SMS_LOG_TABLE, {
       method: "POST",
@@ -180,7 +202,7 @@ async function writeSmsLog({ to, msg, status, smsCount, raw, kode, afsender, afs
         cr175_lch_fra: String(process.env.SVEVE_FROM || ""),
         cr175_lch_test: !!test,
         cr175_lch_antalsms: smsCount || 0,
-        cr175_lch_antalmodtagere: 1,
+        cr175_lch_antalmodtagere: antalModtagere || 1,
         cr175_lch_sendt: new Date().toISOString(),
         cr175_lch_status: status,
         cr175_lch_svar: String(raw || "").slice(0, 3900)
@@ -202,9 +224,12 @@ async function markSmsSent(instanceId) {
 
 module.exports = {
   SMS_CATEGORY,
+  SMS_CATEGORY_SET,
+  categoryForStatus,
   normalizePhone,
   loadInstance,
-  getSmsTemplate,
+  getSmsTemplateByCategory,
+  getSmsTemplateForStatus,
   renderSmsForInstance,
   smsParts,
   sveveSend,

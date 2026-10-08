@@ -25,7 +25,7 @@ module.exports = async function (context, req) {
 
     const url =
       `cr175_lch_kundeinfo_kundeundersoegelses` +
-      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kundenavn,cr175_lch_kundenummer,cr175_lch_kode,cr175_lch_udloebstidspunkt,cr175_lch_nystatus,cr175_lch_mailsendttidspunkt,createdon` +
+      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kundenavn,cr175_lch_kundenummer,cr175_lch_kode,cr175_lch_udloebstidspunkt,cr175_lch_nystatus,cr175_lch_mailsendttidspunkt,cr175_lch_smssendttidspunkt,createdon` +
       `&$orderby=createdon desc` +
       filterPart +
       `&$top=${top}`;
@@ -125,6 +125,3 @@ module.exports = async function (context, req) {
     return json(context, 500, { error: "server_error", detail: err.message, stack: String(err.stack || "") });
   }
 };
-
-
-
