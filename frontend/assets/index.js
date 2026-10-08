@@ -1,265 +1,123 @@
-// /api/survey-send-invite-mail/index.js
-//
-// Sender "opret skema"-invitationsmailen til kunden, når admin opretter et
-// nyt spørgeskema på admincreate.html og vælger "Opret skema og send mail".
-// Skabelonen vælges via dropdown på admincreate.html (kategori
-// "opret-skema" i mailskabeloner) og sendes med som `templateId` - selve
-// Dataverse-id'et på skabelonen, IKKE en fritekst-nøgle (den findes ikke
-// længere - to skabeloner kunne tidligere ende med samme nøgle ved en
-// fejl, og opslaget ramte så den forkerte). `templateId` er påkrævet.
-// Afsenderen er den admin-bruger der er logget ind (samme mønster som
-// survey-send-summary-mail).
-//
-// Uniconta-pladsholdere (kundeemail, telefon, mobil, cvr, adresse,
-// postnr_by, kontaktperson) hentes HER på serveren via det eksisterende
-// _uniconta.js-modul, ud fra customerNumber - ikke fra data browseren
-// sender med. Det sikrer at mailen altid bruger de aktuelle Uniconta-data,
-// uanset hvad der evt. har ligget i browserens formular.
-//
-// {{afsendernavn}} hentes via Graph fra den indloggede admin-bruger, til
-// brug i mailens signatur.
-//
-// Findes der en PDF-vedhæftning på selve skabelonen (uploadet via
-// adminmailskabeloner.html, gemt som base64 i cr175_lch_vedhaeftetpdf),
-// sendes den automatisk med som vedhæftet fil.
-//
-// Efter mailen er sendt, gemmes tidspunktet på selve kundeundersøgelsen
-// (cr175_lch_mailsendttidspunkt), så adminoversigt.html kan vise en ægte
-// "Mail sendt"-kolonne adskilt fra "Skema oprettet".
-//
-// Kundelinket ({{link}}) bygges HER på serveren ud fra koden og
-// CUSTOMER_BASE_URL - det link browseren sender med ignoreres. Så peger
-// mailen altid på kundeinfo.lcherrup.dk, uanset om admin sidder på
-// azurestaticapps.net-adressen, og uanset hvilken side mailen sendes fra
-// (admincreate.html, redigering eller "Se skema"-statusboksen).
+console.log("index.js loaded (v6)");
 
-const { graph } = require("../_graph/graph");
-const { getTemplateById, substitutePlaceholders } = require("../_mail/renderTemplate");
-const { unicontaFetch, normalizeDebtor } = require("../_uniconta");
-const { cdFetch: dvFetch } = require("../_coredata");
-const { STATUS, advanceStatus } = require("../_surveyStatus");
-
-// Kunde-vendt domæne til links i mails. Ret KUN her, hvis domænet skifter.
-const CUSTOMER_BASE_URL = "https://kundeinfo.lcherrup.dk";
-
-function buildCustomerLink(code) {
-  return `${CUSTOMER_BASE_URL}/kundesurvey.html?code=${encodeURIComponent(code)}`;
+function hideAllPanels() {
+  document.getElementById("checkingAuth")?.classList.add("hidden");
+  document.getElementById("internalChoice")?.classList.add("hidden");
+  document.getElementById("app")?.classList.add("hidden");
 }
 
-function json(context, status, body) {
-  context.res = {
-    status,
-    headers: { "Content-Type": "application/json; charset=utf-8" },
-    body
+function showCustomerPanel() {
+  hideAllPanels();
+  document.getElementById("app")?.classList.remove("hidden");
+}
+
+function showInternalChoice() {
+  hideAllPanels();
+  document.getElementById("internalChoice")?.classList.remove("hidden");
+}
+
+// Afgør om vi skal vise "internt valg" (Se kundeindgang / Admin) eller
+// kundens kode-login direkte.
+//
+// Prioritet:
+// 1. ?preview=1  -> tving kundevisning, uanset alt andet (bruges af
+//    "Se kundeindgang"-knappen og evt. direkte links).
+// 2. ?internal=1 -> tving internt valg. Sættes på linket fra Herrup
+//    Portalen, da et opkald derfra i sig selv er nok bevis for at det er
+//    en intern bruger - vi behøver ikke vente på en evt. SWA-login-session,
+//    som typisk IKKE findes endnu på dette tidspunkt.
+// 3. Fallback: tjek /.auth/me for en eksisterende login-session (dækker
+//    fx et gemt bogmærke eller direkte besøg fra en allerede logget-ind bruger).
+//
+// Selve sikkerheden ligger IKKE her - admin.html er stadig beskyttet af
+// staticwebapp.config.json (allowedRoles: authenticated), så et gættet
+// ?internal=1 udefra giver ikke reel adgang, kun UI-visningen.
+async function resolveMode() {
+  const params = new URLSearchParams(location.search);
+
+  if (params.has("preview")) {
+    console.log("preview=1 fundet - viser kundevisning.");
+    return "customer";
+  }
+
+  if (params.has("internal")) {
+    console.log("internal=1 fundet - viser internt valg (fra Herrup Portalen).");
+    return "internal";
+  }
+
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 3000);
+    const r = await fetch("/.auth/me", { cache: "no-store", signal: ctrl.signal });
+    clearTimeout(t);
+    const data = await r.json();
+    const principal = data?.clientPrincipal;
+    console.log("Login-status:", principal ? `logget ind som ${principal.userDetails}` : "ikke logget ind");
+    return principal ? "internal" : "customer";
+  } catch (e) {
+    console.warn("Kunne ikke slå login-status op, viser kundevisning som fallback:", e);
+    return "customer";
+  }
+}
+
+async function init() {
+  // Sikkerhedsnet: siden må aldrig blive hængende på "Tjekker…". Er der
+  // ikke valgt visning inden 4 sek. (fx hvis /.auth/me ikke svarer på et
+  // nyt domæne), vises kundevisningen.
+  const fallbackTimer = setTimeout(() => {
+    if (!document.getElementById("checkingAuth")?.classList.contains("hidden")) {
+      console.warn("Login-tjek tog for lang tid - viser kundevisning.");
+      showCustomerPanel();
+    }
+  }, 4000);
+
+  let mode = "customer";
+  try {
+    mode = await resolveMode();
+  } catch (e) {
+    console.warn("resolveMode fejlede - viser kundevisning:", e);
+  }
+  clearTimeout(fallbackTimer);
+
+  if (mode === "internal") {
+    showInternalChoice();
+  } else {
+    showCustomerPanel();
+  }
+
+  const btn = document.getElementById("continueBtn");
+  const input = document.getElementById("customerCode");
+
+  const goToSurvey = () => {
+    console.log("Redirecting to kundesurvey");
+    const code = input.value.trim();
+
+    if (code.length !== 6 || isNaN(code)) {
+      alert("Indtast et gyldigt 6-cifret nummer");
+      return;
+    }
+
+    location.href = `./kundesurvey.html?code=${encodeURIComponent(code)}`;
   };
+
+  btn.addEventListener("click", goToSurvey);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") goToSurvey();
+  });
+
+  document.getElementById("goCustomerBtn")?.addEventListener("click", () => {
+    showCustomerPanel();
+  });
+
+  document.getElementById("goAdminBtn")?.addEventListener("click", () => {
+    location.href = "./admin.html";
+  });
 }
 
-function getClientPrincipal(req) {
-  const header = req.headers["x-ms-client-principal"];
-  if (!header) return null;
-  try {
-    const decoded = Buffer.from(header, "base64").toString("utf8");
-    return JSON.parse(decoded);
-  } catch {
-    return null;
-  }
+// Modul-scripts kører normalt før DOMContentLoaded, men er dokumentet
+// allerede indlæst (fx fra cache), ville en ren listener aldrig køre init.
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", init);
+} else {
+  init();
 }
-
-function esc(value) {
-  return String(value || "").replace(/'/g, "''");
-}
-
-// Samme konvertering som customerNumberToUnicontaAccount() i
-// admincreate.js: kundenummer "0080001985" -> Uniconta-konto "80001985".
-function customerNumberToUnicontaAccount(kundenr) {
-  return String(kundenr || "").trim().replace(/\s+/g, "").replace(/^00/, "");
-}
-
-// Henter og normaliserer Uniconta-debitoren for kundenummeret. Fejler
-// opslaget (kunden findes ikke i Uniconta, forkert kundenummer, Uniconta er
-// nede osv.), skal selve mail-afsendelsen IKKE stoppe - Uniconta-
-// pladsholderne bliver bare tomme i det tilfælde.
-async function loadUnicontaDebtorSafe(context, customerNumber) {
-  const account = customerNumberToUnicontaAccount(customerNumber);
-  if (!account) return null;
-
-  try {
-    const response = await unicontaFetch(`DebtorClient?$filter=Account eq '${esc(account)}'&$top=1`);
-    const data = await response.json();
-    const row = (Array.isArray(data) ? data : (data.value || []))[0];
-    return row ? normalizeDebtor(row) : null;
-  } catch (e) {
-    context.log.error("survey-send-invite-mail: Uniconta-opslag fejlede:", e);
-    return null;
-  }
-}
-
-// Henter afsenderens visningsnavn via Graph, til brug som {{afsendernavn}}
-// i mailens signatur. Fejler opslaget, falder vi tilbage til selve
-// mail-adressen frem for at lade mail-afsendelsen fejle af den grund.
-async function loadSenderDisplayName(context, fromMailbox) {
-  try {
-    const me = await graph("GET", `/users/${encodeURIComponent(fromMailbox)}?$select=displayName`);
-    return me?.displayName || fromMailbox;
-  } catch (e) {
-    context.log.error("survey-send-invite-mail: kunne ikke hente afsenders displayName:", e);
-    return fromMailbox;
-  }
-}
-
-module.exports = async function (context, req) {
-  try {
-    const principal = getClientPrincipal(req);
-    const fromMailbox = String(principal?.userDetails || "").trim();
-
-    if (!fromMailbox) {
-      return json(context, 401, {
-        error: "not_authenticated",
-        message: "Kunne ikke bestemme afsender - log ind igen."
-      });
-    }
-
-    const code = String(req?.body?.code || "").trim();
-    // Bygges altid på serveren (se kommentar øverst) - req.body.link ignoreres.
-    const link = code ? buildCustomerLink(code) : "";
-    const customerName = String(req?.body?.customerName || "").trim();
-    const customerNumber = String(req?.body?.customerNumber || "").trim();
-    const instanceId = String(req?.body?.instanceId || "").trim();
-    const to = String(req?.body?.to || "").trim();
-    const templateId = String(req?.body?.templateId || "").trim();
-
-    if (!code || !to) {
-      return json(context, 400, {
-        error: "missing_fields",
-        message: "Mangler code eller modtager."
-      });
-    }
-
-    if (!templateId) {
-      return json(context, 400, {
-        error: "missing_template",
-        message: "Mangler templateId - vælg en mailskabelon."
-      });
-    }
-
-    const debtor = await loadUnicontaDebtorSafe(context, customerNumber);
-    const afsenderNavn = await loadSenderDisplayName(context, fromMailbox);
-
-    // Hentes som rå skabelon-record (ikke bare renderTemplateById), fordi
-    // vi også skal bruge en evt. vedhæftet PDF (cr175_lch_vedhaeftetpdf /
-    // -navn) på selve skabelonen.
-    let template;
-    try {
-      template = await getTemplateById(templateId);
-    } catch (e) {
-      return json(context, 500, {
-        error: "template_fetch_failed",
-        message: e.message || String(e)
-      });
-    }
-
-    if (!template) {
-      return json(context, 404, {
-        error: "template_missing",
-        message:
-          `Den valgte mail-skabelon findes ikke eller er ikke aktiv. ` +
-          `Opret/aktivér den under Admin → Mailskabeloner.`
-      });
-    }
-
-    const placeholderData = {
-      kundenavn: customerName || "(uden navn)",
-      kode: code,
-      link,
-      afsendernavn: afsenderNavn,
-      kundeemail: debtor?.email || "",
-      telefon: debtor?.phone || "",
-      mobil: debtor?.mobile || "",
-      cvr: debtor?.vatNumber || "",
-      adresse: [debtor?.address1, debtor?.address2].filter(Boolean).join(", "),
-      postnr_by: [debtor?.zipCode, debtor?.city].filter(Boolean).join(" "),
-      kontaktperson: debtor?.contactPerson || ""
-    };
-
-    const rendered = {
-      subject: substitutePlaceholders(template.cr175_lch_emne, placeholderData),
-      html: substitutePlaceholders(template.cr175_lch_broedtekst, placeholderData)
-    };
-
-    // Vedhæftet PDF på selve skabelonen (gemt som base64 i
-    // cr175_lch_vedhaeftetpdf) - valgfri, sendes med hvis den findes.
-    const attachments = [];
-    if (template.cr175_lch_vedhaeftetpdf) {
-      attachments.push({
-        "@odata.type": "#microsoft.graph.fileAttachment",
-        name: template.cr175_lch_vedhaeftetpdfnavn || "vedhaeftning.pdf",
-        contentType: "application/pdf",
-        contentBytes: template.cr175_lch_vedhaeftetpdf
-      });
-    }
-
-    await graph("POST", `/users/${encodeURIComponent(fromMailbox)}/sendMail`, {
-      message: {
-        subject: rendered.subject,
-        body: { contentType: "HTML", content: rendered.html },
-        toRecipients: [{ emailAddress: { address: to } }],
-        attachments
-      },
-      saveToSentItems: true
-    });
-
-    // Registrér hvornår mailen blev sendt, så adminoversigt.html kan vise
-    // en ægte "Mail sendt"-kolonne (i stedet for bare at gætte ud fra
-    // oprettelsestidspunktet). Fejler denne opdatering, skal det IKKE gøre
-    // hele kaldet til en fejl - mailen er jo allerede sendt.
-    let mailTimestampSaved = false;
-    if (instanceId) {
-      try {
-        await dvFetch(`cr175_lch_kundeinfo_kundeundersoegelses(${instanceId})`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", "If-Match": "*" },
-          body: JSON.stringify({
-            cr175_lch_mailsendttidspunkt: new Date().toISOString(),
-            // Gemmer skabelonens visningsnavn (falder tilbage til nøglen,
-            // hvis navnet af en eller anden grund mangler på skabelonen).
-            cr175_lch_sidstsendtmailskabelon: template.cr175_lch_navn || templateId,
-            // Hold "Brug email"-feltet i sync med den adresse der reelt lige
-            // er sendt til - uanset om mailen blev sendt fra opret-flowet,
-            // redigerings-siden eller "Se skema"-statusboksen, og uanset om
-            // admin rettede adressen i sidste øjeblik.
-            cr175_lch_sendttil: to
-          })
-        });
-        mailTimestampSaved = true;
-      } catch (e) {
-        context.log.error("survey-send-invite-mail: kunne ikke gemme mailsendttidspunkt/skabelon:", e);
-      }
-
-      // Rykker status til "Afventer" - men kun hvis den ikke allerede er
-      // kommet længere (fx ved en manuel gensendt mail, efter kunden
-      // allerede har åbnet linket eller svaret på noget).
-      try {
-        await advanceStatus(instanceId, STATUS.AFVENTER);
-      } catch (e) {
-        context.log.error("survey-send-invite-mail: kunne ikke opdatere status:", e);
-      }
-    }
-
-    return json(context, 200, {
-      ok: true,
-      from: fromMailbox,
-      to,
-      link,
-      templateId,
-      unicontaDebtorFound: !!debtor,
-      mailTimestampSaved
-    });
-
-  } catch (err) {
-    context.log.error("survey-send-invite-mail failed:", err);
-    return json(context, 500, {
-      error: "server_error",
-      message: err.message || String(err)
-    });
-  }
-};
