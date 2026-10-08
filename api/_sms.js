@@ -38,8 +38,8 @@ const SURVEY_TABLE = "cr175_lch_kundeinfo_kundeundersoegelses";
 const TEMPLATE_TABLE = "cr175_lch_kundeinfo_mailskabelons";
 const SMS_LOG_TABLE = "cr175_lch_sms_services";
 const FALLBACK_AFSENDER = "Lely Center Herrup";
-// {{afsender}} i SMS = "<fornavn> 30506180 (Tryk 4)".
-const AFSENDER_SUFFIX = "30506180 (Tryk 4)";
+// {{afsender}} i SMS = "<fornavn> Tel: 30506180 (Tryk 4)".
+const AFSENDER_SUFFIX = "Tel: 30506180 (Tryk 4)";
 
 function sveveBase() {
   return String(process.env.SVEVE_BASE_URL || "https://api.sveve.dk").replace(/\/+$/, "");

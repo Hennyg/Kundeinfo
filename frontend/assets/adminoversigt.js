@@ -67,10 +67,10 @@ function jaNejHtml(value) {
 
 const REMINDER_DAYS = 14;
 
-// Hele kalenderdage siden oprettelsen (lokal tid), så et skema oprettet for
-// 14 dage siden tæller som 14, uanset klokkeslæt.
-function daysSinceCreated(row) {
-  const d = new Date(row.createdon);
+// Hele kalenderdage siden en dato (lokal tid), så noget der skete for 14
+// dage siden tæller som 14, uanset klokkeslæt.
+function daysSince(value) {
+  const d = new Date(value);
   if (Number.isNaN(d.getTime())) return 0;
   const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const now = new Date();
@@ -78,11 +78,32 @@ function daysSinceCreated(row) {
   return Math.round((today - start) / 86400000);
 }
 
-// Afventer/Set, oprettet for 14+ dage siden og ingen SMS sendt endnu.
-function needsReminder(row) {
-  return /^(afventer|set)$/i.test(getStatusLabel(row)) &&
-    !row.cr175_lch_smssendttidspunkt &&
-    daysSinceCreated(row) >= REMINDER_DAYS;
+// Påmindelses-markering af en række (ikke arkiverede, ikke besvarede):
+//   "needsReminder" (orange) - Afventer/Set, oprettet for 14+ dage siden,
+//                              ingen SMS sendt endnu
+//   "smsSent"       (grøn)   - SMS sendt, tæller dage siden SMS'en
+//   "smsOverdue"    (rød)    - SMS sendt for 14+ dage siden, stadig ikke besvaret
+// Returnerer null, hvis rækken ikke skal markeres.
+function reminderState(row) {
+  if (row.cr175_lch_arkiveretdato) return null;
+  const status = getStatusLabel(row);
+
+  if (row.cr175_lch_smssendttidspunkt) {
+    if (!/^(afventer|set|igang)$/i.test(status)) return null;
+    const days = daysSince(row.cr175_lch_smssendttidspunkt);
+    return days >= REMINDER_DAYS
+      ? { rowClass: "smsOverdue", pillClass: "smsOverdue", days,
+          title: `SMS sendt for ${days} dage siden - stadig ikke besvaret` }
+      : { rowClass: "smsSent", pillClass: "smsSent", days,
+          title: `SMS sendt for ${days} dage siden` };
+  }
+
+  const days = daysSince(row.createdon);
+  if (/^(afventer|set)$/i.test(status) && days >= REMINDER_DAYS) {
+    return { rowClass: "needsReminder", pillClass: "reminder", days,
+             title: `Ikke besvaret ${days} dage efter oprettelse - send påmindelse` };
+  }
+  return null;
 }
 
 function smsSendtText(row) {
@@ -104,7 +125,7 @@ function rowHtml(row) {
   // "SMS sendt" = cr175_lch_smssendttidspunkt (sat af runbook'en eller af
   // "Send SMS" med "Registrér som SMS sendt" slået til).
   const smsSendtHtml = escapeHtml(smsSendtText(row));
-  const reminder = needsReminder(row);
+  const reminder = reminderState(row);
   const isArchived = !!row.cr175_lch_arkiveretdato;
   const canSendSms = id && !isArchived && !/^(afsluttet|udfyldt)$/i.test(statusLabel);
   const seSkemaLink = code ? `./kundesurvey.html?code=${encodeURIComponent(code)}&ro=1` : "#";
@@ -112,12 +133,12 @@ function rowHtml(row) {
   const customerLink = code ? `${window.location.origin}/kundesurvey.html?code=${encodeURIComponent(code)}` : "";
 
   return `
-    <tr class="clickableRow${reminder && !isArchived ? " needsReminder" : ""}${isArchived ? " archivedRow" : ""}" data-href="${escapeHtml(seSkemaLink)}"${
-      reminder ? ` title="Ikke besvaret ${daysSinceCreated(row)} dage efter oprettelse - send påmindelse"` : ""}>
+    <tr class="clickableRow${reminder ? ` ${reminder.rowClass}` : ""}${isArchived ? " archivedRow" : ""}" data-href="${escapeHtml(seSkemaLink)}"${
+      reminder ? ` title="${escapeHtml(reminder.title)}"` : ""}>
       <td><input type="checkbox" class="rowCheck" data-id="${escapeHtml(id || "")}" /></td>
       <td>${escapeHtml(customerName)}</td>
       <td>${escapeHtml(code)}</td>
-      <td>${statusPillHtml(row)}${reminder && !isArchived ? `<span class="pill reminder">${daysSinceCreated(row)} dage</span>` : ""}${
+      <td>${statusPillHtml(row)}${reminder ? `<span class="pill ${reminder.pillClass}">${reminder.days} dage</span>` : ""}${
         isArchived ? `<span class="pill archived" title="Arkiveret ${escapeHtml(fmtDateTime(row.cr175_lch_arkiveretdato))}">Arkiveret</span>` : ""}</td>
       <td>${fmtDateTime(row.createdon)}</td>
       <td>${jaNejHtml(row.cr175_lch_mailsendttidspunkt)}</td>
@@ -572,7 +593,7 @@ async function openSmsModal(instanceId) {
   $("smsText").value = "";
   $("smsTemplateHint").textContent = "";
   $("smsTemplateHint").classList.remove("warn");
-  $("smsMarkSent").checked = false;
+  $("smsMarkSent").checked = true;
   $("smsOwners").innerHTML = `<span class="hint">Henter ejere…</span>`;
   smsTemplates = [];
   smsTextOriginal = "";

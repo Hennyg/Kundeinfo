@@ -184,8 +184,23 @@
     tr.needsReminder:hover { background:#ffe9cc; }
     tr.needsReminder td:nth-child(2) { box-shadow: inset 4px 0 0 #e8710a; }
     .pill.reminder { background:#e8710a; color:#fff; margin-left:4px; white-space:nowrap; }
-    .legend { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:#666; }
+
+    /* SMS sendt - tæller dage siden SMS'en */
+    tr.smsSent { background:#eaf6ec; }
+    tr.smsSent:hover { background:#dcf0df; }
+    tr.smsSent td:nth-child(2) { box-shadow: inset 4px 0 0 #2e7d32; }
+    .pill.smsSent { background:#2e7d32; color:#fff; margin-left:4px; white-space:nowrap; }
+
+    /* SMS sendt for 14+ dage siden, stadig ikke besvaret */
+    tr.smsOverdue { background:#fdecea; }
+    tr.smsOverdue:hover { background:#fadbd8; }
+    tr.smsOverdue td:nth-child(2) { box-shadow: inset 4px 0 0 #b3261e; }
+    .pill.smsOverdue { background:#b3261e; color:#fff; margin-left:4px; white-space:nowrap; }
+
+    .legend { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:#666; flex-wrap:wrap; }
     .legend .swatch { width:14px; height:14px; border-radius:3px; background:#fff4e5; border-left:4px solid #e8710a; }
+    .legend .swatch.green { background:#eaf6ec; border-left-color:#2e7d32; margin-left:8px; }
+    .legend .swatch.red { background:#fdecea; border-left-color:#b3261e; margin-left:8px; }
 
     /* "Send SMS"-vindue */
     .smsModalBackdrop {
@@ -264,7 +279,11 @@
         <button id="btnClearFilters" class="btn clearFiltersBtn" type="button">Ryd filtre</button>
         <label class="archiveToggle"><input type="checkbox" id="showArchived" /> Vis arkiverede</label>
         <span id="filterCount" class="muted"></span>
-        <span class="legend"><span class="swatch"></span>Ikke besvaret 14+ dage efter oprettelse og ingen SMS sendt – send påmindelse</span>
+        <span class="legend">
+          <span class="swatch"></span>Ikke besvaret 14+ dage – send SMS
+          <span class="swatch green"></span>SMS sendt (dage siden SMS)
+          <span class="swatch red"></span>Ikke besvaret 14+ dage efter SMS
+        </span>
       </div>
 
       <div id="status" class="muted">Indlæser kundesurveys…</div>
@@ -350,7 +369,7 @@
       <div id="smsTemplateHint" class="hint"></div>
 
       <div class="checkRow">
-        <input id="smsMarkSent" type="checkbox" />
+        <input id="smsMarkSent" type="checkbox" checked />
         <label for="smsMarkSent" style="margin:0; font-weight:normal;">
           Registrér som "SMS sendt" på skemaet (lad være slået fra ved test)
         </label>
@@ -370,6 +389,6 @@
     requireAuth({ autoRedirect: true });
   </script>
 
-  <script type="module" src="./assets/adminoversigt.js?v=6"></script>
+  <script type="module" src="./assets/adminoversigt.js?v=7"></script>
 </body>
 </html>

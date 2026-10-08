@@ -332,7 +332,7 @@ const AVAILABLE_PLACEHOLDERS = [
   { kode: "kode", navn: "Kode", beskrivelse: "Skemaets kode, fx '111965'", sms: true },
   { kode: "link", navn: "Link", beskrivelse: "Link til selve spørgeskemaet kunden skal udfylde", sms: true },
   { kode: "mail", navn: "Mail (kun SMS)", beskrivelse: "Den mailadresse invitationen blev sendt til", sms: true },
-  { kode: "afsender", navn: "Afsender (kun SMS)", beskrivelse: "Fornavn på den der oprettede skemaet + '30506180 (Tryk 4)'", sms: true },
+  { kode: "afsender", navn: "Afsender (kun SMS)", beskrivelse: "Fornavn på den der oprettede skemaet + 'Tel: 30506180 (Tryk 4)'", sms: true },
   { kode: "afsendernavn", navn: "Afsendernavn", beskrivelse: "Navnet på den admin-bruger der sender mailen (til signatur)" },
   { kode: "kundeemail", navn: "Kundens e-mail", beskrivelse: "Fra Uniconta debitor-data" },
   { kode: "telefon", navn: "Telefon", beskrivelse: "Fra Uniconta debitor-data" },
