@@ -122,7 +122,11 @@ module.exports = async function (context, req) {
     const code = String(req?.body?.code || "").trim();
     // Bygges altid på serveren (se kommentar øverst) - req.body.link ignoreres.
     const link = code ? buildCustomerLink(code) : "";
-    const customerName = String(req?.body?.customerName || "").trim();
+    // customerName kommer som "Navn (kundenummer)" - {{kundenavn}} i mailen
+    // skal kun være navnet.
+    const customerName = String(req?.body?.customerName || "")
+      .replace(/\s*\([^)]*\)\s*$/, "")
+      .trim();
     const customerNumber = String(req?.body?.customerNumber || "").trim();
     const instanceId = String(req?.body?.instanceId || "").trim();
     const to = String(req?.body?.to || "").trim();
