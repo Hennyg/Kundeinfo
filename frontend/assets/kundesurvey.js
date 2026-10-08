@@ -1494,7 +1494,7 @@ function buildAreaSummary(system, entries) {
 // Afdelinger der kan vælges som modtagere af opsummeringen (checkbokse
 // øverst til venstre i opsummeringsvinduet).
 const SUMMARY_RECIPIENT_GROUPS = [
-  { key: "salg", label: "Salgsafdelingen", email: "alle-salg@lcherrup.dk" },
+  { key: "salg", label: "Salgsafdelingen", email: "allesalg@lcherrup.dk" },
   { key: "handover", label: "Produkt-handover", email: "Produkt-Handover@lcherrup.dk" },
   { key: "it", label: "IT", email: "it-afd@lcherrup.dk" }
 ];
