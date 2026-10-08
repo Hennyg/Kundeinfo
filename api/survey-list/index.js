@@ -18,14 +18,21 @@ module.exports = async function (context, req) {
   try {
     const top = Math.min(Math.max(parseInt(req.query.top || "50", 10), 1), 500);
     const kundenummer = String(req.query.kundenummer || "").trim();
+    // Arkiverede skemaer (cr175_lch_arkiveretdato udfyldt) udelades, medmindre
+    // includeArchived=1 - så de heller ikke æder af $top-grænsen.
+    const includeArchived = String(req.query.includeArchived || "") === "1";
 
-    const filterPart = kundenummer
-      ? `&$filter=${encodeURIComponent(`cr175_lch_kundenummer eq '${escODataString(kundenummer)}'`)}`
+    const filters = [];
+    if (kundenummer) filters.push(`cr175_lch_kundenummer eq '${escODataString(kundenummer)}'`);
+    if (!includeArchived) filters.push("cr175_lch_arkiveretdato eq null");
+
+    const filterPart = filters.length
+      ? `&$filter=${encodeURIComponent(filters.join(" and "))}`
       : "";
 
     const url =
       `cr175_lch_kundeinfo_kundeundersoegelses` +
-      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kundenavn,cr175_lch_kundenummer,cr175_lch_kode,cr175_lch_udloebstidspunkt,cr175_lch_nystatus,cr175_lch_mailsendttidspunkt,cr175_lch_smssendttidspunkt,createdon` +
+      `?$select=cr175_lch_kundeinfo_kundeundersoegelseid,cr175_lch_kundenavn,cr175_lch_kundenummer,cr175_lch_kode,cr175_lch_udloebstidspunkt,cr175_lch_nystatus,cr175_lch_mailsendttidspunkt,cr175_lch_smssendttidspunkt,cr175_lch_arkiveretdato,createdon` +
       `&$orderby=createdon desc` +
       filterPart +
       `&$top=${top}`;

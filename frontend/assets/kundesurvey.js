@@ -1593,11 +1593,11 @@ function buildAreaEmailHtml(system, entries, subjectPrefix, introHtml = "") {
 
   return `
     <div style="font-family:'Segoe UI', Arial, sans-serif; max-width:620px; margin:0 auto;">
+      ${introHtml}
       <div style="background:#1f6c7a; color:#fff; padding:16px 22px; border-radius:10px 10px 0 0;">
         <div style="font-size:16px; font-weight:700;">${escapeHtml(subjectPrefix)}</div>
       </div>
       <div style="border:1px solid #e3e3e3; border-top:none; border-radius:0 0 10px 10px; padding:18px 22px; background:#fff;">
-        ${introHtml}
         ${groupsHtml}
       </div>
     </div>
@@ -1615,7 +1615,7 @@ async function sendAreaMail(system, entries, btn, recipients) {
   const kundenavn = cleanCustomerName(DATA?.customerName);
   const subjectPrefix = `Spørgeskema ${DATA?.code || ""} – ${kundenavn}`;
   const introHtml = `
-    <p style="margin:0 0 16px; font-size:14px; line-height:1.5; color:#222;">
+    <p style="margin:0 0 16px; font-size:14px; line-height:1.5; color:#222; font-family:'Segoe UI', Arial, sans-serif;">
       Vi har fået svar tilbage fra ${escapeHtml(kundenavn)}.<br>
       De som har opgaver i den forbindelse, skal opdatere de systemer som de er ansvarlige for.
     </p>`;
@@ -1634,7 +1634,11 @@ async function sendAreaMail(system, entries, btn, recipients) {
         code: DATA?.code || ""
       })
     });
-    if (btn) { btn.textContent = "Sendt ✔"; setTimeout(() => { btn.textContent = "Send mail"; btn.disabled = false; }, 2000); }
+    if (btn) {
+      const original = btn.dataset.label || "Send";
+      btn.textContent = "Sendt ✔";
+      setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 2000);
+    }
     return true;
   } catch (e) {
     console.error(e);
@@ -1694,7 +1698,9 @@ async function showChangesSummary() {
                  style="border:1px solid #ccc; border-radius:6px; padding:6px 10px; font-size:13px; width:240px;" />
         ` : ""}
         <button type="button" class="btn" id="closeSummaryTopBtn">Luk</button>
-        ${hasContent ? `<button type="button" class="btn primary" id="sendSummaryBtn">Send</button>` : ""}
+        ${hasContent ? `<button type="button" class="btn primary" id="sendSummaryBtn" data-label="Send">Send</button>` : ""}
+        ${hasContent ? `<button type="button" class="btn primary" id="sendArchiveSummaryBtn" data-label="Send og arkiver"
+                         title="Sender mailen og arkiverer skemaet, så det ikke længere vises på oversigten">Send og arkiver</button>` : ""}
       </div>
     </div>
     <div id="summarySendStatus" class="muted" style="font-size:13px; margin:-4px 0 10px;"></div>
@@ -1710,8 +1716,9 @@ async function showChangesSummary() {
 
   document.getElementById("closeSummaryTopBtn")?.addEventListener("click", () => hide(ui.changesModal));
 
-  document.getElementById("sendSummaryBtn")?.addEventListener("click", async (e) => {
-    const btn = e.currentTarget;
+  // Fælles for "Send" og "Send og arkiver". archive = true arkiverer skemaet
+  // (cr175_lch_arkiveretdato via /api/survey-archive), når mailen er sendt.
+  const sendSummary = async (btn, archive) => {
     const toInput = document.getElementById("summaryToInput");
     const statusEl = document.getElementById("summarySendStatus");
 
@@ -1744,7 +1751,24 @@ async function showChangesSummary() {
     } catch (err) {
       console.error("Kunne ikke sætte status til Afsluttet:", err);
     }
-  });
+
+    if (archive) {
+      try {
+        await fetchJson("/api/survey-archive", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: DATA?.code || "", archive: true })
+        });
+        if (statusEl) statusEl.textContent = `Sendt til ${[...new Set(recipients)].join(", ")} – skemaet er arkiveret ✔`;
+      } catch (err) {
+        console.error("Kunne ikke arkivere skemaet:", err);
+        if (statusEl) statusEl.textContent = "Mailen er sendt, men skemaet kunne ikke arkiveres - prøv igen eller se konsollen.";
+      }
+    }
+  };
+
+  document.getElementById("sendSummaryBtn")?.addEventListener("click", (e) => sendSummary(e.currentTarget, false));
+  document.getElementById("sendArchiveSummaryBtn")?.addEventListener("click", (e) => sendSummary(e.currentTarget, true));
 
   show(ui.changesModal);
 }

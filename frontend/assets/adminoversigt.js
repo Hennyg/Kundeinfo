@@ -105,18 +105,20 @@ function rowHtml(row) {
   // "Send SMS" med "Registrér som SMS sendt" slået til).
   const smsSendtHtml = escapeHtml(smsSendtText(row));
   const reminder = needsReminder(row);
-  const canSendSms = id && !/^(afsluttet|udfyldt)$/i.test(statusLabel);
+  const isArchived = !!row.cr175_lch_arkiveretdato;
+  const canSendSms = id && !isArchived && !/^(afsluttet|udfyldt)$/i.test(statusLabel);
   const seSkemaLink = code ? `./kundesurvey.html?code=${encodeURIComponent(code)}&ro=1` : "#";
   const prefillLink = id ? `./admincreate.html?instanceId=${encodeURIComponent(id)}` : "#";
   const customerLink = code ? `${window.location.origin}/kundesurvey.html?code=${encodeURIComponent(code)}` : "";
 
   return `
-    <tr class="clickableRow${reminder ? " needsReminder" : ""}" data-href="${escapeHtml(seSkemaLink)}"${
+    <tr class="clickableRow${reminder && !isArchived ? " needsReminder" : ""}${isArchived ? " archivedRow" : ""}" data-href="${escapeHtml(seSkemaLink)}"${
       reminder ? ` title="Ikke besvaret ${daysSinceCreated(row)} dage efter oprettelse - send påmindelse"` : ""}>
       <td><input type="checkbox" class="rowCheck" data-id="${escapeHtml(id || "")}" /></td>
       <td>${escapeHtml(customerName)}</td>
       <td>${escapeHtml(code)}</td>
-      <td>${statusPillHtml(row)}${reminder ? `<span class="pill reminder">${daysSinceCreated(row)} dage</span>` : ""}</td>
+      <td>${statusPillHtml(row)}${reminder && !isArchived ? `<span class="pill reminder">${daysSinceCreated(row)} dage</span>` : ""}${
+        isArchived ? `<span class="pill archived" title="Arkiveret ${escapeHtml(fmtDateTime(row.cr175_lch_arkiveretdato))}">Arkiveret</span>` : ""}</td>
       <td>${fmtDateTime(row.createdon)}</td>
       <td>${jaNejHtml(row.cr175_lch_mailsendttidspunkt)}</td>
       <td>${udfyldtAt}</td>
@@ -133,6 +135,9 @@ function rowHtml(row) {
             : ""}
           ${canSendSms
             ? `<a class="tag sendSmsBtn" href="#" data-id="${escapeHtml(id)}">Send SMS</a>`
+            : ""}
+          ${isArchived && id
+            ? `<a class="tag unarchiveBtn" href="#" data-id="${escapeHtml(id)}">Fjern fra arkiv</a>`
             : ""}
         </div>
       </td>
@@ -323,6 +328,29 @@ function renderTable(rows) {
       const original = btn.textContent;
       btn.textContent = ok ? "Kopieret ✔" : "Kunne ikke kopiere";
       setTimeout(() => { btn.textContent = original; }, 1500);
+    });
+  });
+
+  tbody.querySelectorAll(".unarchiveBtn").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      btn.style.pointerEvents = "none";
+      try {
+        const r = await fetch("/api/survey-archive", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ instanceId: btn.dataset.id, archive: false })
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.message || data.error || `${r.status}`);
+        showToast("Skemaet er fjernet fra arkivet ✔", "success");
+        await load();
+      } catch (err) {
+        console.error("survey-archive fejl:", err);
+        showToast(`Kunne ikke fjerne fra arkiv: ${err.message}`, "error");
+        btn.style.pointerEvents = "";
+      }
     });
   });
 
@@ -616,7 +644,9 @@ async function load() {
   table.style.display = "none";
 
   try {
-    const r = await fetch("/api/survey-list?top=200", { cache: "no-store" });
+    // Arkiverede hentes kun, når "Vis arkiverede" er slået til.
+    const includeArchived = $("showArchived")?.checked ? "&includeArchived=1" : "";
+    const r = await fetch(`/api/survey-list?top=200${includeArchived}`, { cache: "no-store" });
     const text = await r.text();
     const data = text ? JSON.parse(text) : {};
 
@@ -627,7 +657,9 @@ async function load() {
     allRows = data.value || [];
 
     if (!allRows.length) {
-      status.textContent = "Ingen kundesurveys oprettet endnu.";
+      status.textContent = $("showArchived")?.checked
+        ? "Ingen kundesurveys oprettet endnu."
+        : "Ingen aktive kundesurveys. Slå \"Vis arkiverede\" til for at se arkiverede.";
       return;
     }
 
@@ -703,6 +735,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
   $("btnClearFilters")?.addEventListener("click", clearFilters);
+  $("showArchived")?.addEventListener("change", load);
 
   // Klik et sted på en række (uden for checkbox/handlinger) åbner "Se skema".
   $("surveyTable")?.querySelector("tbody")?.addEventListener("click", (e) => {

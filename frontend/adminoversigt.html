@@ -12,6 +12,22 @@
     table { width:100%; border-collapse: collapse; }
     th, td { border-bottom:1px solid #eee; padding:8px; text-align:left; }
     th { white-space:nowrap; background:#fafafa; }
+
+    /* Tabelhovedet (overskrifter + filterrække) bliver stående øverst,
+       når der scrolles ned gennem tabellen. */
+    #surveyTable thead {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      box-shadow: 0 2px 0 #eee;
+    }
+    #surveyTable thead th { background:#fafafa; }
+    #surveyTable thead tr.filterRow th { background:#fff; }
+
+    tr.archivedRow td { color:#888; }
+    .pill.archived { background:#eceff1; color:#546e7a; margin-left:4px; }
+    .toolbar .archiveToggle { display:inline-flex; align-items:center; gap:6px; font-size:13px; white-space:nowrap; cursor:pointer; }
+    .toolbar .archiveToggle input { margin:0; }
     .muted { color:#666; }
     .pill { padding:2px 8px; border-radius:999px; font-size:12px; }
     .pill.active { background:#e6f4ea; color:#137333; }
@@ -245,6 +261,7 @@
       <div class="toolbar">
         <input type="search" id="searchInput" placeholder="Søg på kundenavn eller kode…" autocomplete="off" />
         <button id="btnClearFilters" class="btn clearFiltersBtn" type="button">Ryd filtre</button>
+        <label class="archiveToggle"><input type="checkbox" id="showArchived" /> Vis arkiverede</label>
         <span id="filterCount" class="muted"></span>
         <span class="legend"><span class="swatch"></span>Ikke besvaret 14+ dage efter oprettelse og ingen SMS sendt – send påmindelse</span>
       </div>
@@ -352,6 +369,6 @@
     requireAuth({ autoRedirect: true });
   </script>
 
-  <script type="module" src="./assets/adminoversigt.js?v=4"></script>
+  <script type="module" src="./assets/adminoversigt.js?v=5"></script>
 </body>
 </html>
