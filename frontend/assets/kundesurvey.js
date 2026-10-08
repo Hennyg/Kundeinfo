@@ -1629,7 +1629,8 @@ async function sendAreaMail(system, entries, btn, recipients) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         to,
-        subject: `Kundeinfo - ${kundenavn} - Opsummering`,
+        // Emnet har kundenummeret med (brødteksten har kun navnet).
+        subject: `Kundeinfo - ${kundenavn}${DATA?.kundenummer ? ` (${DATA.kundenummer})` : ""} - Opsummering`,
         html,
         code: DATA?.code || ""
       })
