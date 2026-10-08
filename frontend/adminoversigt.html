@@ -254,6 +254,7 @@
     <div class="card" style="margin-top:16px;">
       <div class="btnrow" style="margin-bottom:10px;">
         <a href="./admincreate.html" class="btn primary">Opret nyt skema</a>
+        <button id="btnArchiveSelected" class="btn" type="button" disabled>Arkivér valgte</button>
         <button id="btnDeleteSelected" class="btn danger" type="button" disabled>Slet valgte</button>
         <span id="selectedCount" class="muted"></span>
       </div>
@@ -369,6 +370,6 @@
     requireAuth({ autoRedirect: true });
   </script>
 
-  <script type="module" src="./assets/adminoversigt.js?v=5"></script>
+  <script type="module" src="./assets/adminoversigt.js?v=6"></script>
 </body>
 </html>

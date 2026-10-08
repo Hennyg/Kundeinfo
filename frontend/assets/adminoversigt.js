@@ -139,6 +139,9 @@ function rowHtml(row) {
           ${isArchived && id
             ? `<a class="tag unarchiveBtn" href="#" data-id="${escapeHtml(id)}">Fjern fra arkiv</a>`
             : ""}
+          ${!isArchived && id
+            ? `<a class="tag archiveBtn" href="#" data-id="${escapeHtml(id)}">Arkivér</a>`
+            : ""}
         </div>
       </td>
     </tr>
@@ -170,12 +173,51 @@ function updateSelectionUi() {
   const checked = checks.filter(c => c.checked);
 
   $("btnDeleteSelected").disabled = checked.length === 0;
+  if ($("btnArchiveSelected")) $("btnArchiveSelected").disabled = checked.length === 0;
   $("selectedCount").textContent = checked.length ? `${checked.length} valgt` : "";
 
   const checkAll = $("checkAll");
   if (checkAll) {
     checkAll.checked = checks.length > 0 && checked.length === checks.length;
     checkAll.indeterminate = checked.length > 0 && checked.length < checks.length;
+  }
+}
+
+// Arkiverer (eller gendanner) ét eller flere skemaer via /api/survey-archive.
+async function setArchived(ids, archive) {
+  const r = await fetch("/api/survey-archive", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ instanceIds: ids, archive })
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok && r.status !== 207) throw new Error(data.message || data.error || `${r.status}`);
+  return (data.results || []).filter(x => !x.ok);
+}
+
+async function archiveSelected() {
+  const ids = [...document.querySelectorAll(".rowCheck:checked")]
+    .map(c => c.dataset.id)
+    .filter(Boolean);
+  if (!ids.length) return;
+
+  if (!confirm(`Arkivér ${ids.length} valgte kundesurvey(s)? De kan findes igen med "Vis arkiverede".`)) return;
+
+  const btn = $("btnArchiveSelected");
+  btn.disabled = true;
+  try {
+    const failed = await setArchived(ids, true);
+    if (failed.length) {
+      console.error("survey-archive fejl for:", failed);
+      showToast(`${ids.length - failed.length} arkiveret – ${failed.length} fejlede (se konsollen)`, "error");
+    } else {
+      showToast(`${ids.length} kundesurvey${ids.length === 1 ? "" : "s"} arkiveret ✔`, "success");
+    }
+    await load();
+  } catch (e) {
+    console.error("survey-archive fejl:", e);
+    showToast(`Kunne ikke arkivere: ${e.message}`, "error");
+    btn.disabled = false;
   }
 }
 
@@ -331,24 +373,24 @@ function renderTable(rows) {
     });
   });
 
-  tbody.querySelectorAll(".unarchiveBtn").forEach(btn => {
+  // "Arkivér" (fx et skema kunden aldrig svarer på, heller ikke efter SMS)
+  // og "Fjern fra arkiv" på den enkelte række.
+  tbody.querySelectorAll(".archiveBtn, .unarchiveBtn").forEach(btn => {
     btn.addEventListener("click", async (e) => {
       e.preventDefault();
       e.stopPropagation();
+      const archive = btn.classList.contains("archiveBtn");
+      if (archive && !confirm("Arkivér dette skema? Det kan findes igen med \"Vis arkiverede\".")) return;
+
       btn.style.pointerEvents = "none";
       try {
-        const r = await fetch("/api/survey-archive", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ instanceId: btn.dataset.id, archive: false })
-        });
-        const data = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(data.message || data.error || `${r.status}`);
-        showToast("Skemaet er fjernet fra arkivet ✔", "success");
+        const failed = await setArchived([btn.dataset.id], archive);
+        if (failed.length) throw new Error(failed[0].error || "ukendt fejl");
+        showToast(archive ? "Skemaet er arkiveret ✔" : "Skemaet er fjernet fra arkivet ✔", "success");
         await load();
       } catch (err) {
         console.error("survey-archive fejl:", err);
-        showToast(`Kunne ikke fjerne fra arkiv: ${err.message}`, "error");
+        showToast(`${archive ? "Kunne ikke arkivere" : "Kunne ikke fjerne fra arkiv"}: ${err.message}`, "error");
         btn.style.pointerEvents = "";
       }
     });
@@ -696,6 +738,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   $("btnDeleteSelected")?.addEventListener("click", deleteSelected);
+  $("btnArchiveSelected")?.addEventListener("click", archiveSelected);
 
   $("smsText")?.addEventListener("input", updateSmsCount);
   $("smsTemplate")?.addEventListener("change", onSmsTemplateChange);
