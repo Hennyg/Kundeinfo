@@ -132,6 +132,29 @@
     #btnSubmit:disabled { opacity:.6; cursor:default; }
     .submitRow #status { text-align:center; }
 
+    /* "Evt. andre modtagere" - medarbejdersøgning i opsummeringsvinduet */
+    .empPicker { position:relative; width:260px; }
+    .empPicker input {
+      width:100%; box-sizing:border-box; border:1px solid #ccc; border-radius:6px;
+      padding:6px 10px; font-size:13px;
+    }
+    .empResults {
+      position:absolute; top:100%; left:0; right:0; z-index:50; margin-top:2px;
+      background:#fff; border:1px solid #ccc; border-radius:6px;
+      box-shadow:0 6px 16px rgba(0,0,0,.15); max-height:260px; overflow:auto;
+    }
+    .empResult { padding:6px 10px; font-size:13px; cursor:pointer; display:flex; flex-direction:column; }
+    .empResult.active, .empResult[data-idx]:hover { background:#eef6f7; }
+    .empResult .muted { font-size:12px; }
+    .recipChips { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
+    .recipChip {
+      display:inline-flex; align-items:center; gap:4px; background:#e6f0f2; color:#1f6c7a;
+      border-radius:12px; padding:2px 4px 2px 10px; font-size:12px;
+    }
+    .recipChip button {
+      border:none; background:none; color:#1f6c7a; cursor:pointer; font-size:14px; line-height:1; padding:0 4px;
+    }
+
     /* Prefill-værdi – markeret ramme, samme stil som knapper, 20% grå baggrund */
     .prefill-box {
       display:inline-block;
@@ -362,6 +385,6 @@
 
   </div>
 
-  <script type="module" src="./assets/kundesurvey.js?v=12"></script>
+  <script type="module" src="./assets/kundesurvey.js?v=13"></script>
 </body>
 </html>

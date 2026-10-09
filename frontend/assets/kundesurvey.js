@@ -1502,8 +1502,140 @@ const SUMMARY_RECIPIENT_GROUPS = [
     cc: ["avf@lcherrup.dk"]
   },
   { key: "handover", label: "Produkt-handover", to: ["Produkt-Handover@lcherrup.dk"], cc: [] },
-  { key: "it", label: "IT", to: ["it-afd@lcherrup.dk"], cc: [] }
+  { key: "it", label: "IT", to: ["it-afd@lcherrup.dk"], cc: [] },
+  // Økonomi er kun markeret som standard, når kunden har ændret noget under
+  // Leverandørservice (se leverandorserviceChanged()).
+  { key: "oekonomi", label: "Økonomi", to: ["mhn@lcherrup.dk"], cc: [], onlyOnLeverandorChange: true }
 ];
+
+function isLeverandorserviceEntry(e) {
+  const t = `${e?.group?.title || ""} ${e?.question || ""}`.toLowerCase();
+  return t.includes("leverandørservice") || t.includes("leverandorservice");
+}
+
+// Har kunden rettet, tilføjet, slettet eller skrevet en note til noget under
+// Leverandørservice?
+function leverandorserviceChanged(entries) {
+  return (entries || []).some(e => isLeverandorserviceEntry(e) &&
+    (e.changed || e.addedByCustomer || e.kind === "note" || e.kind === "removed"));
+}
+
+/* ---------- "Evt. andre modtagere": søgning i medarbejderlisten ----------
+   Søger i Entra via /api/employees-search (kun aktive @lcherrup.dk-brugere).
+   Valgte medarbejdere vises som "chips" og sendes med i Til-feltet. En
+   fuld mailadresse kan også skrives og tilføjes med Enter eller komma. */
+
+let summaryExtraRecipients = []; // [{ mail, name }]
+
+function renderExtraRecipientChips() {
+  const box = document.getElementById("summaryExtraChips");
+  if (!box) return;
+  box.innerHTML = summaryExtraRecipients.map((r, i) => `
+    <span class="recipChip" title="${escapeHtml(r.mail)}">
+      ${escapeHtml(r.name || r.mail)}
+      <button type="button" data-remove-recip="${i}" aria-label="Fjern">×</button>
+    </span>`).join("");
+}
+
+function addExtraRecipient(mail, name) {
+  const m = String(mail || "").trim();
+  if (!m || !m.includes("@")) return;
+  if (summaryExtraRecipients.some(r => r.mail.toLowerCase() === m.toLowerCase())) return;
+  summaryExtraRecipients.push({ mail: m, name: String(name || "").trim() });
+  renderExtraRecipientChips();
+}
+
+function initEmployeePicker() {
+  const input = document.getElementById("summaryToInput");
+  const list = document.getElementById("summaryEmployeeResults");
+  const chips = document.getElementById("summaryExtraChips");
+  if (!input || !list) return;
+
+  let timer = null;
+  let seq = 0;
+  let results = [];
+  let active = -1;
+
+  const close = () => { list.classList.add("hidden"); list.innerHTML = ""; active = -1; };
+
+  const render = () => {
+    if (!results.length) {
+      list.innerHTML = `<div class="empResult muted">Ingen medarbejdere fundet</div>`;
+    } else {
+      list.innerHTML = results.map((u, i) => `
+        <div class="empResult${i === active ? " active" : ""}" data-idx="${i}">
+          <strong>${escapeHtml(u.displayName)}</strong>
+          <span class="muted">${escapeHtml(u.mail)}${u.jobTitle ? ` · ${escapeHtml(u.jobTitle)}` : ""}</span>
+        </div>`).join("");
+    }
+    list.classList.remove("hidden");
+  };
+
+  const pick = (u) => {
+    addExtraRecipient(u.mail, u.displayName);
+    input.value = "";
+    close();
+    input.focus();
+  };
+
+  input.addEventListener("input", () => {
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 2) { close(); return; }
+    timer = setTimeout(async () => {
+      const my = ++seq;
+      try {
+        const data = await fetchJson(`/api/employees-search?q=${encodeURIComponent(q)}`, { cache: "no-store" });
+        if (my !== seq) return;
+        results = Array.isArray(data?.users) ? data.users : [];
+        active = results.length ? 0 : -1;
+        render();
+      } catch (e) {
+        console.error("employees-search fejl:", e);
+        if (my !== seq) return;
+        results = [];
+        list.innerHTML = `<div class="empResult muted">Søgningen fejlede – skriv evt. hele mailadressen</div>`;
+        list.classList.remove("hidden");
+      }
+    }, 250);
+  });
+
+  input.addEventListener("keydown", (e) => {
+    const open = !list.classList.contains("hidden") && results.length;
+    if (e.key === "ArrowDown" && open) {
+      e.preventDefault(); active = (active + 1) % results.length; render();
+    } else if (e.key === "ArrowUp" && open) {
+      e.preventDefault(); active = (active - 1 + results.length) % results.length; render();
+    } else if (e.key === "Enter" || e.key === "," || e.key === ";") {
+      if (open && active >= 0 && e.key === "Enter") {
+        e.preventDefault(); pick(results[active]);
+      } else if (input.value.includes("@")) {
+        e.preventDefault(); addExtraRecipient(input.value.replace(/[,;]/g, ""), ""); input.value = ""; close();
+      }
+    } else if (e.key === "Escape") {
+      close();
+    } else if (e.key === "Backspace" && !input.value && summaryExtraRecipients.length) {
+      summaryExtraRecipients.pop(); renderExtraRecipientChips();
+    }
+  });
+
+  // mousedown (ikke click), så valget sker før input mister fokus.
+  list.addEventListener("mousedown", (e) => {
+    const row = e.target.closest(".empResult[data-idx]");
+    if (!row) return;
+    e.preventDefault();
+    pick(results[Number(row.dataset.idx)]);
+  });
+
+  input.addEventListener("blur", () => setTimeout(close, 150));
+
+  chips?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-remove-recip]");
+    if (!btn) return;
+    summaryExtraRecipients.splice(Number(btn.dataset.removeRecip), 1);
+    renderExtraRecipientChips();
+  });
+}
 
 function uniqueEmails(list) {
   const seen = new Set();
@@ -1697,6 +1829,8 @@ async function showChangesSummary() {
 
   const entries = [...fullEntries, ...noteEntries, ...removedEntries];
   const hasContent = entries.length > 0;
+  const levChanged = leverandorserviceChanged(entries);
+  summaryExtraRecipients = [];
 
   const system = "SalesForce"; // intern nøgle bevaret (se SYSTEM_DISPLAY_NAMES) - vises som "Opsummering"
   const { html: sectionHtml } = buildAreaSummary(system, entries);
@@ -1709,18 +1843,22 @@ async function showChangesSummary() {
           <strong style="font-size:13px;">Send til:</strong>
           ${SUMMARY_RECIPIENT_GROUPS.map(g => `
             <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-              <input type="checkbox" data-group="${escapeHtml(g.key)}" checked style="width:auto; margin:0;" />
+              <input type="checkbox" data-group="${escapeHtml(g.key)}"${!g.onlyOnLeverandorChange || levChanged ? " checked" : ""} style="width:auto; margin:0;" />
               <span title="${escapeHtml(`Til: ${g.to.join(", ")}${g.cc.length ? ` · Cc: ${g.cc.join(", ")}` : ""}`)}">
                 ${escapeHtml(g.label)}${g.label.includes("Til:") ? "" : ` <span class="muted">(${escapeHtml(g.to.join(", "))})</span>`}
               </span>
+              ${g.onlyOnLeverandorChange && levChanged ? `<span class="muted" style="font-size:12px;">– ændring i leverandørservice</span>` : ""}
             </label>`).join("")}
         ` : ""}
       </div>
-      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+      <div style="display:flex; align-items:flex-start; gap:8px; flex-wrap:wrap;">
         ${hasContent ? `
-          <input type="text" id="summaryToInput" value=""
-                 placeholder="Evt. andre modtagere (komma)"
-                 style="border:1px solid #ccc; border-radius:6px; padding:6px 10px; font-size:13px; width:240px;" />
+          <div class="empPicker">
+            <input type="text" id="summaryToInput" value="" autocomplete="off"
+                   placeholder="Evt. andre modtagere – søg medarbejder" />
+            <div id="summaryEmployeeResults" class="empResults hidden"></div>
+            <div id="summaryExtraChips" class="recipChips"></div>
+          </div>
         ` : ""}
         <button type="button" class="btn" id="closeSummaryTopBtn">Luk</button>
         ${hasContent ? `<button type="button" class="btn primary" id="sendSummaryBtn" data-label="Send">Send</button>` : ""}
@@ -1738,6 +1876,7 @@ async function showChangesSummary() {
   `;
 
   ui.changesModalBody.innerHTML = html;
+  initEmployeePicker();
 
   document.getElementById("closeSummaryTopBtn")?.addEventListener("click", () => hide(ui.changesModal));
 
@@ -1754,7 +1893,9 @@ async function showChangesSummary() {
     const recipients = {
       to: uniqueEmails([
         ...chosen.flatMap(g => g.to),
-        ...String(toInput?.value || "").split(/[,;]/)
+        ...summaryExtraRecipients.map(r => r.mail),
+        // En fuld adresse der er skrevet, men ikke tilføjet med Enter, kommer også med.
+        ...String(toInput?.value || "").split(/[,;]/).filter(x => x.includes("@"))
       ]),
       cc: uniqueEmails(chosen.flatMap(g => g.cc))
     };
