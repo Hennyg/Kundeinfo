@@ -1492,12 +1492,30 @@ function buildAreaSummary(system, entries) {
 // Pænere, selvstændig HTML-skabelon til selve mailen. Mail-klienter
 // ignorerer sidens eget stylesheet, så alt styling her er inline med vilje.
 // Afdelinger der kan vælges som modtagere af opsummeringen (checkbokse
-// øverst til venstre i opsummeringsvinduet).
+// øverst til venstre i opsummeringsvinduet). "to" kommer i Til-feltet,
+// "cc" i Cc-feltet. "label" er teksten ved checkboksen.
 const SUMMARY_RECIPIENT_GROUPS = [
-  { key: "salg", label: "Salgsafdelingen", email: "allesalg@lcherrup.dk" },
-  { key: "handover", label: "Produkt-handover", email: "Produkt-Handover@lcherrup.dk" },
-  { key: "it", label: "IT", email: "it-afd@lcherrup.dk" }
+  {
+    key: "salg",
+    label: "Salg (Til: Maja og Camilla. CC: Afke)",
+    to: ["mp@lcherrup.dk", "csa@lcherrup.dk"],
+    cc: ["avf@lcherrup.dk"]
+  },
+  { key: "handover", label: "Produkt-handover", to: ["Produkt-Handover@lcherrup.dk"], cc: [] },
+  { key: "it", label: "IT", to: ["it-afd@lcherrup.dk"], cc: [] }
 ];
+
+function uniqueEmails(list) {
+  const seen = new Set();
+  const out = [];
+  for (const raw of list || []) {
+    const e = String(raw || "").trim();
+    if (!e || seen.has(e.toLowerCase())) continue;
+    seen.add(e.toLowerCase());
+    out.push(e);
+  }
+  return out;
+}
 
 // customerName gemmes som "Navn (kundenummer)" - i mailens tekst og emne
 // skal kun navnet stå.
@@ -1608,8 +1626,11 @@ function buildAreaEmailHtml(system, entries, subjectPrefix, introHtml = "") {
 // Afsenderen bestemmes server-side (den bruger der er logget ind).
 // Modtagerne er de afkrydsede afdelinger + evt. adresser skrevet i feltet
 // (flere adskilles med komma).
+// recipients = { to: [...], cc: [...] }
 async function sendAreaMail(system, entries, btn, recipients) {
-  const to = [...new Set((recipients || []).map(x => String(x || "").trim()).filter(Boolean))];
+  const to = uniqueEmails(recipients?.to);
+  const toLower = new Set(to.map(e => e.toLowerCase()));
+  const cc = uniqueEmails(recipients?.cc).filter(e => !toLower.has(e.toLowerCase()));
   if (!to.length) return false;
 
   const kundenavn = cleanCustomerName(DATA?.customerName);
@@ -1629,6 +1650,7 @@ async function sendAreaMail(system, entries, btn, recipients) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         to,
+        cc,
         // Emnet har kundenummeret med (brødteksten har kun navnet).
         subject: `Kundeinfo - ${kundenavn}${DATA?.kundenummer ? ` (${DATA.kundenummer})` : ""} - Opsummering`,
         html,
@@ -1687,8 +1709,10 @@ async function showChangesSummary() {
           <strong style="font-size:13px;">Send til:</strong>
           ${SUMMARY_RECIPIENT_GROUPS.map(g => `
             <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-              <input type="checkbox" data-recipient="${escapeHtml(g.email)}" checked style="width:auto; margin:0;" />
-              ${escapeHtml(g.label)} <span class="muted">(${escapeHtml(g.email)})</span>
+              <input type="checkbox" data-group="${escapeHtml(g.key)}" checked style="width:auto; margin:0;" />
+              <span title="${escapeHtml(`Til: ${g.to.join(", ")}${g.cc.length ? ` · Cc: ${g.cc.join(", ")}` : ""}`)}">
+                ${escapeHtml(g.label)}${g.label.includes("Til:") ? "" : ` <span class="muted">(${escapeHtml(g.to.join(", "))})</span>`}
+              </span>
             </label>`).join("")}
         ` : ""}
       </div>
@@ -1723,17 +1747,24 @@ async function showChangesSummary() {
     const toInput = document.getElementById("summaryToInput");
     const statusEl = document.getElementById("summarySendStatus");
 
-    const recipients = [
-      ...[...document.querySelectorAll("#summaryRecipientGroups input[data-recipient]:checked")]
-        .map(cb => cb.dataset.recipient),
-      ...String(toInput?.value || "").split(/[,;]/).map(x => x.trim()).filter(Boolean)
-    ];
+    const chosen = [...document.querySelectorAll("#summaryRecipientGroups input[data-group]:checked")]
+      .map(cb => SUMMARY_RECIPIENT_GROUPS.find(g => g.key === cb.dataset.group))
+      .filter(Boolean);
 
-    if (!recipients.length) {
+    const recipients = {
+      to: uniqueEmails([
+        ...chosen.flatMap(g => g.to),
+        ...String(toInput?.value || "").split(/[,;]/)
+      ]),
+      cc: uniqueEmails(chosen.flatMap(g => g.cc))
+    };
+
+    if (!recipients.to.length) {
       if (statusEl) statusEl.textContent = "Vælg mindst én afdeling eller skriv en modtager.";
       return;
     }
-    if (statusEl) statusEl.textContent = `Sendes til: ${[...new Set(recipients)].join(", ")}`;
+    const recipientText = `${recipients.to.join(", ")}${recipients.cc.length ? ` (cc: ${recipients.cc.join(", ")})` : ""}`;
+    if (statusEl) statusEl.textContent = `Sendes til: ${recipientText}`;
 
     // sendAreaMail styrer selv knappens tekst/disabled-state (inkl. reset
     // efter et par sekunder) - vi lægger kun status-opdateringen til ovenpå.
@@ -1760,7 +1791,7 @@ async function showChangesSummary() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ code: DATA?.code || "", archive: true })
         });
-        if (statusEl) statusEl.textContent = `Sendt til ${[...new Set(recipients)].join(", ")} – skemaet er arkiveret ✔`;
+        if (statusEl) statusEl.textContent = `Sendt til ${recipientText} – skemaet er arkiveret ✔`;
       } catch (err) {
         console.error("Kunne ikke arkivere skemaet:", err);
         if (statusEl) statusEl.textContent = "Mailen er sendt, men skemaet kunne ikke arkiveres - prøv igen eller se konsollen.";

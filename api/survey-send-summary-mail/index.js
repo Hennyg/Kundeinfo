@@ -82,6 +82,11 @@ module.exports = async function (context, req) {
     // array (afdelinger valgt med checkbokse i opsummeringen).
     const rawTo = Array.isArray(req?.body?.to) ? req.body.to : String(req?.body?.to || "").split(/[,;]/);
     const to = [...new Set(rawTo.map(x => String(x || "").trim()).filter(Boolean))];
+    // "cc" på samme måde (fx Salg: Til Maja og Camilla, Cc Afke).
+    const rawCc = Array.isArray(req?.body?.cc) ? req.body.cc : String(req?.body?.cc || "").split(/[,;]/);
+    const toLower = new Set(to.map(x => x.toLowerCase()));
+    const cc = [...new Set(rawCc.map(x => String(x || "").trim()).filter(Boolean))]
+      .filter(x => !toLower.has(x.toLowerCase()));
     const subject = String(req?.body?.subject || "").trim();
     const html = String(req?.body?.html || "");
     const code = String(req?.body?.code || "").trim();
@@ -100,12 +105,13 @@ module.exports = async function (context, req) {
         subject,
         body: { contentType: "HTML", content: html },
         toRecipients: to.map(address => ({ emailAddress: { address } })),
+        ccRecipients: cc.map(address => ({ emailAddress: { address } })),
         attachments: attachment ? [attachment] : []
       },
       saveToSentItems: true
     });
 
-    return json(context, 200, { ok: true, from: fromMailbox, to, pdfAttached: !!attachment, pdfError });
+    return json(context, 200, { ok: true, from: fromMailbox, to, cc, pdfAttached: !!attachment, pdfError });
 
   } catch (err) {
     context.log.error("survey-send-summary-mail failed:", err);
