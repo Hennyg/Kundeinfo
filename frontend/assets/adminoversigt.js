@@ -83,6 +83,7 @@ function daysSince(value) {
 //                              ingen SMS sendt endnu
 //   "smsSent"       (grøn)   - SMS sendt, tæller dage siden SMS'en
 //   "smsOverdue"    (rød)    - SMS sendt for 14+ dage siden, stadig ikke besvaret
+//   "sinceCreated"  (neutral)- ingen SMS endnu, tæller dage siden oprettelse
 // Returnerer null, hvis rækken ikke skal markeres.
 function reminderState(row) {
   if (row.cr175_lch_arkiveretdato) return null;
@@ -102,6 +103,12 @@ function reminderState(row) {
   if (/^(afventer|set)$/i.test(status) && days >= REMINDER_DAYS) {
     return { rowClass: "needsReminder", pillClass: "reminder", days,
              title: `Ikke besvaret ${days} dage efter oprettelse - send påmindelse` };
+  }
+  // Ingen SMS endnu: vis neutralt antal dage siden oprettelse (ingen
+  // rækkefarve). Afløses af SMS-tælleren, når der er sendt SMS.
+  if (/^(afventer|set|igang)$/i.test(status)) {
+    return { rowClass: "", pillClass: "sinceCreated", days,
+             title: `Oprettet for ${days} dage siden` };
   }
   return null;
 }
@@ -133,7 +140,7 @@ function rowHtml(row) {
   const customerLink = code ? `${window.location.origin}/kundesurvey.html?code=${encodeURIComponent(code)}` : "";
 
   return `
-    <tr class="clickableRow${reminder ? ` ${reminder.rowClass}` : ""}${isArchived ? " archivedRow" : ""}" data-href="${escapeHtml(seSkemaLink)}"${
+    <tr class="clickableRow${reminder && reminder.rowClass ? ` ${reminder.rowClass}` : ""}${isArchived ? " archivedRow" : ""}" data-href="${escapeHtml(seSkemaLink)}"${
       reminder ? ` title="${escapeHtml(reminder.title)}"` : ""}>
       <td><input type="checkbox" class="rowCheck" data-id="${escapeHtml(id || "")}" /></td>
       <td>${escapeHtml(customerName)}</td>
